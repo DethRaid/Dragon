@@ -8,5 +8,6 @@ varying vec2 uv;
 varying vec2 uvLight;
 
 void main() {
-    gl_FragData[0] = color * texture2D( diffuse, uv ) * texture2D( lightmap, uvLight ).r;
+    gl_FragData[0] = color * texture2D( diffuse, uv );
+    gl_FragData[1] = vec4( 1, texture2D( lightmap, uvLight ).r, 0, 1 );
 }
