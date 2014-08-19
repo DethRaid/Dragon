@@ -16,11 +16,11 @@ varying vec3 normal;
 vec3 getGerstnerDisplacement( in vec3 pos ) {
     float waveTime = float( worldTime ) / 10;
     float sharpness = 0.2;
-    float amplitude = 0.05;
+    float amplitude = 0.025;
     vec2 direction = vec2( 10, 0 );
     float w = 10;
 
-    float qi = sharpness / (amplitude * w * 2);
+    float qi = sharpness / (amplitude * w);
     float qia = qi * amplitude;
     vec2 wd = w * direction;
     float dwd = dot( wd, pos.xz );
@@ -30,7 +30,7 @@ vec3 getGerstnerDisplacement( in vec3 pos ) {
     displacement.z += qia * direction.y * cos( dwd + waveTime );
     displacement.y -= amplitude * sin( dwd + waveTime ); 
 
-    /*amplitude = 0.025;
+    amplitude = 0.0125;
     direction = vec2( 9, 1 );
     w = 5;
 
@@ -41,7 +41,7 @@ vec3 getGerstnerDisplacement( in vec3 pos ) {
 
     displacement.x += qia * direction.x * cos( dwd + waveTime );
     displacement.z += qia * direction.y * cos( dwd + waveTime );
-    displacement.y -= amplitude * sin( dwd + waveTime );*/
+    displacement.y -= amplitude * sin( dwd + waveTime );
 
     return displacement;
 }
@@ -53,17 +53,33 @@ vec3 getGerstnerNormal( in vec3 pos ) {
     vec2 direction = vec2( 10, 0 );
     float w = 10;
 
-    float qi = sharpness / (amplitude * w * 2);
+    float qi = sharpness / (amplitude * w);
     float wa = w * amplitude;
     float s = sin( dot( w * direction, pos.xz ) + waveTime );
     float c = cos( dot( w * direction, pos.xz ) + waveTime );
     
     vec3 normalOut;
-    normalOut.x = -(direction.x * wa * c);
-    normalOut.y = -(direction.y * wa * c);
-    normalOut.z = 1 - (qi * wa * s);
+    normalOut.x = direction.x * wa * c;
+    normalOut.y = direction.y * wa * c;
+    normalOut.z = qi * wa * s;
     
-    return normalOut;
+    amplitude = 0.0125;
+    direction = vec2( 9, 1 );
+    w = 5;
+
+    qi = sharpness / (amplitude * w);
+    wa = w * amplitude;
+    s = sin( dot( w * direction, pos.xz ) + waveTime );
+    c = cos( dot( w * direction, pos.xz ) + waveTime );
+    
+    normalOut.x += direction.x * wa * c;
+    normalOut.y += direction.y * wa * c;
+    normalOut.z += qi * wa * s;
+    
+    normalOut.xy *= -1;
+    normalOut.z = 1 - normalOut.z;
+    
+    return normalize( normalOut );
 }
 
 void main() {
@@ -78,5 +94,5 @@ void main() {
 
     gl_Position = gl_ProjectionMatrix * (gbufferModelView * vec4( gerstnerPos, 1 ));
     
-    normal = getGerstnerNormal( viewPos );
+    normal = gl_NormalMatrix * getGerstnerNormal( viewPos );
 }
