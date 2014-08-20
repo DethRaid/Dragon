@@ -58,6 +58,7 @@ varying vec3 lightColor;
 
 struct Pixel {
     vec4 position;
+    vec4 screenPosition;
     vec3 color;
     vec3 normal;
     float reflectivity;
@@ -317,6 +318,7 @@ vec2 rand( int i ) {
 
 void calcSSAO( inout Pixel pixel ) {
     //SSAO from http://john-chapman-graphics.blogspot.com/2013/01/ssao-tutorial.html
+    //not that it works...
     float ssaoFac = 1.0;
     
     //OSX can deal with it
@@ -330,34 +332,34 @@ void calcSSAO( inout Pixel pixel ) {
     }
     
     vec3 rvec = texture2D( noisetex, coord ).xyz * 2.0 - 1.0;
-    vec3 tangent = normalize( rvec - pixel.normal * dot( rvec, pixel.normal ) );
-    vec3 bitangent = cross( pixel.normal, tangent );
-    mat3 tbn = mat3( tangent.x, bitangent.x, pixel.normal.x,
-                     tangent.y, bitangent.y, pixel.normal.y,
-                     tangent.z, bitangent.z, pixel.normal.z );
+    
+    float compareDepth = texture2D( gdepthtex, coord ).r;
+    float sampleDepth;
+    vec4 offset;
     
     for( int i = 0; i < SSAO_SAMPLES; i++ ) {
-        vec3 sample = tbn * kernel[i];
-        sample = sample * SSAO_RADIUS + pixel.position.xyz;
+        vec3 ray = kernel[i];
+        ray = ray * SSAO_RADIUS;
+        ray += pixel.position.xyz;
         
-        vec4 offset = vec4( sample, 1.0 );
+        offset = vec4( ray, 1.0 );
         offset = gbufferProjection * offset;
         offset.xy /= offset.w;
         offset.xy = offset.xy * 0.5 + 0.5;
         
-        float sampleDepth = texture2D( gdepth, offset.st ).r;
+        sampleDepth = texture2D( gdepthtex, offset.st ).r;
         
-        if( abs( pixel.position.z - sampleDepth ) < SSAO_MAX_DEPTH ) {
-            if( sampleDepth <= sample.z ) {
+        //if( abs( compareDepth - sampleDepth ) < SSAO_MAX_DEPTH ) {
+            if( sampleDepth <= ray.z ) {
                 ssaoFac -= 1.0 / SSAO_SAMPLES;
             }
-        }
+        //}
     }
     
     pixel.directLighting *= ssaoFac;
     pixel.torchLighting *= ssaoFac;
     
-    pixel.directLighting = vec3( ssaoFac );
+    //pixel.directLighting = vec3(  );
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
@@ -378,12 +380,12 @@ void main() {
         calcTorchLighting( pixel );
         calcAmbientLighting( pixel );
     
-        calcSSAO( pixel );
+        //calcSSAO( pixel );
     
         finalColor = calcLitColor( pixel );
     } else {
         finalColor = pixel.color;
     }
 
-    gl_FragData[3] = vec4( pixel.directLighting, 1 );
+    gl_FragData[3] = vec4( finalColor, 1 );
 }

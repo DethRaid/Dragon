@@ -94,5 +94,5 @@ void main() {
 
     gl_Position = gl_ProjectionMatrix * (gbufferModelView * vec4( gerstnerPos, 1 ));
     
-    normal = gl_NormalMatrix * getGerstnerNormal( viewPos );
+    normal = gl_NormalMatrix * gl_Normal;//getGerstnerNormal( viewPos );
 }
