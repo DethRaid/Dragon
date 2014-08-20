@@ -4,6 +4,7 @@
 #define MAX_BLUR_RADIUS         12  //The bigger the number, the less sharp reflections will be
 #define MAX_RAY_LENGTH          500 //How many pixels is a single ray allowed to travel?
 #define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
+#define MAX_REFLECTIVITY        0.8 //As this value approaches 1, so do all reflections
 
 uniform sampler2D gdepthdex;
 uniform sampler2D gdepth;
@@ -141,12 +142,20 @@ void doLightBounce( inout Pixel1 pixel ) {
     //mix with the color already in composite
     vec3 rayStart = vec3( coord, texture2D( gdepthtex, coord ).r );
     vec3 rayDir = pixel.normal;
-    vec3 maxRayLength = MAX_RAY_LENGTH
+    vec3 maxRayLength = MAX_RAY_LENGTH * (1 - rayStart.z) * (1 - pixel.smoothness);
     
-    vec2 hitUV = castRay( rayStart, rayDir, 
+    vec2 hitUV = castRay( rayStart, rayDir, maxRayLen );
     vec3 hitColor;
-    hitColor = blurArea( hitUV, 
-    pixel.color = pixel.color * 0.5 + hitColor * 0.5;
+    if( hitUV.s > 0 && hitUV.s < 1 && hitUV.t > 0 && hitUV.t < 1 ) {
+        float maxDepthDifference = (1 - pixel.smoothness) * MAX_DEPTH_DIFFERENCE;
+        float blurRadius = (1 - pixel.smoothness) * MAX_BLUR_RADIUS;
+        hitColor = blurArea( hitUV, blurRadius, maxDepthDifference );
+    } else {
+        hitColor = vec3( 0.529, 0.808, 0.922 );
+    }
+    
+    pixel.reflectivity *= MAX_REFLECTIVITY;
+    pixel.color = pixel.color * (1 - pixel.reflectivity) + hitColor * pixel.reflectivity;
 }
 
 void main() {
