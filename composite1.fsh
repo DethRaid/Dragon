@@ -6,10 +6,16 @@
 #define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
 #define MAX_REFLECTIVITY        0.8 //As this value approaches 1, so do all reflections
 
-uniform sampler2D gdepthdex;
-uniform sampler2D gdepth;
+uniform sampler2D gdepthtex;
+uniform sampler2D gaux2;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
+
+uniform vec3 cameraPosition;
+uniform mat4 gbufferModelView;
+uniform mat4 gbufferProjection;
+uniform mat4 gbufferModelViewInverse;
+uniform mat4 gbufferProjectionInverse;
 
 varying vec2 coord;
 
@@ -19,15 +25,15 @@ struct Pixel1 {
     vec3 normal;
     bool skipLighting;
     float reflectivity;
-    float smootheess;
-}
+    float smoothness;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Helper Functions                             //
 ///////////////////////////////////////////////////////////////////////////////
 //Credit to Sonic Ether for depth, normal, and positions
 
-float getDepth(  vec2 coord ) {	
+float getDepth( vec2 coord ) {	
     return texture2D( gdepthtex, coord ).r;
 }
 
@@ -50,11 +56,11 @@ vec3 getColor() {
 }
 
 bool shouldSkipLighting() {
-    return texture2D( gdepth, coord ).r > 0.5;
+    return texture2D( gaux2, coord ).r > 0.5;
 }
 
 float getSmoothness() {
-    return texture2D( gdepth, coord ).a;
+    return texture2D( gaux2, coord ).a;
 }
 
 vec3 getNormal() {
@@ -71,7 +77,7 @@ float getReflectivity() {
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
 
-void fillPixelStruct( inout Pixel pixel ) {
+void fillPixelStruct( inout Pixel1 pixel ) {
     pixel.position =        getWorldSpacePosition();
     pixel.normal =          getNormal();
     pixel.color =           getColor();
@@ -119,7 +125,7 @@ vec3 blurArea( in vec2 center, in int blurRadius, in float maxDepthDifference ) 
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
 vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin + direction;
-    while( texture2D( gdepthtex, curPos.st ).r > curPos.z ) {
+    /*while( texture2D( gdepthtex, curPos.st ).r > curPos.z ) {
         curPos += direction;
         if( length( curPos ) > maxDist ) {
             return vec2( -1, -1 );
@@ -128,11 +134,12 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
             return curPos.st;
         }
     }
-    if( curPos.z - texture2D( gdepthtex, curPos.st ) < maxDist ) {
+    if( curPos.z - texture2D( gdepthtex, curPos.st ).r < maxDist ) {
         return curPos.st;
     } else {
         return vec2( -1, -1 );
-    }
+    }*/
+    return vec2( curPos.st );
 }
 
 //This function simulates a single bounce of light, because who needs framerate when you have #swag?
@@ -141,26 +148,31 @@ void doLightBounce( inout Pixel1 pixel ) {
     //get the blur at that point
     //mix with the color already in composite
     vec3 rayStart = vec3( coord, texture2D( gdepthtex, coord ).r );
-    vec3 rayDir = pixel.normal;
-    vec3 maxRayLength = MAX_RAY_LENGTH * (1 - rayStart.z) * (1 - pixel.smoothness);
+    vec3 rayDir = pixel.normal;//(gbufferProjection * vec4( pixel.normal, 0 )).xyz;
+    float maxRayLength = MAX_RAY_LENGTH * (1 - rayStart.z) * (1 - pixel.smoothness);
     
-    vec2 hitUV = castRay( rayStart, rayDir, maxRayLen );
+    vec2 hitUV = castRay( rayStart, rayDir, maxRayLength );
     vec3 hitColor;
     if( hitUV.s > 0 && hitUV.s < 1 && hitUV.t > 0 && hitUV.t < 1 ) {
-        float maxDepthDifference = (1 - pixel.smoothness) * MAX_DEPTH_DIFFERENCE;
-        float blurRadius = (1 - pixel.smoothness) * MAX_BLUR_RADIUS;
-        hitColor = blurArea( hitUV, blurRadius, maxDepthDifference );
+        /*float maxDepthDifference = (1 - pixel.smoothness) * MAX_DEPTH_DIFFERENCE;
+        int blurRadius = int( (1.0 - pixel.smoothness) * MAX_BLUR_RADIUS );
+        hitColor = blurArea( hitUV, blurRadius, maxDepthDifference );*/
+        hitColor = texture2D( composite, hitUV ).rgb;
+        //pixel.color = vec3( 1, 0, 0 );
     } else {
         hitColor = vec3( 0.529, 0.808, 0.922 );
     }
     
     pixel.reflectivity *= MAX_REFLECTIVITY;
     pixel.color = pixel.color * (1 - pixel.reflectivity) + hitColor * pixel.reflectivity;
+    pixel.color = vec3( rayDir );
 }
 
 void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
-    doLightBounce( pixel );
+    if( !pixel.skipLighting ) {
+        //doLightBounce( pixel );
+    }
     gl_FragData[4] = vec4( pixel.color, 1 );
 }

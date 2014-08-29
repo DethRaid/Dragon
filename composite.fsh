@@ -21,10 +21,11 @@ const int   noiseTextureResolution  = 64;
 #define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
 #define SSAO            true
-#define SSAO_RADIUS     2.0             //search a 2-unit radius hemisphere
+#define SSAO_SAMPLES    16               //more samples = prettier
+#define SSAO_STRENGTH   1.0             //bigger number = more SSAO
+#define SSAO_RADIUS     100.0             //search a 2-unit radius hemisphere
 #define SSAO_MAX_DEPTH  2.0             //if a sample's depth is within 2 units of the world depth, the sample is
                                         //obscured
-#define SSAO_SAMPLES    16.0            //16 samples is pretty good, right? MUST be a multiple of four
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              I need these                                 //
@@ -32,14 +33,19 @@ const int   noiseTextureResolution  = 64;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
-uniform sampler2D gdepth;
 uniform sampler2D gnormal;
+uniform sampler2D gaux2;
 
 uniform sampler2D shadow;
 
 uniform sampler2D noisetex;
 
 uniform vec3 cameraPosition;
+
+uniform float viewWidth;
+uniform float viewHeight;
+uniform float far;
+uniform float near;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
@@ -86,6 +92,10 @@ float getDepth(  vec2 coord ) {
     return texture2D( gdepthtex, coord ).r;
 }
 
+float getDepthLinear( vec2 coord ) {
+    return 2.0 * near * far / (far + near - (2.0 * texture2D( gdepthtex, coord ).r - 1.0) * (far - near));
+}
+
 vec4 getScreenSpacePosition() {	
 	float depth = getDepth( coord );
 	vec4 fragposition = gbufferProjectionInverse * vec4( coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0 );
@@ -105,15 +115,15 @@ vec3 getColor() {
 }
 
 bool shouldSkipLighting() {
-    return texture2D( gdepth, coord ).r > 0.5;
+    return texture2D( gaux2, coord ).r > 0.5;
 }
 
 bool getWater() {
-    return texture2D( gdepth, coord ).b > 0.5;
+    return texture2D( gaux2, coord ).b > 0.5;
 }
 
 float getSmoothness() {
-    return texture2D( gdepth, coord ).a;
+    return texture2D( gaux2, coord ).a;
 }
 
 vec3 getNormal() {
@@ -147,70 +157,81 @@ vec3 calcShadowCoordinate( in Pixel pixel ) {
 //I'm sorry this is so long, OSX doesn't support GLSL 120 arrays
 vec2 poisson( int i ) {
 	if ( i == 0 ) {
-        return vec2( -0.1094937, -0.752005 );
-    } else if( i == 1 ) {
-        return vec2( 0.5059697, -0.7294227 );
-    } else if( i == 2 ) {
-     	return vec2( -0.3904303, 0.5678311 );
-    } else if( i == 3 ) {
-        return vec2( -0.3050305, 0.7459931 );
-    } else if( 1 == 4 ) {
-	    return vec2( 0.1725386, -0.50636 );
-    } else if( i == 5 ) {
-        return vec2( 0.1979104, 0.7830779 );
-    } else if( i == 6 ) {
-        return vec2( 0.0663829, 0.9336991 );
-    } else if( i == 7 ) {
-        return vec2( -0.163072, -0.9741971 );
-    } else if( i == 8 ) {
-        return vec2( 0.1710306, 0.5527771 );
-    } else if( i == 9 ) {
-        return vec2( 0.02903906, 0.3999698 );
-    } else if( i == 10 ) {
-        return vec2( -0.1748933, 0.1948632 );
-    } else if( i == 11 ) {
-        return vec2( -0.3564819, 0.2770886 );
-    } else if( i == 12 ) {
 	    return vec2( -0.4994766, -0.4100508 );
-    } else if( i == 13 ) {
-        return vec2( 0.6305282, -0.5586912 );
-    } else if( i == 14 ) {
-        return vec2( -0.5874177, -0.1295959 );
-    } else if( i == 15 ) {
-        return vec2( 0.4260757, -0.02231212 );
-    } else if( i == 16 ) {
-        return vec2( -0.8381009, -0.1279669 );
-    } else if( i == 17 ) {
-        return vec2( -0.8977778, 0.1717084 );
-    } else if( i == 18 ) {
-        return vec2( 0.8211543, 0.365194 );
-    } else if( i == 19 ) {
-        return vec2( 0.6365152, -0.229197 );
-    } else if( i == 20 ) {
-        return vec2( -0.8206947, -0.3301564 );
-    } else if( i == 21 ) {
-        return vec2( 0.08938109, -0.005763604 );
-    } else if( i == 22 ) {
-        return vec2( -0.3123821, 0.2344262 );
-    } else if( i == 23 ) {
-        return vec2( 0.1038207, -0.2167438 );
-    } else if( i == 24 ) {
-        return vec2( 0.3256707, 0.2347208 );
-    } else if( i == 25 ) {
-        return vec2( 0.3405131, 0.4458854 );
-    } else if( i == 26 ) {
-        return vec2( -0.6740047, -0.4649915 );
-    } else if( i == 27 ) {
-        return vec2( -0.6670403, 0.658087 );
-    } else if( i == 28 ) {
+    } else if( i == 1 ) {
+	    return vec2(  0.1725386, -0.50636 );
+    } else if( i == 2 ) {
+        return vec2( -0.3050305,  0.7459931 );
+    } else if( i == 3 ) {
+        return vec2(  0.3256707,  0.2347208 );
+        
+    } else if( 1 == 4 ) {
+        return vec2( -0.1094937, -0.752005 );
+    } else if( i == 5 ) {
+        return vec2(  0.5059697, -0.7294227 );
+    } else if( i == 6 ) {
+     	return vec2( -0.3904303,  0.5678311 );
+    } else if( i == 7 ) {
+        return vec2(  0.3405131,  0.4458854 );
+        
+    } else if( i == 8 ) {
+        return vec2( -0.163072,  -0.9741971 );
+    } else if( i == 9 ) {
+        return vec2(  0.4260757, -0.02231212 );
+    } else if( i == 10 ) {
+        return vec2( -0.8977778,  0.1717084 );
+    } else if( i == 11 ) {
+        return vec2(  0.02903906, 0.3999698 );
+        
+    } else if( i == 12 ) {
         return vec2( -0.4680224, -0.4418066 );
+    } else if( i == 13 ) {
+        return vec2(  0.09780561, -0.1236207 );
+    } else if( i == 14 ) {
+        return vec2( -0.3564819,  0.2770886 );
+    } else if( i == 15 ) {
+        return vec2(  0.0663829,  0.9336991 );
+        
+    } else if( i == 16 ) {
+        return vec2( -0.8206947, -0.3301564 );
+    } else if( i == 17 ) {
+        return vec2(  0.1038207, -0.2167438 );
+    } else if( i == 18 ) {
+        return vec2( -0.3123821,  0.2344262 );
+    } else if( i == 19 ) {
+        return vec2(  0.1979104,  0.7830779 );
+        
+    } else if( i == 20 ) {
+        return vec2( -0.6740047, -0.4649915 );
+    } else if( i == 21 ) {
+        return vec2(  0.08938109, -0.005763604 );
+    } else if( i == 22 ) {
+        return vec2( -0.6670403,  0.658087 );
+    } else if( i == 23 ) {
+        return vec2(  0.8211543,  0.365194 );
+        
+    } else if( i == 24 ) {
+        return vec2( -0.8381009, -0.1279669 );
+    } else if( i == 25 ) {
+        return vec2(  0.6365152, -0.229197 );
+    } else if( i == 26 ) {
+        return vec2( -0.1748933,  0.1948632 );
+    } else if( i == 27 ) {
+        return vec2(  0.1710306,  0.5527771 );
+        
+    } else if( i == 28 ) {
+        return vec2( -0.5874177, -0.1295959 );
     } else if( i == 29 ) {
-        return vec2( 0.09780561, -0.1236207 );
+        return vec2(  0.6305282, -0.5586912 );
     } else if( i == 30 ) {
-        return vec2( -0.030519, 0.3487186 );
+        return vec2( -0.030519,  0.3487186 );
     } else {
-        return vec2( 0.4240496, -0.1010172 );
+        return vec2(  0.4240496, -0.1010172 );
     }
+}
+
+int rand( vec2 seed ) {
+    return int( floor( 32 * abs( sin( dot( vec2( 12.45345, 9.2345 ), seed ) * 597123.23432 ) ) ) );
 }
 
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
@@ -226,7 +247,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float count = 0;
     
 	for( int i = 0; i < 8; i++ ) {    
-		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) * 0.001 ) ).r;
+		temp = texture2D( shadow, shadowCoord.st + (poisson( rand( coord ) ) * 0.001 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
 			count += 1.0;
@@ -266,13 +287,16 @@ void calcShadowing( inout Pixel pixel ) {
     float sub = 1.0 / PCSS_SAMPLES;
     int shadowCount = 0;
 	for( int i = 0; i < PCSS_SAMPLES; i++ ) {
+        int index = rand( coord );
         float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( i ) * 0.005) ).r;
 		if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
 			visibility -= sub;
 		}
 	}
     
-    pixel.directLighting *= visibility;
+    if( visibility < 1 ) {
+        pixel.directLighting *= visibility;
+    }
 #endif
 }
 
@@ -289,7 +313,7 @@ void calcDirectLighting( inout Pixel pixel ) {
 //calcualtes the lighting from the torches
 void calcTorchLighting( inout Pixel pixel ) {
     vec3 torchColor = vec3( 1, 0.9, 0.5 );
-    pixel.torchLighting = torchColor * texture2D( gdepth, coord ).g;
+    pixel.torchLighting = torchColor * texture2D( gaux2, coord ).g;
 }
 
 void calcAmbientLighting( inout Pixel pixel ) {
@@ -310,56 +334,35 @@ void fillPixelStruct( inout Pixel pixel ) {
     pixel.isWater =         getWater();
 }
 
-vec2 rand( int i ) {
-    float x = fract( sin( i * 9823.234 ) );
-    float y = fract( sin( i * 323.4352 ) );
-    return vec2( x, y );
+vec2 texelToScreen( vec2 texel ) {
+    float newx = texel.x / viewWidth;
+    float newy = texel.y / viewHeight;
+    return vec2( newx, newy );
 }
 
+
 void calcSSAO( inout Pixel pixel ) {
-    //SSAO from http://john-chapman-graphics.blogspot.com/2013/01/ssao-tutorial.html
     //not that it works...
-    float ssaoFac = 1.0;
+    float ssaoFac = SSAO_STRENGTH;
+    float compareDepth = getDepthLinear( coord );
     
-    //OSX can deal with it
-    vec3 kernel[int(SSAO_SAMPLES)];
-    
-    //generate a kernel
+    float radiusx = SSAO_RADIUS / (viewWidth * compareDepth);
+    float radiusy = SSAO_RADIUS / (viewHeight * compareDepth);
+    vec2 sampleScale = vec2( radiusx, radiusy );
+
+    float occlusionPerSample = ssaoFac / float( SSAO_SAMPLES ); 
+
+    vec2 sampleCoord;
     for( int i = 0; i < SSAO_SAMPLES; i++ ) {
-        float scale = float( i ) / SSAO_SAMPLES;
-        scale = mix( 0.1, 1.0, scale * scale );
-        kernel[i] = normalize( vec3( rand( i ), 0 ) ) * scale;
+        sampleCoord = coord + poisson( i ) * sampleScale;
+        float depthDiff = compareDepth - getDepthLinear( sampleCoord );
+        if( depthDiff > 0 && depthDiff < SSAO_MAX_DEPTH ) {
+            ssaoFac -= occlusionPerSample;
+        }
     }
-    
-    vec3 rvec = texture2D( noisetex, coord ).xyz * 2.0 - 1.0;
-    
-    float compareDepth = texture2D( gdepthtex, coord ).r;
-    float sampleDepth;
-    vec4 offset;
-    
-    for( int i = 0; i < SSAO_SAMPLES; i++ ) {
-        vec3 ray = kernel[i];
-        ray = ray * SSAO_RADIUS;
-        ray += pixel.position.xyz;
-        
-        offset = vec4( ray, 1.0 );
-        offset = gbufferProjection * offset;
-        offset.xy /= offset.w;
-        offset.xy = offset.xy * 0.5 + 0.5;
-        
-        sampleDepth = texture2D( gdepthtex, offset.st ).r;
-        
-        //if( abs( compareDepth - sampleDepth ) < SSAO_MAX_DEPTH ) {
-            if( sampleDepth <= ray.z ) {
-                ssaoFac -= 1.0 / SSAO_SAMPLES;
-            }
-        //}
-    }
-    
-    pixel.directLighting *= ssaoFac;
+
+    pixel.directLighting = vec3( ssaoFac );
     pixel.torchLighting *= ssaoFac;
-    
-    //pixel.directLighting = vec3(  );
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
@@ -380,7 +383,7 @@ void main() {
         calcTorchLighting( pixel );
         calcAmbientLighting( pixel );
     
-        //calcSSAO( pixel );
+        calcSSAO( pixel );
     
         finalColor = calcLitColor( pixel );
     } else {
@@ -388,4 +391,5 @@ void main() {
     }
 
     gl_FragData[3] = vec4( finalColor, 1 );
+    //gl_FragData[3] = vec4( pixel.directLighting, 1 );
 }
