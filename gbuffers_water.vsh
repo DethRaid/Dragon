@@ -90,9 +90,11 @@ void main() {
 
     vec3 viewPos = (gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex).xyz;
    
-    vec3 gerstnerPos = getGerstnerDisplacement( viewPos );
+    //vec3 gerstnerPos = getGerstnerDisplacement( viewPos );
 
-    gl_Position = gl_ProjectionMatrix * (gbufferModelView * vec4( gerstnerPos, 1 ));
+    //gl_Position = gl_ProjectionMatrix * (gbufferModelView * vec4( gerstnerPos, 1 ));
+
+    gl_Position = ftransform();
     
     normal = gl_NormalMatrix * gl_Normal;//getGerstnerNormal( viewPos );
 }

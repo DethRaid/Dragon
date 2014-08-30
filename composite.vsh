@@ -20,6 +20,6 @@ void main() {
         lightColor = vec3( 3, 2.84, 2.85 );
     } else {
         lightVector = normalize( moonPosition );
-        lightColor = vec3( 0.05, 0.05, 0.0625 );
+        lightColor = vec3( 0.5, 0.5, 0.625 );
     }
 }
