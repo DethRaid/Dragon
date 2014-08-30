@@ -41,7 +41,7 @@ void main() {
         binormal = normalize( gl_NormalMatrix * vec3( 0, -1, 0 ) );
     }
 
-    tbnMatrix = mat3( tangent.x, binormal.x, normal.x,
-                      tangent.y, binormal.y, normal.y,
-                      tangent.z, binormal.z, normal.z );
+    tbnMatrix = transpose( mat3( tangent.x, binormal.x, normal.x,
+                                 tangent.y, binormal.y, normal.y,
+                                 tangent.z, binormal.z, normal.z ) );
 }

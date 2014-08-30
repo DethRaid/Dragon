@@ -174,5 +174,5 @@ void main() {
     if( !pixel.skipLighting ) {
         //doLightBounce( pixel );
     }
-    gl_FragData[4] = vec4( pixel.color, 1 );
+    gl_FragData[4] = texture2D( composite, coord );
 }

@@ -23,8 +23,8 @@ const int   noiseTextureResolution  = 64;
 #define SSAO            true
 #define SSAO_SAMPLES    16               //more samples = prettier
 #define SSAO_STRENGTH   1.0             //bigger number = more SSAO
-#define SSAO_RADIUS     150.0             //search a 2-unit radius hemisphere
-#define SSAO_MAX_DEPTH  1.0             //if a sample's depth is within 2 units of the world depth, the sample is
+#define SSAO_RADIUS     100.0             //search a 2-unit radius hemisphere
+#define SSAO_MAX_DEPTH  2.0             //if a sample's depth is within 2 units of the world depth, the sample is
                                         //obscured
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -127,7 +127,9 @@ float getSmoothness() {
 }
 
 vec3 getNormal() {
-    return normalize( texture2D( gnormal, coord ).xyz * 2.0 - 1.0 );
+    vec3 normal = normalize( texture2D( gnormal, coord ).xyz * 2.0 - 1.0 );
+    normal.x *= -1;
+    return normal;
 }
 
 float getReflectivity() {
@@ -229,7 +231,7 @@ vec2 poisson( int i ) {
 }
 
 int rand( vec2 seed ) {
-    return int( 32 * fract( sin( dot( vec2( 12.9898, 72.233 ), seed ) * 43758.5453 ) ) );
+    return int( floor( 32 * abs( sin( dot( vec2( 12.45345, 9.2345 ), seed ) * 597123.23432 ) ) ) );
 }
 
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
@@ -245,7 +247,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float count = 0;
     
 	for( int i = 0; i < 8; i++ ) {    
-		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) * 0.001 ) ).r;
+		temp = texture2D( shadow, shadowCoord.st + (poisson( rand( coord ) ) * 0.001 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
 			count += 1.0;
@@ -285,8 +287,8 @@ void calcShadowing( inout Pixel pixel ) {
     float sub = 1.0 / PCSS_SAMPLES;
     int shadowCount = 0;
 	for( int i = 0; i < PCSS_SAMPLES; i++ ) {
-        int ind = rand( coord * i );
-        float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( ind ) * 0.025) ).r;
+        int index = rand( coord );
+        float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( i ) * 0.005) ).r;
 		if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
 			visibility -= sub;
 		}
@@ -351,22 +353,18 @@ void calcSSAO( inout Pixel pixel ) {
 
     vec2 sampleCoord;
     for( int i = 0; i < SSAO_SAMPLES; i++ ) {
-        sampleCoord = poisson( rand( coord * i ) );
-        sampleCoord *= sign( dot( vec3( sampleCoord, 0 ), pixel.normal ) );
+        sampleCoord = poisson( i );
+        sampleCoord *= sign( dot( vec3( sampleCoord.x, 0, sampleCoord.y ), pixel.normal ) );
         sampleCoord = sampleCoord * sampleScale + coord;
         float depthDiff = compareDepth - getDepthLinear( sampleCoord );
-        if( depthDiff > 0.05 && depthDiff < SSAO_MAX_DEPTH ) {
-            ssaoFac -= occlusionPerSample * (1 - (depthDiff / SSAO_MAX_DEPTH));
+        if( depthDiff > 0 && depthDiff < SSAO_MAX_DEPTH ) {
+            ssaoFac -= occlusionPerSample;
         }
     }
 
-    if( ssaoFac < 0.1 ) {
-        ssaoFac = 0;
-    }
-
     pixel.directLighting *= ssaoFac;
+    //pixel.directLighting = vec3( screenNormal, 0 );
     pixel.torchLighting *= ssaoFac;
-    pixel.ambientLighting *= ssaoFac;
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
@@ -395,5 +393,5 @@ void main() {
     }
 
     gl_FragData[3] = vec4( finalColor, 1 );
- //   gl_FragData[3] = vec4( pixel.directLighting, 1 );
+//    gl_FragData[3] = vec4( pixel.directLighting, 1 );
 }
