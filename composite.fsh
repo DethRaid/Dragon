@@ -3,11 +3,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 2048;
+const int   shadowMapResolution     = 4096;
 const float shadowDistance          = 120.0;
 const bool  shadowHardwareFiltering = false;
 const int   noiseTextureResolution  = 64;
 
+const float sunPathRotation         = 25.0;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -327,18 +328,14 @@ void calcShadowing( inout Pixel pixel ) {
 //Cook-Toorance shading
 void calcDirectLighting( inout Pixel pixel ) { 
     vec3 normal = pixel.normal;
-    vec3 viewVector = normalize( pixel.position.xyz - cameraPosition );
+    vec3 viewVector = normalize( cameraPosition - pixel.position.xyz );
+    viewVector = (gbufferModelView * vec4( viewVector, 0 )).xyz;
     vec3 half = normalize( lightVector + viewVector );
 
     float ndotl = dot( normal, lightVector );
     float ndoth = dot( normal, half );
     float ndotv = dot( normal, viewVector );
     float vdoth = dot( viewVector, half );
-
-//    ndotl = clamp( ndotl, 0, 1 );
-  //  ndoth = clamp( ndoth, 0, 1 );
-    //ndotv = clamp( ndotv, 0, 1 );
-//    vdoth = clamp( vdoth, 0, 1 );
 
     float fresnel = dot( normal, viewVector ) * (1 - pixel.reflectivity);
     fresnel += pixel.reflectivity;
@@ -354,11 +351,13 @@ void calcDirectLighting( inout Pixel pixel ) {
     float alpha = acos( ndoth );
     float d = pow( E, -pow( (tan( alpha ) / m), 2 ) ) / (m * m * pow( ndoth, 4 ));
 
-    float cook = fresnel * d * g / (2 * PI * ndotv);
+    float cook = pixel.reflectivity * fresnel * d * g / (2 * PI * ndotv);
     cook = max( cook, 0 );
+    
+    ndotl = max( ndotl, 0 );
 
-    pixel.directLighting = lightColor * (cook + max( ndotl, 0 ));
-    if( ndotl > 0.1 ) {
+    pixel.directLighting = lightColor * (ndotl + cook) / 2;
+    if( ndotl > 0 ) {
         calcShadowing( pixel );
     }
 }
@@ -450,5 +449,5 @@ void main() {
     }
 
     gl_FragData[3] = vec4( finalColor, 1 );
-//    gl_FragData[3] = vec4( pixel.directLighting, 1 );
+    //gl_FragData[3] = vec4( pixel.directLighting, 1 );
 }
