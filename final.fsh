@@ -1,9 +1,90 @@
 #version 120
 
+#define FXAA
+#define EDGE_LUMA_THRESHOLD 0.5
+
+//Some defines to make my life easier
+#define NORTH   0
+#define SOUTH   1
+#define WEST    2
+#define EAST    3
+
 uniform sampler2D gaux1;
+
+uniform float viewWidth;
+uniform float viewHeight;
 
 varying vec2 coord;
 
+float luma( vec3 color ) {
+    return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+}
+
+//actually texel to uv. Oops.
+vec2 uvToTexel( int s, int t ) {
+    return vec2( s / viewWidth, t / viewHeight );
+}
+
+//Written by DethRaid, dirty implementation of http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf
+void fxaa( inout vec3 color ) {
+    //Are we on an edge? If so, which way is the edge going?
+    vec2 coordN = coord + uvToTexel(  0,  1 );
+    vec2 coordS = coord + uvToTexel(  0, -1 );
+    vec2 coordE = coord + uvToTexel(  1,  0 );
+    vec2 coordW = coord + uvToTexel( -1,  0 );
+
+    vec3 colorN = texture2D( gaux1, coordN ).rgb;
+    vec3 colorS = texture2D( gaux1, coordS ).rgb;
+    vec3 colorE = texture2D( gaux1, coordE ).rgb;
+    vec3 colorW = texture2D( gaux1, coordW ).rgb;
+
+    float lumaM = luma( color );
+    float lumaN = luma( colorN );
+    float lumaS = luma( colorS );
+    float lumaE = luma( colorE );
+    float lumaW = luma( colorW );
+
+    float diffN = abs( lumaM - lumaN );
+    float diffS = abs( lumaM - lumaS );
+    float diffE = abs( lumaM - lumaE );
+    float diffW = abs( lumaM - lumaW );
+
+    float diffH = max( diffN, diffS );
+    float diffV = max( diffE, diffW );
+
+    if( max( diffH, diffV ) < EDGE_LUMA_THRESHOLD ) {
+        //If there's not enough luma difference surrounding this pixel, go home
+        return;
+    }
+
+    int edgeDir;
+    int edgeSide;
+
+    if( diffE > diffV ) {
+        edgeDir = EAST;
+    } 
+    if( diffW > diffV ) {
+        edgeDir = WEST;
+    }
+    if( diffN > diffH ) {
+        edgeDir = NORTH;
+    }
+    if( diffS > diffH ) {
+        edgeDir = SOUTH;
+    }
+
+    if( edgeDir == EAST || edgeDir == WEST ) {
+        edgeSide = (diffN > diffS ? NORTH : SOUTH);
+    } else if( edgeDir == NORTH || edgeDir == SOUTH ) {
+        edgeSide = (diffE > diffW ? EAST : WEST);
+    }
+}
+
 void main() {
-    gl_FragColor = texture2D( gaux1, coord );
+    vec3 color = texture2D( gaux1, coord ).rgb;
+#ifdef FXAA
+    fxaa( color );
+#endif
+    color *= vec3( 1.1, 1.0, 1.0 );
+    gl_FragColor = vec4( color, 1 );
 }

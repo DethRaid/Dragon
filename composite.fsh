@@ -3,7 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 4096;
+const int   shadowMapResolution     = 2048;
 const float shadowDistance          = 120.0;
 const bool  shadowHardwareFiltering = false;
 const int   noiseTextureResolution  = 64;
@@ -164,23 +164,23 @@ vec3 calcShadowCoordinate( in Pixel pixel ) {
 //I'm sorry this is so long, OSX doesn't support GLSL 120 arrays
 vec2 poisson( int i ) {
 	if ( i == 0 ) {
-	    return vec2( -0.4994766, -0.4100508 );
+        return vec2( -0.4994766, -0.4100508 );
     } else if( i == 1 ) {
-	    return vec2(  0.1725386, -0.50636 );
+        return vec2(  0.1725386, -0.50636 );
     } else if( i == 2 ) {
         return vec2( -0.3050305,  0.7459931 );
     } else if( i == 3 ) {
         return vec2(  0.3256707,  0.2347208 );
-        
+
     } else if( 1 == 4 ) {
         return vec2( -0.1094937, -0.752005 );
     } else if( i == 5 ) {
         return vec2(  0.5059697, -0.7294227 );
     } else if( i == 6 ) {
-     	return vec2( -0.3904303,  0.5678311 );
+        return vec2( -0.3904303,  0.5678311 );
     } else if( i == 7 ) {
         return vec2(  0.3405131,  0.4458854 );
-        
+  
     } else if( i == 8 ) {
         return vec2( -0.163072,  -0.9741971 );
     } else if( i == 9 ) {
@@ -254,7 +254,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float count = 0;
     
 	for( int i = 0; i < 8; i++ ) {    
-		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) * 0.001 ) ).r;
+		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) * 0.01 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
 			count += 1.0;
@@ -272,19 +272,24 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 void calcShadowing( inout Pixel pixel ) {
     vec3 shadowCoord = calcShadowCoordinate( pixel );
     
-    if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
-        shadowCoord.y > 1 || shadowCoord.y < 0 ) {
-        return;
-    }
+    //if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
+      //  shadowCoord.y > 1 || shadowCoord.y < 0 ) {
+        //return;
+//    }
     
 #if SHADOW_QUALITY == HARD
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;    
     if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
         pixel.directLighting = vec3( 0 );
+        return;
     }
     
 #elif SHADOW_QUALITY >= SOFT
-    float penumbraSize = 3.0;
+    float penumbraSize = 3;
+
+#if SHADOW_FILTER == PCF
+    penumbraSize *= 0.00049;
+#endif
     
 #if SHADOW_QUALITY == REALISTIC
     penumbraSize = calcPenumbraSize( shadowCoord );
@@ -304,14 +309,15 @@ void calcShadowing( inout Pixel pixel ) {
 	}
 #else
     //go from UV to texels
-    int kernelSize = int( penumbraSize * shadowMapResolution );
-    int kernelSizeHalf = kernelSize;
-    float sub = 1.0 / (kernelSize * kernelSize);
+    int kernelSize = int( penumbraSize * shadowMapResolution * 5 );
+    int kernelSizeHalf = kernelSize / 2;
+    float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
+    float shadowDepth;
 
     for( int i = -kernelSizeHalf; i < kernelSizeHalf; i++ ) {
         for( int j = -kernelSizeHalf; j < kernelSizeHalf; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
-            float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
+            shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
             if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
                 visibility -= sub;
             }
@@ -319,9 +325,8 @@ void calcShadowing( inout Pixel pixel ) {
     }
 #endif
 
-    if( visibility < 1 ) {
-        pixel.directLighting *= visibility;
-    }
+    visibility = max( visibility, 0 );
+    pixel.directLighting *= visibility;
 #endif
 }
 
@@ -347,19 +352,18 @@ void calcDirectLighting( inout Pixel pixel ) {
     //microfacet slope distribution
     //Or, how likely is it that microfactes are oriented toward the half vector
     //Using a Beckmann distribution because accuracy
-    float m = pixel.smoothness;
+    float m = 1.1 - pixel.smoothness;
     float alpha = acos( ndoth );
     float d = pow( E, -pow( (tan( alpha ) / m), 2 ) ) / (m * m * pow( ndoth, 4 ));
 
-    float cook = pixel.reflectivity * fresnel * d * g / (2 * PI * ndotv);
+    float cook = pixel.reflectivity * pixel.smoothness * fresnel * d * g / (2 * PI * ndotv);
     cook = max( cook, 0 );
     
     ndotl = max( ndotl, 0 );
 
-    pixel.directLighting = lightColor * (ndotl + cook) / 2;
-    if( ndotl > 0 ) {
-        calcShadowing( pixel );
-    }
+    pixel.directLighting = lightColor * (ndotl + cook) * 0.5;
+//    pixel.directLighting = vec3( cook );
+    calcShadowing( pixel );
 }
 
 //calcualtes the lighting from the torches
@@ -406,7 +410,7 @@ void calcSSAO( inout Pixel pixel ) {
     vec2 sampleCoord;
     for( int i = 0; i < SSAO_SAMPLES; i++ ) {
         sampleCoord = poisson( rand( coord * i ) );
-        sampleCoord *= sign( dot( vec3( sampleCoord, 0 ), pixel.normal ) );
+        sampleCoord *= sign( dot( sampleCoord, pixel.normal.xy ) );
         sampleCoord = sampleCoord * sampleScale + coord;
         float depthDiff = compareDepth - getDepthLinear( sampleCoord );
         if( depthDiff > 0.05 && depthDiff < SSAO_MAX_DEPTH ) {
@@ -414,10 +418,8 @@ void calcSSAO( inout Pixel pixel ) {
         }
     }
 
-    if( ssaoFac < 0.1 ) {
-        ssaoFac = 0;
-    }
-
+    ssaoFac = max( ssaoFac, 0 );
+    
     pixel.directLighting *= ssaoFac;
     pixel.torchLighting *= ssaoFac;
     pixel.ambientLighting *= ssaoFac;
@@ -449,5 +451,5 @@ void main() {
     }
 
     gl_FragData[3] = vec4( finalColor, 1 );
-    //gl_FragData[3] = vec4( pixel.directLighting, 1 );
+//  gl_FragData[3] = vec4( pixel.directLighting, 1 );
 }
