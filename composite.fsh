@@ -26,7 +26,7 @@ const float sunPathRotation         = 25.0;
 
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
-#define SHADOW_FILTER   POISSON
+#define SHADOW_FILTER   PCF
 #define PCSS_SAMPLES    20              //don't make this number greater than 32. You'll just waste GPU time
 
 #define SSAO            true
@@ -252,9 +252,11 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	// Sample the shadow map 8 times
 	float temp;
 	float count = 0;
-    
-	for( int i = 0; i < 8; i++ ) {    
-		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) * 0.01 ) ).r;
+
+
+
+	for( int i = 0; i < 32; i++ ) {    
+		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) *  0.005 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
 			count += 1.0;
@@ -272,10 +274,10 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 void calcShadowing( inout Pixel pixel ) {
     vec3 shadowCoord = calcShadowCoordinate( pixel );
     
-    //if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
-      //  shadowCoord.y > 1 || shadowCoord.y < 0 ) {
-        //return;
-//    }
+    if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
+        shadowCoord.y > 1 || shadowCoord.y < 0 ) {
+        return;
+    }
     
 #if SHADOW_QUALITY == HARD
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;    
@@ -288,7 +290,7 @@ void calcShadowing( inout Pixel pixel ) {
     float penumbraSize = 3;
 
 #if SHADOW_FILTER == PCF
-    penumbraSize *= 0.00049;
+    penumbraSize = 0.00049;
 #endif
     
 #if SHADOW_QUALITY == REALISTIC
