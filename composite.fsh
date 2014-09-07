@@ -363,7 +363,7 @@ void calcDirectLighting( inout Pixel pixel ) {
     
     ndotl = max( ndotl, 0 );
 
-    pixel.directLighting = lightColor * (ndotl + cook);
+    pixel.directLighting = lightColor * (ndotl + cook) * 1.5;
 //    pixel.directLighting = vec3( cook );
     calcShadowing( pixel );
 }
@@ -428,7 +428,7 @@ void calcSSAO( inout Pixel pixel ) {
 }
 
 void calcSkyScattering( inout Pixel pixel ) {
-    float fogFac = -pixel.position.z * 0.00005;
+    float fogFac = pixel.position.z * 0.001;
     pixel.color = vec3( 0.529, 0.808, 0.980 ) * fogFac + pixel.color * (1 - fogFac);
 }
 
@@ -452,7 +452,7 @@ void main() {
     
 //        calcSSAO( pixel );
 
-        calcSkyScattering( pixel );
+        //calcSkyScattering( pixel );
     
         finalColor = calcLitColor( pixel );
     } else {

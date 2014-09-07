@@ -21,7 +21,9 @@ void main() {
 
     //determine material reflectivity and smoothness
     float smoothness = smoothness_in;
-    float reflectivity = max( reflectivity_in, texture2D( specular, uv ).r ); 
+    float reflectivity = max( reflectivity_in, texture2D( specular, uv ).r );
+
+    float skipLighting = 0;
 
     //skipLighting, torch lighting, isWater, smoothness
     gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, smoothness );

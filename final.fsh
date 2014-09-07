@@ -6,6 +6,8 @@
 #define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
+#define BLOOM_RADIUS 19
+
 //Some defines to make my life easier
 #define NORTH   0
 #define SOUTH   1
@@ -83,6 +85,22 @@ void fxaa( inout vec3 color ) {
     }
 }
 
+void doBloom( inout vec3 color ) {
+    vec3 colorAccum = vec3( 0 );
+    int numSamples = 0;
+    vec2 halfTexel = vec2( 0.5 / viewWidth, 0.5 / viewHeight );
+    for( float i = -BLOOM_RADIUS; i < BLOOM_RADIUS; i += 2 ) {
+        for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
+            vec3 sampledColor = texture2D( gaux1, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
+            colorAccum += pow( sampledColor, vec3( 50, 50, 50 ) );
+            float bloomPow = float( abs( i ) * abs( j ) );
+            colorAccum += pow( sampledColor, vec3( bloomPow ) );
+            numSamples++;
+        }
+    }
+    color += colorAccum / (numSamples * 3);
+}
+
 void correctColor( inout vec3 color ) {
     color *= vec3( 1.2, 1.2, 1.2 );
 }
@@ -97,6 +115,7 @@ void contrastEnhance( inout vec3 color ) {
 
 void main() {
     vec3 color = texture2D( gaux1, coord ).rgb;
+    doBloom( color );
 #ifdef FXAA
     fxaa( color );
 #endif
