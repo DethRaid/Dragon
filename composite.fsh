@@ -363,14 +363,14 @@ void calcDirectLighting( inout Pixel pixel ) {
     
     ndotl = max( ndotl, 0 );
 
-    pixel.directLighting = lightColor * (ndotl + cook) * 0.5;
+    pixel.directLighting = lightColor * (ndotl + cook);
 //    pixel.directLighting = vec3( cook );
     calcShadowing( pixel );
 }
 
 //calcualtes the lighting from the torches
 void calcTorchLighting( inout Pixel pixel ) {
-    vec3 torchColor = vec3( 1.5, 1.35, 0.75 );
+    vec3 torchColor = vec3( 1, 0.80, 0.5 );
     pixel.torchLighting = torchColor * texture2D( gaux2, coord ).g;
 }
 
@@ -427,11 +427,16 @@ void calcSSAO( inout Pixel pixel ) {
     pixel.ambientLighting *= ssaoFac;
 }
 
+void calcSkyScattering( inout Pixel pixel ) {
+    float fogFac = -pixel.position.z * 0.00005;
+    pixel.color = vec3( 0.529, 0.808, 0.980 ) * fogFac + pixel.color * (1 - fogFac);
+}
+
 vec3 calcLitColor( in Pixel pixel ) {
     vec3 color = pixel.color * pixel.directLighting + 
                  pixel.color * pixel.torchLighting + 
                  pixel.color * pixel.ambientLighting;
-    return color / 2;
+    return color / 1.75;
 }
 
 void main() {
@@ -446,6 +451,8 @@ void main() {
         calcAmbientLighting( pixel );
     
 //        calcSSAO( pixel );
+
+        calcSkyScattering( pixel );
     
         finalColor = calcLitColor( pixel );
     } else {

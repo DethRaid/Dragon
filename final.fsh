@@ -1,5 +1,8 @@
 #version 120
 
+#define SATURATION 1.05
+#define CONTRAST 1.05
+
 #define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
@@ -80,11 +83,25 @@ void fxaa( inout vec3 color ) {
     }
 }
 
+void correctColor( inout vec3 color ) {
+    color *= vec3( 1.2, 1.2, 1.2 );
+}
+
+void contrastEnhance( inout vec3 color ) {
+    vec3 intensity = vec3( luma( color ) );
+
+    vec3 satColor = mix( intensity, color, SATURATION );
+    vec3 conColor = mix( vec3( 0.5, 0.5, 0.5 ), satColor, CONTRAST );
+    color = conColor;
+}
+
 void main() {
     vec3 color = texture2D( gaux1, coord ).rgb;
 #ifdef FXAA
     fxaa( color );
 #endif
-    color *= vec3( 1.1, 1.0, 1.0 );
+    //correctColor( color );
+    contrastEnhance( color );
+
     gl_FragColor = vec4( color, 1 );
 }

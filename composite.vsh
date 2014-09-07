@@ -17,7 +17,7 @@ void main() {
 
     if( worldTime < 12000 ) {
         lightVector = normalize( sunPosition );
-        lightColor = vec3( 3, 2.84, 2.85 );
+        lightColor = vec3( 1, 0.98, 0.95 );
     } else {
         lightVector = normalize( moonPosition );
         lightColor = vec3( 0.5, 0.5, 0.625 );
