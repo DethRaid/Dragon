@@ -76,7 +76,7 @@ struct Pixel {
     vec4 screenPosition;
     vec3 color;
     vec3 normal;
-    float reflectivity;
+    float metalness;
     float smoothness;
     bool isWater;
     
@@ -139,7 +139,7 @@ vec3 getNormal() {
     return normalize( texture2D( gnormal, coord ).xyz * 2.0 - 1.0 );
 }
 
-float getReflectivity() {
+float getMetalness() {
     return texture2D( gnormal, coord ).a;
 }
 
@@ -342,7 +342,7 @@ void calcDirectLighting( inout Pixel pixel ) {
     vec3 albedo = pixel.color;
     vec3 normal = pixel.normal;
     float specularPower = pow( 10 * pixel.smoothness + 1, 2 );  //yeah
-    float metalness = pixel.reflectivity;
+    float metalness = pixel.metalness;
     vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3( 1.0 );
 
     //Other useful value
@@ -377,20 +377,20 @@ void calcDirectLighting( inout Pixel pixel ) {
 
     lambert = (vec3( 1.0 ) - specular) * lambert;
 
-    pixel.directLighting = (lambert + specular) * lightColor;
+    pixel.directLighting = (lambert + specular) * lightColor * 0.4;
     //pixel.directLighting = pixel.color * ndotl * lightColor;
     calcShadowing( pixel );
 }
 
 //calcualtes the lighting from the torches
 void calcTorchLighting( inout Pixel pixel ) {
-    vec3 torchColor = vec3( 1, 0.6, 0.4 ) * 2;
+    vec3 torchColor = vec3( 1, 0.6, 0.4 );
     float torchFac = texture2D( gaux2, coord ).g; 
     pixel.torchLighting = torchColor * torchFac;
 }
 
 void calcAmbientLighting( inout Pixel pixel ) {
-    pixel.ambientLighting = vec3( 0.15, 0.17, 0.2 ) * 1.5;
+    pixel.ambientLighting = vec3( 0.15, 0.17, 0.2 );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -401,7 +401,7 @@ void fillPixelStruct( inout Pixel pixel ) {
     pixel.position =        getWorldSpacePosition();
     pixel.normal =          getNormal();
     pixel.color =           getColor();
-    pixel.reflectivity =    getReflectivity();
+    pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
     pixel.isWater =         getWater();
