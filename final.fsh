@@ -6,7 +6,7 @@
 #define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
-#define BLOOM_RADIUS 19
+#define BLOOM_RADIUS 13
 
 //Some defines to make my life easier
 #define NORTH   0
