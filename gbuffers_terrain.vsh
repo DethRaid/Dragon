@@ -45,9 +45,15 @@ void main() {
             || mc_Entity.x == 109.0 //stone brick stairs
             || mc_Entity.x == 149.0 //redstone comparator
             || mc_Entity.x == 150.0 //lit comparator
+            || mc_Entity.x ==  14.0 //gold ore
+            || mc_Entity.x ==  15.0 //iron ore
+            || mc_Entity.x ==  16.0 //coal ore
+            || mc_Entity.x ==  73.0 //redstone ore
+            || mc_Entity.x ==  74.0 //lit redstone ore
+            || mc_Entity.x == 129.0 //emerald ore
             || mc_Entity.x == 158.0 //dropper
         ) {
-        smoothness_in = 0.8;
+        smoothness_in = 0.5;
 
     //dirt
     } else if( mc_Entity.x ==   2.0 //grassy dirt
@@ -72,7 +78,7 @@ void main() {
             || mc_Entity.x == 117.0 //brewing stand
             || mc_Entity.x == 139.0 //cobblestone wall
         ) {
-        smoothness_in = 0.5;
+        smoothness_in = 0.4;
 
     //wood
     } else if( mc_Entity.x ==   5.0 //wooden planks
@@ -172,10 +178,7 @@ void main() {
         smoothness_in = 0.2;
 
     //ores, iron
-    } else if( mc_Entity.x ==  14.0 //gold ore
-            || mc_Entity.x ==  15.0 //iron ore
-            || mc_Entity.x ==  16.0 //coal ore
-            || mc_Entity.x ==  21.0 //lapis ore
+    } else if( mc_Entity.x ==  21.0 //lapis ore
             || mc_Entity.x ==  27.0 //golden rail
             || mc_Entity.x ==  28.0 //detector rail
             || mc_Entity.x ==  42.0 //iron block
@@ -183,11 +186,8 @@ void main() {
             || mc_Entity.x ==  56.0 //diamond ore
             || mc_Entity.x ==  66.0 //rail
             || mc_Entity.x ==  71.0 //iron door
-            || mc_Entity.x ==  73.0 //redstone ore
-            || mc_Entity.x ==  74.0 //lit redstone ore
             || mc_Entity.x == 101.0 //iron bars
             || mc_Entity.x == 118.0 //cauldron
-            || mc_Entity.x == 129.0 //emerald ore
             || mc_Entity.x == 145.0 //anvil
             || mc_Entity.x == 148.0 //heavy pressure plate
             || mc_Entity.x == 154.0 //hopper

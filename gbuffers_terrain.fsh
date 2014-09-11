@@ -40,5 +40,5 @@ void main() {
     vec3 texnormal = texture2D( normals, uv ).xyz;
     texnormal = tbnMatrix * texnormal;
     //normal, reflectivity
-    gl_FragData[2] = vec4( normal * 0.5 + 0.5, reflectivity );
+    gl_FragData[2] = vec4( texnormal * 0.5 + 0.5, reflectivity );
 }

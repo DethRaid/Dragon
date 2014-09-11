@@ -385,6 +385,9 @@ void calcDirectLighting( inout Pixel pixel ) {
 //calcualtes the lighting from the torches
 void calcTorchLighting( inout Pixel pixel ) {
     vec3 torchColor = vec3( 1, 0.6, 0.4 );
+    float torchIntensity = length( torchColor );
+    torchIntensity = pow( torchIntensity, 2 );
+    torchColor *= torchIntensity;
     float torchFac = texture2D( gaux2, coord ).g; 
     pixel.torchLighting = torchColor * torchFac;
 }
