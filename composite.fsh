@@ -4,11 +4,14 @@
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
 const int   shadowMapResolution     = 2048;
-const float shadowDistance          = 120.0;
+const float shadowDistance          = 80.0;
+//const bool  generateShadowMipmap    = false;
+const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
 const int   noiseTextureResolution  = 64;
 
 const float sunPathRotation         = 25.0;
+const float ambientOcclusionLevel   = 0.0;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -70,6 +73,8 @@ varying vec2 coord;
 
 varying vec3 lightVector;
 varying vec3 lightColor;
+varying vec3 ambientColor;
+varying vec3 fogColor;
 
 struct Pixel {
     vec4 position;
@@ -120,7 +125,7 @@ vec4 getWorldSpacePosition() {
 }
 
 vec3 getColor() {
-    return texture2D( gcolor, coord ).rgb;
+    return pow( texture2D( gcolor, coord ).rgb, vec3( 2.2 ) );
 }
 
 bool shouldSkipLighting() {
@@ -311,7 +316,7 @@ void calcShadowing( inout Pixel pixel ) {
 	}
 #else
     //go from UV to texels
-    int kernelSize = int( penumbraSize * shadowMapResolution * 5 );
+    int kernelSize = int( floor( min( penumbraSize * shadowMapResolution * 5, 25.0 ) ) );
     int kernelSizeHalf = kernelSize / 2;
     float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
     float shadowDepth;
@@ -332,8 +337,8 @@ void calcShadowing( inout Pixel pixel ) {
 #endif
 }
 
-vec3 fresnel( vec3 specularColor, float hdotv ) {
-    return specularColor + (vec3( 1.0 ) - specularColor) * pow( 1.0f - hdotv, 5 );
+vec3 fresnel( vec3 specularColor, float hdotl ) {
+    return specularColor + (vec3( 1.0 ) - specularColor) * pow( 1.0f - hdotl, 5 );
 }
 
 //Cook-Toorance shading
@@ -344,6 +349,7 @@ void calcDirectLighting( inout Pixel pixel ) {
     float specularPower = pow( 10 * pixel.smoothness + 1, 2 );  //yeah
     float metalness = pixel.metalness;
     vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3( 1.0 );
+    specularColor *= pixel.smoothness;
 
     //Other useful value
     vec3 viewVector = normalize( cameraPosition - pixel.position.xyz );
@@ -354,46 +360,39 @@ void calcDirectLighting( inout Pixel pixel ) {
 
     float ndotl = dot( normal, lightVector );
     float ndoth = dot( normal, half );
-    float ndotv = dot( normal, viewVector );
     float vdoth = dot( viewVector, half );
-    float hdotv = dot( half, viewVector );
 
     ndotl = max( 0, ndotl );
     ndoth = max( 0, ndoth );
-    ndotv = max( 0, ndotv );
     vdoth = max( 0, vdoth );
-    hdotv = max( 0, hdotv );
 
     //calculate diffuse lighting
     vec3 lambert = albedo * ndotl;
 
-    vec3 fresnel = fresnel( specularColor, hdotv );
+    vec3 fresnel = fresnel( specularColor, vdoth );
 
     //microfacet slope distribution
-    //Or, how likely is it that microfactes are oriented toward the half vector  
+    //Or, how likely is it that microfacets are oriented toward the half vector  
     float d = pow( ndoth, specularPower );
 
-    vec3 specular = fresnel * specularNormalization * d * ndotl;
+    vec3 specular = fresnel * specularNormalization * d * ndotl * 0.5;
 
-    lambert = (vec3( 1.0 ) - specular) * lambert;
+    lambert = (vec3( 1.0 ) - specular) * lambert * (1.0 - metalness);
 
-    pixel.directLighting = (lambert + specular) * lightColor * 0.4;
-    //pixel.directLighting = pixel.color * ndotl * lightColor;
+    pixel.directLighting = (lambert + specular) * lightColor;
+    pixel.ambientLighting = ambientColor * (ndotl * 0.5 + 0.5);
     calcShadowing( pixel );
+    //pixel.directLighting = fresnel * ndoth;
 }
 
 //calcualtes the lighting from the torches
 void calcTorchLighting( inout Pixel pixel ) {
-    vec3 torchColor = vec3( 1, 0.6, 0.4 );
-    float torchIntensity = length( torchColor );
-    torchIntensity = pow( torchIntensity, 2 );
+    float torchFac = texture2D( gaux2, coord ).g;
+    vec3 torchColor = vec3( 1, 0.6, 0.4 ) * torchFac;
+    float torchIntensity = min( length( torchColor ), 1.0 );
+    torchIntensity = pow( torchIntensity, 4 );
     torchColor *= torchIntensity;
-    float torchFac = texture2D( gaux2, coord ).g; 
-    pixel.torchLighting = torchColor * torchFac;
-}
-
-void calcAmbientLighting( inout Pixel pixel ) {
-    pixel.ambientLighting = vec3( 0.15, 0.17, 0.2 );
+    pixel.torchLighting = torchColor * (1 - pixel.metalness) * 8.0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -445,16 +444,22 @@ void calcSSAO( inout Pixel pixel ) {
     pixel.ambientLighting *= ssaoFac;
 }
 
-void calcSkyScattering( inout Pixel pixel ) {
-    float fogFac = pixel.position.z * 0.001;
-    pixel.color = vec3( 0.529, 0.808, 0.980 ) * fogFac + pixel.color * (1 - fogFac);
+void calcSkyScattering( inout vec3 color, in float z ) {
+    float fogFac = z * 0.0005;
+    color = fogColor * fogFac + color * (1 - fogFac);
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
     vec3 color = pixel.directLighting + 
                  pixel.color * pixel.torchLighting + 
                  pixel.color * pixel.ambientLighting;
-    return color / 1.75;
+
+   // color /= 1.65;
+    return color;
+}
+
+void doToneMapping( inout vec3 color ) {
+    color = color / (color + 1.0);
 }
 
 void main() {
@@ -466,17 +471,17 @@ void main() {
     if( !pixel.skipLighting ) {
         calcDirectLighting( pixel );
         calcTorchLighting( pixel );
-        calcAmbientLighting( pixel );
     
 //        calcSSAO( pixel );
 
-        //calcSkyScattering( pixel );
-    
         finalColor = calcLitColor( pixel );
+        doToneMapping( finalColor );
     } else {
         finalColor = pixel.color;
     }
 
+    calcSkyScattering( finalColor, pixel.position.z ); 
+
     gl_FragData[3] = vec4( finalColor, 1 );
-  //gl_FragData[3] = vec4( pixel.directLighting, 1 );
+//    gl_FragData[3] = vec4( pixel.normal, 1 );
 }

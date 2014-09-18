@@ -25,7 +25,7 @@ void main() {
     //process all non-metals first, they're the most common
 
     //smooth stone, brick
-    if(        mc_Entity.x ==   1.0 //stone
+    /*if(        mc_Entity.x ==   1.0 //stone
             || mc_Entity.x ==  13.0 //gravel
             || mc_Entity.x ==  23.0 //dispenser
             || mc_Entity.x ==  29.0 //sticky piston
@@ -258,11 +258,13 @@ void main() {
             || mc_Entity.x == 169.0 //sea lantern
       ) {
         isEmissive = 1.0;
-    }
+    }*/
 
     gl_Position = ftransform();
 
     normal = normalize( gl_NormalMatrix * gl_Normal );
+    
+    mat3 mvp3x3 = mat3( gl_ModelViewMatrix );
 
     vec3 tangent = vec3( 0 );
     vec3 binormal = vec3( 0 );
@@ -270,23 +272,23 @@ void main() {
     //greater than all the others, we know what direction the surface is
     //facing in
     if( gl_Normal.x > 0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 0,  0, 1 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0, -1, 0 ) );
+        tangent  = normalize( mvp3x3 * vec3( 0,  0, 1 ) );
+        binormal = normalize( mvp3x3 * vec3( 0, -1, 0 ) );
     } else if( gl_Normal.x < -0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 0,  0, 1 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0, -1, 0 ) );
+        tangent  = normalize( mvp3x3 * vec3( 0,  0, 1 ) );
+        binormal = normalize( mvp3x3 * vec3( 0, -1, 0 ) );
     } else if( gl_Normal.y > 0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 1,  0, 0 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0,  0, 1 ) );
+        tangent  = normalize( mvp3x3 * vec3( 1,  0, 0 ) );
+        binormal = normalize( mvp3x3 * vec3( 0,  0, 1 ) );
     } else if( gl_Normal.y < -0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 1,  0, 0 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0,  0, 1 ) );
+        tangent  = normalize( mvp3x3 * vec3( 1,  0, 0 ) );
+        binormal = normalize( mvp3x3 * vec3( 0,  0, 1 ) );
     } else if( gl_Normal.z > 0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 1,  0, 0 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0, -1, 0 ) );
+        tangent  = normalize( mvp3x3 * vec3( 1,  0, 0 ) );
+        binormal = normalize( mvp3x3 * vec3( 0, -1, 0 ) );
     } else if( gl_Normal.z < -0.5 ) {
-        tangent  = normalize( gl_NormalMatrix * vec3( 1,  0, 0 ) );
-        binormal = normalize( gl_NormalMatrix * vec3( 0, -1, 0 ) );
+        tangent  = normalize( mvp3x3 * vec3( 1,  0, 0 ) );
+        binormal = normalize( mvp3x3 * vec3( 0, -1, 0 ) );
     }
 
     tbnMatrix = mat3( tangent.x, tangent.y, tangent.z,

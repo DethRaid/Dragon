@@ -64,8 +64,8 @@ float getSmoothness() {
 }
 
 vec3 getNormal() {
-    vec3 normal = normalize( texture2D( gnormal, coord ).xyz * 2.0 - 1.0 );
-    normal.x *= -1;
+    vec3 normal = texture2D( gnormal, coord ).xyz;// * 2.0 - 1.0 );
+    //normal *= -1;
     return normal;
 }
 
@@ -175,4 +175,5 @@ void main() {
         //doLightBounce( pixel );
     }
     gl_FragData[4] = texture2D( composite, coord );
+    //gl_FragData[4] = vec4( vec3( pixel.normal ), 1 );
 }

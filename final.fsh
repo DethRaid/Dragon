@@ -1,6 +1,6 @@
 #version 120
 
-#define SATURATION 1.05
+#define SATURATION 1.15
 #define CONTRAST 1.1
 
 #define FXAA
@@ -92,7 +92,9 @@ void doBloom( inout vec3 color ) {
     for( float i = -BLOOM_RADIUS; i < BLOOM_RADIUS; i += 2 ) {
         for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
             vec3 sampledColor = texture2D( gaux1, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
-            colorAccum += pow( sampledColor, vec3( 50, 50, 50 ) );
+            float lumaSample = luma( sampledColor );
+            lumaSample = pow( lumaSample, 50 );
+            colorAccum += sampledColor * lumaSample;
             float bloomPow = float( abs( i ) * abs( j ) );
             colorAccum += pow( sampledColor, vec3( bloomPow ) );
             numSamples++;
