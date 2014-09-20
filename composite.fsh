@@ -5,13 +5,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 const int   shadowMapResolution     = 2048;
 const float shadowDistance          = 80.0;
-//const bool  generateShadowMipmap    = false;
+const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
 const int   noiseTextureResolution  = 64;
 
 const float sunPathRotation         = 25.0;
-const float ambientOcclusionLevel   = 0.0;
+const float ambientOcclusionLevel   = 1;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -30,7 +30,8 @@ const float ambientOcclusionLevel   = 0.0;
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
 #define SHADOW_FILTER   PCF
-#define PCSS_SAMPLES    20              //don't make this number greater than 32. You'll just waste GPU time
+#define MAX_PCF_SAMPLES 25              //make this number smaller for better performance at the expence of realism
+#define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
 #define SSAO            true
 #define SSAO_SAMPLES    32               //more samples = prettier
@@ -90,7 +91,7 @@ struct Pixel {
     vec3 directLighting;
     vec3 torchLighting;
     vec3 ambientLighting;
-};
+} curFrag;
 
 struct World {
     vec3 lightDirection;
@@ -276,19 +277,18 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     return penumbra * 0.025;
 }
 
-void calcShadowing( inout Pixel pixel ) {
+float calcShadowing( inout Pixel pixel ) {
     vec3 shadowCoord = calcShadowCoordinate( pixel );
     
     if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
         shadowCoord.y > 1 || shadowCoord.y < 0 ) {
-        return;
+        return 1;
     }
     
 #if SHADOW_QUALITY == HARD
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;    
     if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
-        pixel.directLighting = vec3( 0 );
-        return;
+        return 0;
     }
     
 #elif SHADOW_QUALITY >= SOFT
@@ -316,7 +316,7 @@ void calcShadowing( inout Pixel pixel ) {
 	}
 #else
     //go from UV to texels
-    int kernelSize = int( floor( min( penumbraSize * shadowMapResolution * 5, 25.0 ) ) );
+    int kernelSize = int( floor( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) ) );
     int kernelSizeHalf = kernelSize / 2;
     float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
     float shadowDepth;
@@ -333,7 +333,7 @@ void calcShadowing( inout Pixel pixel ) {
 #endif
 
     visibility = max( visibility, 0 );
-    pixel.directLighting *= visibility;
+    return visibility;
 #endif
 }
 
@@ -342,7 +342,7 @@ vec3 fresnel( vec3 specularColor, float hdotl ) {
 }
 
 //Cook-Toorance shading
-void calcDirectLighting( inout Pixel pixel ) { 
+vec3 calcDirectLighting( in Pixel pixel ) {
     //data that's super important to the shading algorithm
     vec3 albedo = pixel.color;
     vec3 normal = pixel.normal;
@@ -379,27 +379,31 @@ void calcDirectLighting( inout Pixel pixel ) {
 
     lambert = (vec3( 1.0 ) - specular) * lambert * (1.0 - metalness);
 
-    pixel.directLighting = (lambert + specular) * lightColor;
-    pixel.ambientLighting = ambientColor * (ndotl * 0.5 + 0.5);
-    calcShadowing( pixel );
-    //pixel.directLighting = fresnel * ndoth;
+    vec3 directLighting = (lambert + specular) * lightColor;
+    directLighting *= calcShadowing( pixel );
+    return directLighting;
+}
+
+vec3 calcAmbientLighting() {
+    return ambientColor;
 }
 
 //calcualtes the lighting from the torches
-void calcTorchLighting( inout Pixel pixel ) {
+vec3 calcTorchLighting( in Pixel pixel ) {
     float torchFac = texture2D( gaux2, coord ).g;
     vec3 torchColor = vec3( 1, 0.6, 0.4 ) * torchFac;
     float torchIntensity = min( length( torchColor ), 1.0 );
-    torchIntensity = pow( torchIntensity, 4 );
+    torchIntensity = pow( torchIntensity, 2 );
     torchColor *= torchIntensity;
-    pixel.torchLighting = torchColor * (1 - pixel.metalness) * 8.0;
+    return torchColor * (1 - pixel.metalness) * 1.0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
 
-void fillPixelStruct( inout Pixel pixel ) {
+Pixel fillPixelStruct() {
+    Pixel pixel;
     pixel.position =        getWorldSpacePosition();
     pixel.normal =          getNormal();
     pixel.color =           getColor();
@@ -407,6 +411,11 @@ void fillPixelStruct( inout Pixel pixel ) {
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
     pixel.isWater =         getWater();
+    pixel.directLighting =  vec3( 0 );
+    pixel.ambientLighting = vec3( 0 );
+    pixel.torchLighting =   vec3( 0 );
+    
+    return pixel;
 }
 
 vec2 texelToScreen( vec2 texel ) {
@@ -444,44 +453,43 @@ void calcSSAO( inout Pixel pixel ) {
     pixel.ambientLighting *= ssaoFac;
 }
 
-void calcSkyScattering( inout vec3 color, in float z ) {
+vec3 calcSkyScattering( in vec3 color, in float z ) {
     float fogFac = z * 0.0005;
-    color = fogColor * fogFac + color * (1 - fogFac);
+    return fogColor * fogFac + color * (1 - fogFac);
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
-    vec3 color = pixel.directLighting + 
-                 pixel.color * pixel.torchLighting + 
-                 pixel.color * pixel.ambientLighting;
-
-   // color /= 1.65;
-    return color;
+    return pixel.color * pixel.directLighting + 
+           pixel.color * pixel.torchLighting + 
+           pixel.color * pixel.ambientLighting;
 }
 
-void doToneMapping( inout vec3 color ) {
-    color = color / (color + 1.0);
+vec3 doToneMapping( in vec3 color ) {
+    return color / (color + 1.0);
 }
 
 void main() {
-    Pixel pixel;
-    vec3 finalColor;
+    curFrag = fillPixelStruct();
+    vec3 finalColor = vec3( 0 );
+    //Pixel copy = curFrag;
+    //curFrag.color = curFrag.normal;
     
-    fillPixelStruct( pixel );
+    if( !curFrag.skipLighting ) {
+    //******//
+        curFrag.directLighting = calcDirectLighting( curFrag );
+        curFrag.ambientLighting = calcAmbientLighting();
+        curFrag.torchLighting = calcTorchLighting( curFrag );
     
-    if( !pixel.skipLighting ) {
-        calcDirectLighting( pixel );
-        calcTorchLighting( pixel );
-    
-//        calcSSAO( pixel );
+//        calcSSAO( curFrag );
 
-        finalColor = calcLitColor( pixel );
-        doToneMapping( finalColor );
-    } else {
-        finalColor = pixel.color;
-    }
+        finalColor = calcLitColor( curFrag );
+        //finalColor = doToneMapping( finalColor );
+    }/* else {
+        finalColor = curFrag.color;
+    }*/
 
-    calcSkyScattering( finalColor, pixel.position.z ); 
+    //finalColor = calcSkyScattering( finalColor, curFrag.position.z ); 
 
     gl_FragData[3] = vec4( finalColor, 1 );
-//    gl_FragData[3] = vec4( pixel.normal, 1 );
+    //gl_FragData[3] = vec4( curFrag.normal, 1 );
 }

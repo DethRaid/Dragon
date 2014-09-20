@@ -1,7 +1,7 @@
 #version 120
 
-#define SATURATION 1.15
-#define CONTRAST 1.1
+#define SATURATION 1.0
+#define CONTRAST 0.9
 
 #define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5

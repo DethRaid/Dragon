@@ -25,10 +25,8 @@ void main() {
         fogColor = vec3( 0.529, 0.808, 0.980 );
     } else {
         lightVector = normalize( moonPosition );
-        lightColor = vec3( 0.125, 0.125, 0.15725 ) * 8.0;
-        ambientColor = vec3( 0.15, 0.17, 0.2 ) * 0.5;
+        lightColor = vec3( 0.125, 0.125, 0.15725 ) * 12.0;
+        ambientColor = vec3( 0.15, 0.17, 0.2 ) * 0.0;
         fogColor = vec3( 0.103, 0.103, 0.105 );
     }
-
-    //sinTime = sin( 
 }
