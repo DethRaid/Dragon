@@ -1,15 +1,17 @@
 #version 120
 
 //Adjustable variables. Tune these for performance
-#define MAX_BLUR_RADIUS         12  //The bigger the number, the less sharp reflections will be
-#define MAX_RAY_LENGTH          500 //How many pixels is a single ray allowed to travel?
-#define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
-#define MAX_REFLECTIVITY        0.8 //As this value approaches 1, so do all reflections
+#define MAX_RAY_LENGTH          50
+#define MAX_DEPTH_DIFFERENCE    0.5 //How much of a step between the hit pixel and anything else is allowed?
+#define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
 
+uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
+uniform sampler2D gdepth;
 uniform sampler2D gaux2;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
+uniform sampler2D gaux3;
 
 uniform vec3 cameraPosition;
 uniform mat4 gbufferModelView;
@@ -17,14 +19,17 @@ uniform mat4 gbufferProjection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 
+uniform float near;
+uniform float far;
+
 varying vec2 coord;
 
 struct Pixel1 {
-    vec4 position;
+    vec3 position;
     vec3 color;
     vec3 normal;
     bool skipLighting;
-    float reflectivity;
+    float metalness;
     float smoothness;
 };
 
@@ -37,18 +42,36 @@ float getDepth( vec2 coord ) {
     return texture2D( gdepthtex, coord ).r;
 }
 
-vec4 getScreenSpacePosition() {	
-	float depth = getDepth( coord );
-	vec4 fragposition = gbufferProjectionInverse * vec4( coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0 );
-		 fragposition /= fragposition.w;
-	return fragposition;
+float getDepthLinear( vec2 coord ) {
+    return 2.0 * near * far / (far + near - (2.0 * texture2D( gdepthtex, coord ).r - 1.0) * (far - near));
 }
 
-vec4 getWorldSpacePosition() {
-	vec4 pos = getScreenSpacePosition();
+vec3 getCameraSpacePosition( vec2 uv ) {	
+	float depth = getDepth( uv );
+	vec4 fragposition = gbufferProjectionInverse * vec4( uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0 );
+		 fragposition /= fragposition.w;
+    //fragposition.z *= -1;
+	return fragposition.xyz;
+}
+
+vec3 getWorldSpacePosition( vec2 uv ) {
+	vec4 pos = vec4( getCameraSpacePosition( uv ), 1 );
 	pos = gbufferModelViewInverse * pos;
 	pos.xyz += cameraPosition.xyz;
-	return pos;
+	return pos.xyz;
+}
+
+vec3 cameraToWorldSpace( vec3 cameraPos ) {
+    vec4 pos = vec4( cameraPos, 1 );
+    pos = gbufferModelViewInverse * pos;
+    pos.xyz /= pos.w;
+    return pos.xyz;
+}
+
+vec2 getCoordFromCameraSpace( in vec3 position ) {
+    vec4 viewSpacePosition = gbufferProjection * vec4( position, 1 );
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
 }
 
 vec3 getColor() {
@@ -69,7 +92,7 @@ vec3 getNormal() {
     return normal;
 }
 
-float getReflectivity() {
+float getMetalness() {
     return texture2D( gnormal, coord ).a;
 }
 
@@ -78,42 +101,12 @@ float getReflectivity() {
 ///////////////////////////////////////////////////////////////////////////////
 
 void fillPixelStruct( inout Pixel1 pixel ) {
-    pixel.position =        getWorldSpacePosition();
+    pixel.position =        getCameraSpacePosition( coord );
     pixel.normal =          getNormal();
     pixel.color =           getColor();
-    pixel.reflectivity =    getReflectivity();
+    pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
-}
-
-//Takes a number of texels and converts them to a UV position
-//Actually only works when your screen is 1080p
-//I hope you people like full HD...
-vec2 texelToUV( int x, int y ) {
-    return vec2( float( x ) / 1920.0, float( y ) / 1080 );
-}
-
-/*!\brief Blurs composite by the specified size around the specified point
-
-\param in center The texture-space coordinate of the center of the blur
-\param in blurRadius The radius of the blur operation, in pixels
-*/
-vec3 blurArea( in vec2 center, in int blurRadius, in float maxDepthDifference ) {
-    vec3 finalColor = vec3( 0 );
-    int numBlurred;
-    float hitDepth = texture2D( gdepthtex, center ).r;
-    for( int i = -blurRadius; i < blurRadius; i++ ) {
-        for( int j = -blurRadius; j < blurRadius; j++ ) {
-            //get the depth of the pixel we're looking at
-            vec2 offset = texelToUV( j, i );
-            float curDepth = texture2D( gdepthtex, center + offset ).r;
-            if( abs( curDepth - hitDepth ) < maxDepthDifference ) {
-                finalColor += texture2D( composite, center + offset ).rgb;
-                numBlurred++;
-            }
-        }
-    }
-    return finalColor / float( numBlurred );
 }
 
 //Determines the UV coordinate where the ray hits
@@ -124,56 +117,64 @@ vec3 blurArea( in vec2 center, in int blurRadius, in float maxDepthDifference ) 
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
 vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
-    vec3 curPos = origin + direction;
-    /*while( texture2D( gdepthtex, curPos.st ).r > curPos.z ) {
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace( curPos );
+    direction *= 0.1;
+
+    for( int i = 0; i < 125; i++ ) {
         curPos += direction;
-        if( length( curPos ) > maxDist ) {
-            return vec2( -1, -1 );
+        curCoord = getCoordFromCameraSpace( curPos );
+        if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
+            //If we're here, the ray has gone off-screen so we can't reflect anything
+            return vec2( -1 );
         }
-        if( curPos.x < 0 || curPos.x > 1 || curPos.y < 0 || curPos.y > 1 ) {
-            return curPos.st;
+        if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
+            return vec2( -1 );
+        }
+        float worldDepth = getCameraSpacePosition( curCoord ).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        if( depthDiff > 0 && depthDiff < MAX_DEPTH_DIFFERENCE) {
+            return curCoord;
         }
     }
-    if( curPos.z - texture2D( gdepthtex, curPos.st ).r < maxDist ) {
-        return curPos.st;
-    } else {
-        return vec2( -1, -1 );
-    }*/
-    return vec2( curPos.st );
+    //If we're here, we couldn't find anything to reflect within the alloted number of steps
+    return vec2( -1 ); 
 }
 
-//This function simulates a single bounce of light, because who needs framerate when you have #swag?
-void doLightBounce( inout Pixel1 pixel ) {
+vec3 doLightBounce( in Pixel1 pixel ) {
     //Find where the ray hits
     //get the blur at that point
-    //mix with the color already in composite
-    vec3 rayStart = vec3( coord, texture2D( gdepthtex, coord ).r );
-    vec3 rayDir = pixel.normal;//(gbufferProjection * vec4( pixel.normal, 0 )).xyz;
-    float maxRayLength = MAX_RAY_LENGTH * (1 - rayStart.z) * (1 - pixel.smoothness);
+    //mix with the color 
+    vec3 rayStart = pixel.position;
+    vec3 rayDir = reflect( normalize( rayStart ), pixel.normal );
+    float maxRayLength = MAX_RAY_LENGTH;// * (1 - pixel.smoothness);
     
     vec2 hitUV = castRay( rayStart, rayDir, maxRayLength );
     vec3 hitColor;
-    if( hitUV.s > 0 && hitUV.s < 1 && hitUV.t > 0 && hitUV.t < 1 ) {
-        /*float maxDepthDifference = (1 - pixel.smoothness) * MAX_DEPTH_DIFFERENCE;
-        int blurRadius = int( (1.0 - pixel.smoothness) * MAX_BLUR_RADIUS );
-        hitColor = blurArea( hitUV, blurRadius, maxDepthDifference );*/
-        hitColor = texture2D( composite, hitUV ).rgb;
-        //pixel.color = vec3( 1, 0, 0 );
+    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+        return texture2D( composite, hitUV ).rgb;
     } else {
-        hitColor = vec3( 0.529, 0.808, 0.922 );
+        return vec3( 0.59, 0.8, 0.9 ); 
     }
-    
-    pixel.reflectivity *= MAX_REFLECTIVITY;
-    pixel.color = pixel.color * (1 - pixel.reflectivity) + hitColor * pixel.reflectivity;
-    pixel.color = vec3( rayDir );
 }
 
 void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
-    //if( !pixel.skipLighting ) {
-        //doLightBounce( pixel );
-    //}
-    gl_FragData[4] = texture2D( composite, coord );
-    gl_FragData[4] = texture2D( gnormal, coord );
+    vec3 hitColor = vec3( 1 );
+    if( !pixel.skipLighting ) {
+        hitColor = doLightBounce( pixel );
+    }
+    //Once again, I must correct for the nVidia GLSL compiler grabbing random variables and
+    //writing their data to the framebuffer attachments
+    gl_FragData[0] = texture2D( gcolor, coord );
+    gl_FragData[1] = texture2D( gdepth, coord );
+    gl_FragData[2] = texture2D( gnormal, coord );
+    gl_FragData[3] = texture2D( composite, coord );
+
+    gl_FragData[4] = vec4( hitColor, 1 );
+
+    gl_FragData[5] = texture2D( gaux2, coord );
+    gl_FragData[6] = texture2D( gaux3, coord );
 }

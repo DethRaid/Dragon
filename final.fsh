@@ -1,7 +1,7 @@
 #version 120
 
 #define SATURATION 1.0
-#define CONTRAST 0.9
+#define CONTRAST 1.1
 
 #define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
@@ -14,7 +14,7 @@
 #define WEST    2
 #define EAST    3
 
-uniform sampler2D gaux1;
+uniform sampler2D gcolor;
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -38,10 +38,10 @@ void fxaa( inout vec3 color ) {
     vec2 coordE = coord + uvToTexel(  1,  0 );
     vec2 coordW = coord + uvToTexel( -1,  0 );
 
-    vec3 colorN = texture2D( gaux1, coordN ).rgb;
-    vec3 colorS = texture2D( gaux1, coordS ).rgb;
-    vec3 colorE = texture2D( gaux1, coordE ).rgb;
-    vec3 colorW = texture2D( gaux1, coordW ).rgb;
+    vec3 colorN = texture2D( gcolor, coordN ).rgb;
+    vec3 colorS = texture2D( gcolor, coordS ).rgb;
+    vec3 colorE = texture2D( gcolor, coordE ).rgb;
+    vec3 colorW = texture2D( gcolor, coordW ).rgb;
 
     float lumaM = luma( color );
     float lumaN = luma( colorN );
@@ -91,7 +91,7 @@ void doBloom( inout vec3 color ) {
     vec2 halfTexel = vec2( 0.5 / viewWidth, 0.5 / viewHeight );
     for( float i = -BLOOM_RADIUS; i < BLOOM_RADIUS; i += 2 ) {
         for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
-            vec3 sampledColor = texture2D( gaux1, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
+            vec3 sampledColor = texture2D( gcolor, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
             float lumaSample = luma( sampledColor );
             lumaSample = pow( lumaSample, 50 );
             colorAccum += sampledColor * lumaSample;
@@ -116,7 +116,7 @@ void contrastEnhance( inout vec3 color ) {
 }
 
 void main() {
-    vec3 color = texture2D( gaux1, coord ).rgb;
+    vec3 color = texture2D( gcolor, coord ).rgb;
     doBloom( color );
 #ifdef FXAA
     fxaa( color );

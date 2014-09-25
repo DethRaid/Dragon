@@ -34,20 +34,22 @@ const float ambientOcclusionLevel   = 1;
 #define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
 #define SSAO            true
-#define SSAO_SAMPLES    32               //more samples = prettier
+#define SSAO_SAMPLES    16               //more samples = prettier
 #define SSAO_STRENGTH   1.0             //bigger number = more SSAO
-#define SSAO_RADIUS     150.0             //search a 2-unit radius hemisphere
-#define SSAO_MAX_DEPTH  1.0             //if a sample's depth is within 2 units of the world depth, the sample is
-                                        //obscured
+#define SSAO_RADIUS     250.0
+#define SSAO_MAX_DEPTH  1.0
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              I need these                                 //
 ///////////////////////////////////////////////////////////////////////////////
 
 uniform sampler2D gcolor;
+uniform sampler2D gdepth;
 uniform sampler2D gdepthtex;
 uniform sampler2D gnormal;
+uniform sampler2D gaux1;
 uniform sampler2D gaux2;
+uniform sampler2D gaux3;
 
 uniform sampler2D shadow;
 
@@ -74,7 +76,6 @@ varying vec2 coord;
 
 varying vec3 lightVector;
 varying vec3 lightColor;
-varying vec3 ambientColor;
 varying vec3 fogColor;
 
 struct Pixel {
@@ -90,7 +91,6 @@ struct Pixel {
     
     vec3 directLighting;
     vec3 torchLighting;
-    vec3 ambientLighting;
 } curFrag;
 
 struct World {
@@ -377,15 +377,13 @@ vec3 calcDirectLighting( in Pixel pixel ) {
 
     vec3 specular = fresnel * specularNormalization * d * ndotl * 0.5;
 
-    lambert = (vec3( 1.0 ) - specular) * lambert * (1.0 - metalness);
+    lambert = (vec3( 1.0 ) - specular) * lambert;
 
     vec3 directLighting = (lambert + specular) * lightColor;
-    directLighting *= calcShadowing( pixel );
+    if( pixel.metalness < 0.5 ) {
+        directLighting *= calcShadowing( pixel );
+    }
     return directLighting;
-}
-
-vec3 calcAmbientLighting() {
-    return ambientColor;
 }
 
 //calcualtes the lighting from the torches
@@ -412,7 +410,6 @@ Pixel fillPixelStruct() {
     pixel.skipLighting =    shouldSkipLighting();
     pixel.isWater =         getWater();
     pixel.directLighting =  vec3( 0 );
-    pixel.ambientLighting = vec3( 0 );
     pixel.torchLighting =   vec3( 0 );
     
     return pixel;
@@ -434,13 +431,16 @@ void calcSSAO( inout Pixel pixel ) {
     vec2 sampleScale = vec2( radiusx, radiusy );
 
     float occlusionPerSample = ssaoFac / float( SSAO_SAMPLES ); 
+    
+    vec3 colorAccum = vec3( 0 );
 
     vec2 sampleCoord;
     for( int i = 0; i < SSAO_SAMPLES; i++ ) {
-        sampleCoord = poisson( rand( coord * i ) );
+        sampleCoord = poisson( rand( coord * 1 ) );
         sampleCoord *= sign( dot( sampleCoord, pixel.normal.xy ) );
         sampleCoord = sampleCoord * sampleScale + coord;
         float depthDiff = compareDepth - getDepthLinear( sampleCoord );
+        colorAccum += texture2D( gcolor, sampleCoord ).rgb;
         if( depthDiff > 0.05 && depthDiff < SSAO_MAX_DEPTH ) {
             ssaoFac -= occlusionPerSample * (1 - (depthDiff / SSAO_MAX_DEPTH));
         }
@@ -448,9 +448,11 @@ void calcSSAO( inout Pixel pixel ) {
 
     ssaoFac = max( ssaoFac, 0 );
     
-    pixel.directLighting *= ssaoFac;
+    colorAccum /= SSAO_SAMPLES;
+    pixel.color = pixel.color * 0.8 + colorAccum * 0.2;
+    
+    //pixel.directLighting *= ssaoFac;
     pixel.torchLighting *= ssaoFac;
-    pixel.ambientLighting *= ssaoFac;
 }
 
 vec3 calcSkyScattering( in vec3 color, in float z ) {
@@ -460,8 +462,7 @@ vec3 calcSkyScattering( in vec3 color, in float z ) {
 
 vec3 calcLitColor( in Pixel pixel ) {
     return pixel.color * pixel.directLighting + 
-           pixel.color * pixel.torchLighting + 
-           pixel.color * pixel.ambientLighting;
+           pixel.color * pixel.torchLighting;
 }
 
 vec3 doToneMapping( in vec3 color ) {
@@ -471,25 +472,33 @@ vec3 doToneMapping( in vec3 color ) {
 void main() {
     curFrag = fillPixelStruct();
     vec3 finalColor = vec3( 0 );
-    //Pixel copy = curFrag;
-    //curFrag.color = curFrag.normal;
     
     if( !curFrag.skipLighting ) {
     //******//
         curFrag.directLighting = calcDirectLighting( curFrag );
-        curFrag.ambientLighting = calcAmbientLighting();
         curFrag.torchLighting = calcTorchLighting( curFrag );
     
-//        calcSSAO( curFrag );
+        //calcSSAO( curFrag );
 
         finalColor = calcLitColor( curFrag );
-        //finalColor = doToneMapping( finalColor );
-    }/* else {
+        finalColor = doToneMapping( finalColor );
+    } else {
         finalColor = curFrag.color;
-    }*/
+    }
 
     //finalColor = calcSkyScattering( finalColor, curFrag.position.z ); 
 
-    gl_FragData[3] = vec4( finalColor, 1 );
-    //gl_FragData[3] = vec4( curFrag.normal, 1 );
+    //I explicitly output the data in the different framebuffer attachments to the different framebuffer attachments.
+    //If I don't, the GLSL compiler decides to grab one of my variables and output that to one of the framebuffer attachments.
+    //nVidia fix this
+    gl_FragData[0] = texture2D( gcolor, coord );
+    gl_FragData[1] = texture2D( gdepth, coord );
+    gl_FragData[2] = texture2D( gnormal, coord );
+    
+    gl_FragData[3] = vec4( finalColor, 1 ); //This is the only fragData I want
+    
+    gl_FragData[4] = texture2D( gaux1, coord );
+    gl_FragData[5] = texture2D( gaux2, coord );
+    gl_FragData[6] = texture2D( gaux3, coord );
+    
 }
