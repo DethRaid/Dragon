@@ -11,7 +11,7 @@ const bool  shadowHardwareFiltering = false;
 const int   noiseTextureResolution  = 64;
 
 const float sunPathRotation         = 25.0;
-const float ambientOcclusionLevel   = 1;
+const float ambientOcclusionLevel   = 0.2;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -376,6 +376,8 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     float d = pow( ndoth, specularPower );
 
     vec3 specular = fresnel * specularNormalization * d * ndotl * 0.5;
+    
+    lambert = lambert * (1 - metalness) + albedo * metalness * 0.25;
 
     lambert = (vec3( 1.0 ) - specular) * lambert;
 

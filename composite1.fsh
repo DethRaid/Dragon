@@ -142,7 +142,7 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     return vec2( -1 ); 
 }
 
-vec3 doLightBounce( in Pixel1 pixel ) {
+vec4 doLightBounce( in Pixel1 pixel ) {
     //Find where the ray hits
     //get the blur at that point
     //mix with the color 
@@ -153,16 +153,16 @@ vec3 doLightBounce( in Pixel1 pixel ) {
     vec2 hitUV = castRay( rayStart, rayDir, maxRayLength );
     vec3 hitColor;
     if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        return texture2D( composite, hitUV ).rgb;
+        return vec4( texture2D( composite, hitUV ).rgb, 1 );
     } else {
-        return vec3( 0.59, 0.8, 0.9 ); 
+        return vec4( pixel.color, 0 );
     }
 }
 
 void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
-    vec3 hitColor = vec3( 1 );
+    vec4 hitColor = vec4( 1.0, 1.0, 1.0, 0.0 );
     if( !pixel.skipLighting ) {
         hitColor = doLightBounce( pixel );
     }
@@ -173,7 +173,7 @@ void main() {
     gl_FragData[2] = texture2D( gnormal, coord );
     gl_FragData[3] = texture2D( composite, coord );
 
-    gl_FragData[4] = vec4( hitColor, 1 );
+    gl_FragData[4] = hitColor;
 
     gl_FragData[5] = texture2D( gaux2, coord );
     gl_FragData[6] = texture2D( gaux3, coord );
