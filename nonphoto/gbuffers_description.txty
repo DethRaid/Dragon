@@ -1,6 +1,0 @@
-gl_FragData[0] = color
-gl_FragData[1] = materialID, lightmap, bloommask, 1
-gl_FragData[2] = normal, reflectivity
-gl_FragData[3] = lit + shadowed world
-gl_FragData[4] = first raytraced bounce
-
