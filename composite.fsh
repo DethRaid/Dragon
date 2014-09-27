@@ -8,10 +8,21 @@ const float shadowDistance          = 80.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
+
 const int   noiseTextureResolution  = 64;
 
 const float sunPathRotation         = 25.0;
 const float ambientOcclusionLevel   = 0.2;
+
+const int 	R8 						= 0;
+const int 	RG8 					= 0;
+const int 	RGB8 					= 1;
+const int 	RGB16 					= 2;
+const int 	gcolorFormat 			= RGB16;
+const int 	gdepthFormat 			= RGB8;
+const int 	gnormalFormat 			= RGB16;
+const int 	compositeFormat 		= RGB16;
+const int   gaux1Format             = RGB16;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
