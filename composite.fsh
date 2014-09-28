@@ -88,6 +88,7 @@ varying vec2 coord;
 varying vec3 lightVector;
 varying vec3 lightColor;
 varying vec3 fogColor;
+varying vec3 ambientColor;
 
 struct Pixel {
     vec4 position;
@@ -343,7 +344,8 @@ float calcShadowing( inout Pixel pixel ) {
     }
 #endif
 
-    visibility = max( visibility, 0 );
+    visibility = max( visibility, 0.2 );
+    //return 0;
     return visibility;
 #endif
 }
@@ -388,14 +390,13 @@ vec3 calcDirectLighting( in Pixel pixel ) {
 
     vec3 specular = fresnel * specularNormalization * d * ndotl * 0.5;
     
-    lambert = lambert * (1 - metalness) + albedo * metalness * 0.25;
+    //lambert = lambert * (1 - metalness) + albedo * metalness * 0.25;
 
     lambert = (vec3( 1.0 ) - specular) * lambert;
 
     vec3 directLighting = (lambert + specular) * lightColor;
-    if( pixel.metalness < 0.5 ) {
-        directLighting *= calcShadowing( pixel );
-    }
+ 
+    directLighting *= calcShadowing( pixel );
     return directLighting;
 }
 
@@ -475,7 +476,8 @@ vec3 calcSkyScattering( in vec3 color, in float z ) {
 
 vec3 calcLitColor( in Pixel pixel ) {
     return pixel.color * pixel.directLighting + 
-           pixel.color * pixel.torchLighting;
+           pixel.color * pixel.torchLighting +
+           pixel.color * ambientColor;
 }
 
 vec3 doToneMapping( in vec3 color ) {
