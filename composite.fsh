@@ -3,11 +3,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 2048;
-const float shadowDistance          = 80.0;
+const int   shadowMapResolution     = 4096;
+const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
+const bool  shadowtexNearest     = true;
 
 const int   noiseTextureResolution  = 64;
 
@@ -28,6 +29,7 @@ const int   gaux1Format             = RGB16;
 //                              Changable Variables                          //
 ///////////////////////////////////////////////////////////////////////////////
 
+#define OFF            -1
 #define HARD            0
 #define SOFT            1
 #define REALISTIC       2
@@ -41,10 +43,10 @@ const int   gaux1Format             = RGB16;
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
 #define SHADOW_FILTER   PCF
-#define MAX_PCF_SAMPLES 25              //make this number smaller for better performance at the expence of realism
+#define MAX_PCF_SAMPLES 20              //make this number smaller for better performance at the expence of realism
 #define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
-#define SSAO            true
+#define SSAO            false
 #define SSAO_SAMPLES    16               //more samples = prettier
 #define SSAO_STRENGTH   1.0             //bigger number = more SSAO
 #define SSAO_RADIUS     250.0
@@ -158,7 +160,7 @@ vec3 getNormal() {
 }
 
 float getMetalness() {
-    return texture2D( gnormal, coord ).a;
+    return texture2D( gaux2, coord ).b;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -208,7 +210,7 @@ vec2 poisson( int i ) {
     } else if( i == 11 ) {
         return vec2(  0.02903906, 0.3999698 );
         
-    } else if( i == 12 ) {
+    } else if( i == 12 ) { 
         return vec2( -0.4680224, -0.4418066 );
     } else if( i == 13 ) {
         return vec2(  0.09780561, -0.1236207 );
@@ -317,18 +319,19 @@ float calcShadowing( inout Pixel pixel ) {
     float visibility = 1.0;
 
 #if SHADOW_FILTER == POISSON
+    //penumbraSize *= 5.0;
     float sub = 1.0 / PCSS_SAMPLES;
     int shadowCount = 0;
 	for( int i = 0; i < PCSS_SAMPLES; i++ ) {
         int ind = rand( coord * i );
-        float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( ind )) ).r;
+        float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( i )) ).r;
 		if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
 			visibility -= sub;
 		}
 	}
 #else
     //go from UV to texels
-    int kernelSize = int( floor( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) ) );
+    int kernelSize = int( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) );
     int kernelSizeHalf = kernelSize / 2;
     float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
     float shadowDepth;
@@ -344,7 +347,7 @@ float calcShadowing( inout Pixel pixel ) {
     }
 #endif
 
-    visibility = max( visibility, 0.2 );
+    visibility = max( visibility, 0 );
     //return 0;
     return visibility;
 #endif
@@ -388,21 +391,25 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     //Or, how likely is it that microfacets are oriented toward the half vector  
     float d = pow( ndoth, specularPower );
 
-    vec3 specular = fresnel * specularNormalization * d * ndotl * 0.5;
+    vec3 specular = fresnel * specularNormalization * d * ndotl;
     
     //lambert = lambert * (1 - metalness) + albedo * metalness * 0.25;
 
     lambert = (vec3( 1.0 ) - specular) * lambert;
 
     vec3 directLighting = (lambert + specular) * lightColor;
- 
-    directLighting *= calcShadowing( pixel );
+
+#if SHADOW_QUALITY != OFF
+  //  if( metalness < 0.5 ) {
+        directLighting *= calcShadowing( pixel );
+    //}
+#endif
     return directLighting;
 }
 
 //calcualtes the lighting from the torches
 vec3 calcTorchLighting( in Pixel pixel ) {
-    float torchFac = texture2D( gaux2, coord ).g;
+    float torchFac = texture2D( gdepth, coord ).g;
     vec3 torchColor = vec3( 1, 0.6, 0.4 ) * torchFac;
     float torchIntensity = min( length( torchColor ), 1.0 );
     torchIntensity = pow( torchIntensity, 2 );
@@ -480,8 +487,25 @@ vec3 calcLitColor( in Pixel pixel ) {
            pixel.color * ambientColor;
 }
 
+float luma( in vec3 color ) {
+    return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+}
+
+vec3 unchartedTonemap( in vec3 color ) {
+    float a = vec3( 0.15 );
+    float b = vec3( 0.50 );
+    float c = vec3( 0.10 );
+    float d = vec3( 0.20 );
+    float e = vec3( 0.02 );
+    float f = vec3( 0.30 );
+    return ((color * (a * color + c * b) + d * e) / (color * (a * color + b) + d * f)) - e / f;
+}
+
 vec3 doToneMapping( in vec3 color ) {
-    return color / (color + 1.0);
+    vec3 curr = unchartedTonemap( color * 2.0 );
+    vec3 whiteScale = vec3( 1.0 ) / unchartedTonemap( vec3( 11.2 ) );
+
+    return curr * whiteScale;
 }
 
 void main() {
@@ -489,11 +513,12 @@ void main() {
     vec3 finalColor = vec3( 0 );
     
     if( !curFrag.skipLighting ) {
-    //******//
         curFrag.directLighting = calcDirectLighting( curFrag );
         curFrag.torchLighting = calcTorchLighting( curFrag );
     
-        //calcSSAO( curFrag );
+#if SSAO
+        calcSSAO( curFrag );
+#endif
 
         finalColor = calcLitColor( curFrag );
         finalColor = doToneMapping( finalColor );
@@ -501,16 +526,14 @@ void main() {
         finalColor = curFrag.color;
     }
 
-    //finalColor = calcSkyScattering( finalColor, curFrag.position.z ); 
-
-    //I explicitly output the data in the different framebuffer attachments to the different framebuffer attachments.
-    //If I don't, the GLSL compiler decides to grab one of my variables and output that to one of the framebuffer attachments.
-    //nVidia fix this
+    //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
+    
     gl_FragData[0] = texture2D( gcolor, coord );
     gl_FragData[1] = texture2D( gdepth, coord );
     gl_FragData[2] = texture2D( gnormal, coord );
     
-    gl_FragData[3] = vec4( finalColor, 1 ); //This is the only fragData I want
+    gl_FragData[3] = vec4( finalColor, 1 );
+//    gl_FragData[3] = vec4( texture2D( gnormal, coord ).a );
     
     gl_FragData[4] = texture2D( gaux1, coord );
     gl_FragData[5] = texture2D( gaux2, coord );

@@ -7,4 +7,5 @@ varying vec2 uv;
 
 void main() {
     gl_FragData[0] = color * texture2D( texture, uv );
+    gl_FragData[5] = vec4( 1.0, 0.0, 0.0, 0.0 );
 }

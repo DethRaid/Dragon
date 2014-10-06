@@ -3,6 +3,7 @@
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          50
 #define MAX_DEPTH_DIFFERENCE    0.5 //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.2
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
 
 uniform sampler2D gcolor;
@@ -119,9 +120,9 @@ void fillPixelStruct( inout Pixel1 pixel ) {
 vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
-    direction *= 0.1;
+    direction *= RAY_STEP_LENGTH;
 
-    for( int i = 0; i < 125; i++ ) {
+    for( int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++ ) {
         curPos += direction;
         curCoord = getCoordFromCameraSpace( curPos );
         if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
@@ -153,7 +154,7 @@ vec4 doLightBounce( in Pixel1 pixel ) {
     vec2 hitUV = castRay( rayStart, rayDir, maxRayLength );
     vec3 hitColor;
     if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        return vec4( texture2D( composite, hitUV ).rgb, 1 );
+        return vec4( texture2D( composite, hitUV ).rgb * MAX_REFLECTIVITY, 1 );
     } else {
         return vec4( pixel.color, 0 );
     }

@@ -1,6 +1,6 @@
 #version 120
 
-#define MAX_BLUR_RADIUS         11
+#define MAX_BLUR_RADIUS         7
 #define BLUR_DEPTH_DIFFERENCE   0.25
 
 uniform sampler2D gcolor;
@@ -48,7 +48,7 @@ vec2 texelToUV( float x, float y ) {
     return vec2( x / viewWidth, y / viewHeight );
 }
 
-vec3 blurReflections( in float blurRadius ) {
+vec3 blurReflections( in float blurRadius ) { 
     blurRadius *= 8;
     vec3 finalColor = texture2D( gaux1, coord ).rgb;
     vec2 halfPixel = texelToUV( 0.5, 0.5 );
@@ -59,10 +59,8 @@ vec3 blurReflections( in float blurRadius ) {
             vec2 offset = texelToUV( j, i );
             if( abs( getDepthLinear( coord + offset ) - compareDepth ) < BLUR_DEPTH_DIFFERENCE ) {
                 vec4 compColor = texture2D( gaux1, coord + offset + halfPixel );
-                //if( compColor.a > 0.5 ) {
-                    finalColor += compColor.rgb;
-                    numSamples += 1;
-                //}
+                finalColor += compColor.rgb;
+                numSamples += 1;
             }
         }
     }
@@ -73,9 +71,10 @@ void main() {
     vec3 color = getColor();
     if( !shouldSkipLighting() ) {
         float smoothness = (getSmoothness() + 0.1) / 1.1;
+        float oneMinusSmoothness = 1 - smoothness;
         float metalness = getMetalness();
     
-        float blurRadius = (1 - smoothness) * MAX_BLUR_RADIUS;
+        float blurRadius = oneMinusSmoothness * MAX_BLUR_RADIUS;
         vec3 reflectedColor = blurReflections( blurRadius ) * pow( smoothness, 0.5 );
 
         metalness = mix( 0, metalness * 0.5 + 0.5, metalness );
@@ -85,8 +84,7 @@ void main() {
             smoothness = min( smoothness, 0.4 );
         }
         
-        color = color * (1 - smoothness) + reflectedColor * smoothness;
-        //color = reflectedColor;
+        color = color * oneMinusSmoothness + reflectedColor * smoothness;
     }
     color = pow( color, vec3( 1 / 2.2 ) );
     gl_FragData[0] = vec4( color, 1 );

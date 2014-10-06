@@ -30,11 +30,13 @@ void main() {
     //gloss = smoothness_in;
     //metalness - metalness_in;
     
-    //skipLighting, torch lighting, isWater
-    gl_FragData[5] = vec4( emission, texture2D( lightmap, uvLight ).r, 0, gloss );
+    //gl_FragData[0] = vec4( vec3( gloss ), 1 );
+    
+    //skipLighting, torch lighting, isWater, smoothness
+    gl_FragData[5] = vec4( emission, texture2D( lightmap, uvLight ).r, metalness, gloss );
 
     vec3 texnormal = texture2D( normals, uv ).xyz;
     texnormal = tbnMatrix * texnormal;
-    //normal, reflectivity
-    gl_FragData[2] = vec4( normal * 0.5 + 0.5, metalness );
+    //normal, metalness
+    gl_FragData[2] = vec4( normal * 0.5 + 0.5, 0.0 );
 }
