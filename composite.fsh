@@ -379,8 +379,7 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     float vdoth = dot( viewVector, half );
 
     ndotl = max( 0, ndotl );
-    ndoth = max( 0, ndoth );
-    vdoth = max( 0, vdoth );
+    ndoth = max( 0, ndoth ); 
 
     //calculate diffuse lighting
     vec3 lambert = albedo * ndotl;
@@ -502,10 +501,12 @@ vec3 unchartedTonemap( in vec3 color ) {
 }
 
 vec3 doToneMapping( in vec3 color ) {
-    vec3 curr = unchartedTonemap( color * 2.0 );
-    vec3 whiteScale = vec3( 1.0 ) / unchartedTonemap( vec3( 11.2 ) );
+    float lumac = luma( color );
+    float lWhite = 2.4;
 
-    return curr * whiteScale;
+    float lumat = (lumac * (1.0 + (lumac / (lWhite * lWhite) ))) / (1.0 + lumac );
+    float scale = lumat / lumac;
+    return color * scale;
 }
 
 void main() {

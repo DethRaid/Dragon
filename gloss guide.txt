@@ -1,4 +1,4 @@
-gloss values
+smoothness values
 Gold            - 1.0   255
 Iron            - 0.9   230
 wood            - 0.05   13
@@ -12,6 +12,8 @@ Leather         - 0.3    77
 brick           - 0.4   102 
 quartz          - 0.7   179
 End stone       - 0.3    77
+Prismarine      - 0.5   128
+Rough Prismarine- 0.3
 
 r - gloss
 g - emission
