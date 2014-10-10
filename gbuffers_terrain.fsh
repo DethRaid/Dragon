@@ -31,8 +31,8 @@ void main() {
     float metalness = sData.b;
     
     float lumac = min( luma( texColor.rgb ), 1.0 );
-    texColor += texColor * (1.0 - lumac) * 0.75;
-    texColor /= 1.1;
+    texColor += texColor * (1.0 - lumac) * 0.5;
+    //texColor /= 1.1;
     
     gl_FragData[0] = texColor;
     

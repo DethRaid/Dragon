@@ -1,16 +1,16 @@
 #version 120
 
-#define SATURATION 0.8
-#define CONTRAST 1.1
+#define SATURATION 1.05
+#define CONTRAST 1.0
 
-#define FXAA
+//#define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
 #define FILM_GRAIN
 #define FILM_GRAIN_STRENGTH 0.03
 #define FILM_GRAIN_SIZE     1.6
 
-#define BLOOM_RADIUS 13
+#define BLOOM_RADIUS 9
 
 //Some defines to make my life easier
 #define NORTH   0
@@ -99,7 +99,7 @@ void doBloom( inout vec3 color ) {
         for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
             vec3 sampledColor = texture2D( gcolor, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
             float lumaSample = luma( sampledColor );
-            lumaSample = pow( lumaSample, 25 );
+            lumaSample = pow( lumaSample, 15 );
             colorAccum += sampledColor * lumaSample;
             float bloomPow = float( abs( i ) * abs( j ) );
             colorAccum += pow( sampledColor, vec3( bloomPow ) );

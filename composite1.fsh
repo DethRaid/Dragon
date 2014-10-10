@@ -1,9 +1,9 @@
 #version 120
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          50
-#define MAX_DEPTH_DIFFERENCE    0.5 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.2
+#define MAX_RAY_LENGTH          20.0
+#define MAX_DEPTH_DIFFERENCE    0.2 //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.15
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
 
 uniform sampler2D gcolor;
@@ -33,6 +33,8 @@ struct Pixel1 {
     float metalness;
     float smoothness;
 };
+
+float rayLen;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Helper Functions                             //
@@ -117,7 +119,7 @@ void fillPixelStruct( inout Pixel1 pixel ) {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
+vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
     direction *= RAY_STEP_LENGTH;
@@ -127,20 +129,21 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         curCoord = getCoordFromCameraSpace( curPos );
         if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec2( -1 );
+            return vec3( -1, -1, 0 );
         }
         if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
-            return vec2( -1 );
+            return vec3( -1, -1, 0 );
         }
         float worldDepth = getCameraSpacePosition( curCoord ).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         if( depthDiff > 0 && depthDiff < MAX_DEPTH_DIFFERENCE) {
-            return curCoord;
+            rayLen = length( curPos - origin );
+            return vec3( curCoord, length( curPos - origin ) / MAX_RAY_LENGTH );
         }
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec2( -1 ); 
+    return vec3( -1, -1, 0 ); 
 }
 
 vec4 doLightBounce( in Pixel1 pixel ) {
@@ -151,13 +154,14 @@ vec4 doLightBounce( in Pixel1 pixel ) {
     vec3 rayDir = reflect( normalize( rayStart ), pixel.normal );
     float maxRayLength = MAX_RAY_LENGTH;// * (1 - pixel.smoothness);
     
-    vec2 hitUV = castRay( rayStart, rayDir, maxRayLength );
-    vec3 hitColor;
+    vec3 hitUV = castRay( rayStart, rayDir, maxRayLength );
     if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        return vec4( texture2D( composite, hitUV ).rgb * MAX_REFLECTIVITY, 1 );
+        return vec4( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY, hitUV.z );
     } else {
         return vec4( pixel.color, 0 );
     }
+    
+    return vec4( hitUV.z );
 }
 
 void main() {
