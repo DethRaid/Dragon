@@ -1,10 +1,16 @@
 #version 120
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          20.0
+#define MAX_RAY_LENGTH          30.0
 #define MAX_DEPTH_DIFFERENCE    0.3 //How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.3
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
+#define RAY_GROWTH              1.075    //Make this number smaller to get more accurate reflections at the cost of performance
+                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
+                                        //shorter and shorter until you're barely making any progress
+#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+                                    //more and more rays will be sent per pixel, resulting in better and better
+                                    //reflections. If you computer can handle 8 (or even 16!) I highly recommend it.
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -122,31 +128,43 @@ void fillPixelStruct( inout Pixel1 pixel ) {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
+vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
-    direction *= RAY_STEP_LENGTH;
+    direction = normalize( direction );
+    bool forward = true;
 
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
     for( int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++ ) {
         curPos += direction;
         curCoord = getCoordFromCameraSpace( curPos );
         if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec3( -1, -1, 0 );
+            return vec2( -1 );
         }
         if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
-            return vec3( -1, -1, 0 );
+            return vec2( -1 );
         }
         float worldDepth = getCameraSpacePosition( curCoord ).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
-        if( depthDiff > 0 && depthDiff < MAX_DEPTH_DIFFERENCE) {
-            rayLen = length( curPos - origin );
-            return vec3( curCoord, length( curPos - origin ) / MAX_RAY_LENGTH );
+        if( forward ) {
+            if( depthDiff > 0 && depthDiff < length( direction ) ) {
+                direction *= -1;
+                direction *= 0.15;
+                forward = false;
+            } 
+        } else {
+            depthDiff *= -1;
+            if( depthDiff > 0 && depthDiff < length( direction ) ) {
+                return curCoord;
+            }
         }
+        direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec3( -1, -1, 0 ); 
+    return vec2( -1 ); 
 }
 
 vec3 doLightBounce( in Pixel1 pixel ) {
@@ -156,62 +174,27 @@ vec3 doLightBounce( in Pixel1 pixel ) {
     vec3 rayStart = pixel.position;
     vec2 noiseCoord = vec2( coord.s * viewWidth / 64.0, coord.t * viewHeight / 64.0 );
     vec3 retColor = vec3( 0 );
+    vec3 noiseSample = vec3( 0 );
+    vec3 reflectDir = vec3( 0 );
+    vec3 rayDir = vec3( 0 );
+    vec2 hitUV = vec2( 0 );
+        
+    //trace the number of rays defined previously
+    for( int i = 0; i < NUM_RAYS; i++ ) {
+        noiseSample = texture2D( noisetex, noiseCoord * (i + 1) ).rgb * 2.0 - 1.0;
+        reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
+        reflectDir *= sign( dot( pixel.normal, reflectDir ) );
+        rayDir = reflect( normalize( rayStart ), reflectDir );
     
-    //first ray
-    vec3 noiseSample = texture2D( noisetex, noiseCoord ).rgb * 2.0 - 1.0;
-    vec3 reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
-    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
-    vec3 rayDir = reflect( normalize( rayStart ), reflectDir );
-    
-    vec3 hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
-    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        retColor = vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
-    } else {
-        retColor = vec3( pixel.color );
+        hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
+        if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+            retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
+        } else {
+            retColor += vec3( pixel.color );
+        }
     }
     
-    //second ray
-    noiseSample = texture2D( noisetex, noiseCoord * 3.14159257 ).rgb * 2.0 - 1.0;
-    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
-    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
-    rayDir = reflect( normalize( rayStart ), reflectDir );
-    
-    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
-    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
-    } else {
-        retColor += vec3( pixel.color );
-    }
-    
-    /*  Uncomment this section and divide retColor be 4 at the end of this function... IF YOU DARE!!!!!!
-    //third ray
-    noiseSample = texture2D( noisetex, noiseCoord * 2.14159257 ).rgb * 2.0 - 1.0;
-    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
-    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
-    rayDir = reflect( normalize( rayStart ), reflectDir );
-    
-    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
-    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
-    } else {
-        retColor += vec3( pixel.color );
-    }
-    
-    //fourth ray
-    noiseSample = texture2D( noisetex, noiseCoord * 654.65465465 ).rgb * 2.0 - 1.0;
-    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
-    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
-    rayDir = reflect( normalize( rayStart ), reflectDir );
-    
-    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
-    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
-    } else {
-        retColor += vec3( pixel.color );
-    }
-    */
-    
-    return retColor / 2.0;
+    return retColor / NUM_RAYS;
 }
 
 float luma( vec3 color ) {
@@ -222,7 +205,7 @@ void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
     vec3 hitColor = pixel.color;
-    if( !pixel.skipLighting ) {
+    if( !pixel.skipLighting && pixel.smoothness > 0.3 ) {
         hitColor = doLightBounce( pixel );
         
         vec3 viewVector = normalize( getCameraSpacePosition( coord ) );
