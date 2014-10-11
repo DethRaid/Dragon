@@ -20,7 +20,7 @@ void main() {
 
     if( worldTime > 500 && worldTime < 13000 ) {
         lightVector = normalize( sunPosition );
-        lightColor = vec3( 1, 0.98, 0.95 ) * 2.0;
+        lightColor = vec3( 1, 0.98, 0.95 ) * 5.0;
         ambientColor = vec3( 0.2, 0.2, 0.2 ) * 0.5;
         fogColor = vec3( 0.529, 0.808, 0.980 );
     } else {

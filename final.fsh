@@ -1,6 +1,6 @@
 #version 120
 
-#define SATURATION 1.05
+#define SATURATION 0.99
 #define CONTRAST 1.0
 
 //#define FXAA
@@ -19,6 +19,7 @@
 #define EAST    3
 
 uniform sampler2D gcolor;
+uniform sampler2D gaux1;
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -231,8 +232,8 @@ void doFilmGrain( inout vec3 color ) {
 //licensed film grain code stops here
 
 void main() {
-    vec3 color = texture2D( gcolor, coord ).rgb;
-    doBloom( color );
+    vec3 color = texture2D( gaux1, coord ).rgb;
+    //doBloom( color );
 #ifdef FXAA
     fxaa( color );
 #endif

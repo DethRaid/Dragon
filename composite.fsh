@@ -392,17 +392,13 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     float d = pow( ndoth, specularPower );
 
     vec3 specular = fresnel * specularNormalization * d * ndotl;
-    
-    //lambert = lambert * (1 - metalness) + albedo * metalness * 0.25;
 
-    lambert = (vec3( 1.0 ) - specular) * lambert;
+    lambert = (vec3( 1.0 ) - specular) * lambert * (1.5 - metalness);
 
     vec3 directLighting = (lambert + specular) * lightColor;
 
 #if SHADOW_QUALITY != OFF
-  //  if( metalness < 0.5 ) {
-        directLighting *= calcShadowing( pixel );
-    //}
+    directLighting *= calcShadowing( pixel );
 #endif
     return directLighting;
 }
@@ -502,6 +498,7 @@ vec3 unchartedTonemap( in vec3 color ) {
 }
 
 vec3 doToneMapping( in vec3 color ) {
+    //return unchartedTonemap( color );
     float lumac = luma( color );
     float lWhite = 2.4;
 
