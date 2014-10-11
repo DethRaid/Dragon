@@ -155,21 +155,63 @@ vec3 doLightBounce( in Pixel1 pixel ) {
     //mix with the color 
     vec3 rayStart = pixel.position;
     vec2 noiseCoord = vec2( coord.s * viewWidth / 64.0, coord.t * viewHeight / 64.0 );
+    vec3 retColor = vec3( 0 );
+    
+    //first ray
     vec3 noiseSample = texture2D( noisetex, noiseCoord ).rgb * 2.0 - 1.0;
-    vec3 reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal );
+    vec3 reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
     reflectDir *= sign( dot( pixel.normal, reflectDir ) );
     vec3 rayDir = reflect( normalize( rayStart ), reflectDir );
-    float maxRayLength = MAX_RAY_LENGTH;
-    //return vec4( reflectDir, 1 );
     
-    vec3 hitUV = castRay( rayStart, rayDir, maxRayLength );
+    vec3 hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
     if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-        return vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
+        retColor = vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
     } else {
-        return vec3( pixel.color );
+        retColor = vec3( pixel.color );
     }
     
-    return vec3( hitUV.z );
+    //second ray
+    noiseSample = texture2D( noisetex, noiseCoord * 3.14159257 ).rgb * 2.0 - 1.0;
+    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
+    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
+    rayDir = reflect( normalize( rayStart ), reflectDir );
+    
+    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
+    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
+    } else {
+        retColor += vec3( pixel.color );
+    }
+    
+    /*  Uncomment this section and divide retColor be 4 at the end of this function... IF YOU DARE!!!!!!
+    //third ray
+    noiseSample = texture2D( noisetex, noiseCoord * 2.14159257 ).rgb * 2.0 - 1.0;
+    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
+    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
+    rayDir = reflect( normalize( rayStart ), reflectDir );
+    
+    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
+    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
+    } else {
+        retColor += vec3( pixel.color );
+    }
+    
+    //fourth ray
+    noiseSample = texture2D( noisetex, noiseCoord * 654.65465465 ).rgb * 2.0 - 1.0;
+    reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
+    reflectDir *= sign( dot( pixel.normal, reflectDir ) );
+    rayDir = reflect( normalize( rayStart ), reflectDir );
+    
+    hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
+    if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+        retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
+    } else {
+        retColor += vec3( pixel.color );
+    }
+    */
+    
+    return retColor / 2.0;
 }
 
 float luma( vec3 color ) {
