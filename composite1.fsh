@@ -8,7 +8,7 @@
 #define RAY_GROWTH              1.075    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 8 (or even 16!) I highly recommend it.
 

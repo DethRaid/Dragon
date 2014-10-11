@@ -7,10 +7,15 @@
 #define EDGE_LUMA_THRESHOLD 0.5
 
 #define FILM_GRAIN
-#define FILM_GRAIN_STRENGTH 0.03
+#define FILM_GRAIN_STRENGTH 0.07
 #define FILM_GRAIN_SIZE     1.6
 
 #define BLOOM_RADIUS 9
+
+#define VINGETTE
+#define VINGETTE_MIN        0.4
+#define VINGETTE_MAX        0.65
+#define VINGETTE_STRENGTH   0.25
 
 //Some defines to make my life easier
 #define NORTH   0
@@ -231,6 +236,12 @@ void doFilmGrain( inout vec3 color ) {
 }
 //licensed film grain code stops here
 
+#ifdef VINGETTE
+float vingetteAmt( in vec2 coord ) {
+    return smoothstep( VINGETTE_MIN, VINGETTE_MAX, length( coord - vec2( 0.5, 0.5 ) ) ) * VINGETTE_STRENGTH;
+}
+#endif
+
 void main() {
     vec3 color = texture2D( gaux1, coord ).rgb;
     //doBloom( color );
@@ -241,6 +252,9 @@ void main() {
     contrastEnhance( color );
 #ifdef FILM_GRAIN
     doFilmGrain( color );
+#endif
+#ifdef VINGETTE
+    color -= vec3( vingetteAmt( coord ) );
 #endif
 
     gl_FragColor = vec4( color, 1 );
