@@ -7,7 +7,7 @@
 #define EDGE_LUMA_THRESHOLD 0.5
 
 #define FILM_GRAIN
-#define FILM_GRAIN_STRENGTH 0.03
+#define FILM_GRAIN_STRENGTH 0.04
 #define FILM_GRAIN_SIZE     1.6
 
 //#define BLOOM
@@ -39,7 +39,7 @@ uniform mat4 gbufferPreviousModelView;
 
 uniform float viewWidth;
 uniform float viewHeight;
-uniform int worldTime;
+uniform float frameTimeCounter;
 
 varying vec2 coord;
 varying float floatTime;
@@ -158,7 +158,7 @@ http://machinesdontcare.wordpress.com/2009/06/25/3d-perlin-noise-sphere-vertex-s
 */
 //a random texture generator, but you can also use a pre-computed perturbation texture
 vec4 rnm(in vec2 tc) {
-    float noise =  sin( dot( tc + vec2( floatTime, floatTime ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453;
+    float noise =  sin( dot( tc + vec2( frameTimeCounter, frameTimeCounter ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453;
 
     float noiseR =  fract(noise)*2.0-1.0;
     float noiseG =  fract(noise*1.2154)*2.0-1.0; 
@@ -237,7 +237,7 @@ vec2 coordRot(in vec2 tc, in float angle) {
 
 void doFilmGrain( inout vec3 color ) {
     vec3 rotOffset = vec3( 1.425, 3.892, 5.835 );
-    vec2 rotCoordsR = coordRot( coord, floatTime + rotOffset.x );
+    vec2 rotCoordsR = coordRot( coord, frameTimeCounter + rotOffset.x );
     vec3 noise = vec3( pnoise3D( vec3( rotCoordsR * vec2( viewWidth / FILM_GRAIN_SIZE, viewHeight / FILM_GRAIN_SIZE ) , 0.0 ) ) );
     float luma = luma( color );
     noise = mix( noise, vec3( 0.0 ), pow( luma, 4.0 ) );

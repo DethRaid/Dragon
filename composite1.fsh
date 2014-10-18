@@ -186,8 +186,6 @@ vec3 doLightBounce( in Pixel1 pixel ) {
     vec3 rayDir = vec3( 0 );
     vec2 hitUV = vec2( 0 );
     
-    pixel.water = 0.0;
-    
     //trace the number of rays defined previously
     for( int i = 0; i < NUM_RAYS; i++ ) {
         noiseSample = texture2D( noisetex, noiseCoord * (i + 1) ).rgb * 2.0 - 1.0;
@@ -229,13 +227,13 @@ void main() {
         vec3 reflectedColor = doLightBounce( pixel ).rgb;
 
         smoothness = pow( smoothness, 4 );
-        vec3 sColor = (pixel.color * metalness + vec3( smoothness ) * (1.0 - metalness)) * (1.0 - waterness);
+        vec3 sColor = (pixel.color * metalness + vec3( smoothness ) * (1.0 - metalness)) * (1.2 - waterness);
         vec3 fresnel = sColor + (vec3( 1.0 ) - sColor) * pow( 1.0 - vdoth, 5 );
 
         reflectedColor *= fresnel;
 
-        hitColor = (1.0 - luma( reflectedColor )) * pixel.color * (1.0 - metalness) + reflectedColor;
-        //hitColor = vec3( fresnel );
+        hitColor = (vec3( 1.0 ) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor;
+        //hitColor = fresnel;
     }
     
     hitColor = pow( hitColor, vec3( 1.0 / 2.2 ) );
