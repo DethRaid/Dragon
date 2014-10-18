@@ -5,10 +5,11 @@
 #define MAX_DEPTH_DIFFERENCE    0.3 //How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.3
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
-#define RAY_GROWTH              1.075    //Make this number smaller to get more accurate reflections at the cost of performance
+#define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
+#define RAY_GROWTH              1.025    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 8 (or even 16!) I highly recommend it.
 
@@ -42,6 +43,7 @@ struct Pixel1 {
     bool skipLighting;
     float metalness;
     float smoothness;
+    float water;
 };
 
 float rayLen;
@@ -108,6 +110,10 @@ float getMetalness() {
     return texture2D( gaux2, coord ).b;
 }
 
+float getWater() {
+    return texture2D( gnormal, coord ).a;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
@@ -119,6 +125,7 @@ void fillPixelStruct( inout Pixel1 pixel ) {
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
+    pixel.water =           getWater();
 }
 
 //Determines the UV coordinate where the ray hits
@@ -149,15 +156,15 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         float worldDepth = getCameraSpacePosition( curCoord ).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = length( direction ) + RAY_DEPTH_BIAS;
         if( forward ) {
-            if( depthDiff > 0 && depthDiff < length( direction ) ) {
-                direction *= -1;
-                direction *= 0.15;
+            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
+                direction = -1 * normalize( direction ) * 0.2;
                 forward = false;
             } 
         } else {
             depthDiff *= -1;
-            if( depthDiff > 0 && depthDiff < length( direction ) ) {
+            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
                 return curCoord;
             }
         }
@@ -178,11 +185,13 @@ vec3 doLightBounce( in Pixel1 pixel ) {
     vec3 reflectDir = vec3( 0 );
     vec3 rayDir = vec3( 0 );
     vec2 hitUV = vec2( 0 );
-        
+    
+    pixel.water = 0.0;
+    
     //trace the number of rays defined previously
     for( int i = 0; i < NUM_RAYS; i++ ) {
         noiseSample = texture2D( noisetex, noiseCoord * (i + 1) ).rgb * 2.0 - 1.0;
-        reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.05 + pixel.normal );
+        reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal );
         reflectDir *= sign( dot( pixel.normal, reflectDir ) );
         rayDir = reflect( normalize( rayStart ), reflectDir );
     
@@ -190,7 +199,7 @@ vec3 doLightBounce( in Pixel1 pixel ) {
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
             retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
         } else {
-            retColor += vec3( pixel.color );
+            retColor += vec3( 0.529, 0.804, 0.922 ) * pixel.water + pixel.color * (1.0 - pixel.water);
         }
     }
     
@@ -215,17 +224,18 @@ void main() {
         float smoothness = pixel.smoothness;
         float oneMinusSmoothness = 1 - smoothness;
         float metalness = pixel.metalness;
+        float waterness = pixel.water;
     
         vec3 reflectedColor = doLightBounce( pixel ).rgb;
 
         smoothness = pow( smoothness, 4 );
-        vec3 sColor = pixel.color * metalness + vec3( smoothness ) * (1.0 - metalness);
+        vec3 sColor = (pixel.color * metalness + vec3( smoothness ) * (1.0 - metalness)) * (1.0 - waterness);
         vec3 fresnel = sColor + (vec3( 1.0 ) - sColor) * pow( 1.0 - vdoth, 5 );
 
         reflectedColor *= fresnel;
 
         hitColor = (1.0 - luma( reflectedColor )) * pixel.color * (1.0 - metalness) + reflectedColor;
-        //hitColor = vec3( pixel.color );
+        //hitColor = vec3( fresnel );
     }
     
     hitColor = pow( hitColor, vec3( 1.0 / 2.2 ) );

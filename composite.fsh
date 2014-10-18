@@ -20,11 +20,13 @@ const int 	RG8 					= 0;
 const int 	RGB8 					= 1;
 const int 	RGB16 					= 2;
 const int   RGBA16                  = 3;
+const int   RGBA8                   = 4;
 const int 	gcolorFormat 			= RGB16;
 const int 	gdepthFormat 			= RGB8;
-const int 	gnormalFormat 			= RGB16;
+const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB16;
 const int   gaux1Format             = RGBA16;
+const int   gaux2Format             = RGBA8;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -43,7 +45,7 @@ const int   gaux1Format             = RGBA16;
 
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
-#define SHADOW_FILTER   PCF
+#define SHADOW_FILTER   POISSON
 #define MAX_PCF_SAMPLES 20              //make this number smaller for better performance at the expence of realism
 #define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
@@ -100,7 +102,7 @@ struct Pixel {
     vec3 normal;
     float metalness;
     float smoothness;
-    bool isWater;
+    float water;
     
     bool skipLighting;
     
@@ -148,8 +150,8 @@ bool shouldSkipLighting() {
     return texture2D( gaux2, coord ).r > 0.5;
 }
 
-bool getWater() {
-    return texture2D( gaux2, coord ).b > 0.5;
+float getWater() {
+    return texture2D( gnormal, coord ).a;
 }
 
 float getSmoothness() {
@@ -274,8 +276,6 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float count = 0;
 
-
-
 	for( int i = 0; i < 32; i++ ) {    
 		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) *  0.005 ) ).r;
 		if( temp < dFragment ) {
@@ -366,7 +366,7 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     float specularPower = pow( 10 * pixel.smoothness + 1, 2 );  //yeah
     float metalness = pixel.metalness;
     vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3( 1.0 );
-    specularColor *= pixel.smoothness;
+    //specularColor *= pixel.smoothness;
 
     //Other useful value
     vec3 viewVector = normalize( cameraPosition - pixel.position.xyz );
@@ -393,7 +393,7 @@ vec3 calcDirectLighting( in Pixel pixel ) {
 
     vec3 specular = fresnel * specularNormalization * d * ndotl;
 
-    lambert = (vec3( 1.0 ) - specular) * lambert * (1.5 - metalness);
+    lambert = (vec3( 1.0 ) - specular) * lambert * (1 - metalness);
 
     vec3 directLighting = (lambert + specular) * lightColor;
 
@@ -425,7 +425,7 @@ Pixel fillPixelStruct() {
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
-    pixel.isWater =         getWater();
+    pixel.water =         getWater();
     pixel.directLighting =  vec3( 0 );
     pixel.torchLighting =   vec3( 0 );
     
@@ -478,9 +478,10 @@ vec3 calcSkyScattering( in vec3 color, in float z ) {
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
+    vec3 ambientColorCorrected = ambientColor + vec3( 0.2, 0.2, 0.2 ) * pixel.metalness;
     return pixel.color * pixel.directLighting + 
            pixel.color * pixel.torchLighting +
-           pixel.color * ambientColor;
+           pixel.color * ambientColorCorrected;
 }
 
 float luma( in vec3 color ) {
@@ -511,7 +512,7 @@ void main() {
     curFrag = fillPixelStruct();
     vec3 finalColor = vec3( 0 );
     
-    if( !curFrag.skipLighting ) {
+    if( !curFrag.skipLighting && curFrag.water < 0.5 ) {
         curFrag.directLighting = calcDirectLighting( curFrag );
         curFrag.torchLighting = calcTorchLighting( curFrag );
     
@@ -532,7 +533,7 @@ void main() {
     gl_FragData[2] = texture2D( gnormal, coord );
     
     gl_FragData[3] = vec4( finalColor, 1 );
-//    gl_FragData[3] = vec4( texture2D( gnormal, coord ).a );
+    //gl_FragData[3] = vec4( vec3( curFrag.metalness ), 1 );
     
     gl_FragData[4] = texture2D( gaux1, coord );
     gl_FragData[5] = texture2D( gaux2, coord );

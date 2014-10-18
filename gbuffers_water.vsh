@@ -6,12 +6,15 @@ uniform vec3 cameraPosition;
 
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferModelView;
+uniform mat4 gbufferProjectionInverse;
 
 varying vec4 color;
 varying vec2 uv;
 varying vec2 uvLight;
+varying vec3 worldPos;
 
 varying vec3 normal;
+varying mat3 normalMatrix;
 
 vec3 getGerstnerDisplacement( in vec3 pos ) {
     float waveTime = float( worldTime ) / 10;
@@ -87,8 +90,8 @@ void main() {
 
     uv = gl_MultiTexCoord0.st;
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
-
-    vec3 viewPos = (gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex).xyz;
+   
+    worldPos = (gl_Vertex).xyz;
    
     //vec3 gerstnerPos = getGerstnerDisplacement( viewPos );
 
@@ -97,4 +100,5 @@ void main() {
     gl_Position = ftransform();
     
     normal = gl_NormalMatrix * gl_Normal;//getGerstnerNormal( viewPos );
+    normalMatrix = gl_NormalMatrix;
 }

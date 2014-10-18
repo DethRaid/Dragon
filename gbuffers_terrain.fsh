@@ -12,9 +12,6 @@ varying vec2 uvLight;
 varying vec3 normal;
 varying mat3 tbnMatrix;
 
-varying float smoothness_in;
-varying float metalness_in;
-
 varying float isEmissive;
 
 float luma( in vec3 color ) {
@@ -32,15 +29,17 @@ void main() {
     
     float lumac = min( luma( texColor.rgb ), 1.0 );
     texColor += texColor * (1.0 - lumac) * 0.5;
-    //texColor /= 1.1;
+    texColor /= 1.1;
     
     gl_FragData[0] = texColor;
     
-    //skipLighting, torch lighting, isWater, smoothness
+    //skipLighting, torch lighting, metlness, smoothness
     gl_FragData[5] = vec4( emission, texture2D( lightmap, uvLight ).r, metalness, smoothness );
+    //gl_FragData[5] = vec4( 0.0, texture2D( lightmap, uvLight ).r, 1.0, 1.0 );
+    //gl_FragData[0] = vec4( vec3( metalness ), 1.0 );
 
-    vec3 texnormal = texture2D( normals, uv ).xyz;
+    vec3 texnormal = texture2D( normals, uv ).xyz * 2.0 - 1.0; 
     texnormal = tbnMatrix * texnormal;
-    //normal, metalness
-    gl_FragData[2] = vec4( normal * 0.5 + 0.5, 0.0 );
+    //normal, junk
+    gl_FragData[2] = vec4( texnormal * 0.5 + 0.5, 0.0 );
 }

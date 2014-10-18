@@ -7,15 +7,20 @@
 #define EDGE_LUMA_THRESHOLD 0.5
 
 #define FILM_GRAIN
-#define FILM_GRAIN_STRENGTH 0.07
+#define FILM_GRAIN_STRENGTH 0.03
 #define FILM_GRAIN_SIZE     1.6
 
+//#define BLOOM
 #define BLOOM_RADIUS 9
 
 #define VINGETTE
 #define VINGETTE_MIN        0.4
 #define VINGETTE_MAX        0.65
 #define VINGETTE_STRENGTH   0.25
+
+#define MOTION_BLUR
+#define MOTION_BLUR_SAMPLES 16
+#define MOTION_BLUR_SCALE   0.25
 
 //Some defines to make my life easier
 #define NORTH   0
@@ -24,7 +29,13 @@
 #define EAST    3
 
 uniform sampler2D gcolor;
+uniform sampler2D gdepthtex;
 uniform sampler2D gaux1;
+
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform mat4 gbufferPreviousProjection;
+uniform mat4 gbufferPreviousModelView;
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -105,10 +116,9 @@ void doBloom( inout vec3 color ) {
         for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
             vec3 sampledColor = texture2D( gcolor, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
             float lumaSample = luma( sampledColor );
-            lumaSample = pow( lumaSample, 15 );
-            colorAccum += sampledColor * lumaSample;
+            lumaSample = pow( lumaSample, 25 );
             float bloomPow = float( abs( i ) * abs( j ) );
-            colorAccum += pow( sampledColor, vec3( bloomPow ) );
+            colorAccum += pow( sampledColor, vec3( bloomPow ) ) * lumaSample;
             numSamples++;
         }
     }
@@ -242,17 +252,55 @@ float vingetteAmt( in vec2 coord ) {
 }
 #endif
 
+#ifdef MOTION_BLUR
+vec2 getBlurVector() {
+    mat4 curToPreviousMat = gbufferModelViewInverse * gbufferPreviousModelView * gbufferPreviousProjection;
+    float depth = texture2D( gdepthtex, coord );
+    vec2 ndcPos = coord * 2.0 - 1.0;
+    vec4 fragPos = gbufferProjectionInverse * vec4( ndcPos, depth * 2.0 - 1.0, 1.0 );
+    fragPos /= fragPos.w;
+
+    vec4 previous = curToPreviousMat * fragPos;
+    previous /= previous.w;
+    previous.xy = previous.xy * 0.5 + 0.5;
+
+    return previous.xy - coord;
+}
+
+vec3 doMotionBlur() {
+    vec2 blurVector = getBlurVector() * MOTION_BLUR_SCALE;
+    vec4 result = texture2D( gaux1, coord );
+    for( int i = 0; i < MOTION_BLUR_SAMPLES; i++ ) {
+        vec2 offset = blurVector * (float( i ) / float( MOTION_BLUR_SAMPLES - 1) - 0.5);
+        result += texture2D( gaux1, coord + offset );
+    }
+    return result.rgb / float( MOTION_BLUR_SAMPLES );
+}
+#endif
+
 void main() {
-    vec3 color = texture2D( gaux1, coord ).rgb;
-    //doBloom( color );
+    vec3 color = vec3( 0 );
+#ifdef MOTION_BLUR
+    color = doMotionBlur();
+#else
+    color = texture2D( gaux1, coord );
+#endif
+
+#ifdef BLOOM
+    doBloom( color );
+#endif
+
 #ifdef FXAA
     fxaa( color );
 #endif
+
     //correctColor( color );
     contrastEnhance( color );
+
 #ifdef FILM_GRAIN
     doFilmGrain( color );
 #endif
+
 #ifdef VINGETTE
     color -= vec3( vingetteAmt( coord ) );
 #endif
