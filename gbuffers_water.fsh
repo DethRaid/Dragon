@@ -47,10 +47,10 @@ void main() {
     mat3 nMat = mat3( gbufferModelView );
 
     vec3 wNormal = getWaves( 0.1 ) * 2.0 - 1.0;
-    wNormal = normalMatrix * normal_raw;
+    wNormal = normalMatrix * wNormal;
     
     gl_FragData[0] = color * texture2D( diffuse, uv );
     gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1 );
     gl_FragData[2] = vec4( normal * 0.5 + 0.5, 1.0 );
-    //gl_FragData[0] = vec4( normal, 1 );
+    //gl_FragData[0] = vec4( wNormal, 1 );
 }

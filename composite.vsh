@@ -25,8 +25,8 @@ void main() {
         fogColor = vec3( 0.529, 0.808, 0.980 );
     } else {
         lightVector = normalize( moonPosition );
-        lightColor = vec3( 0.125, 0.125, 0.15725 ) * 5.0;
-        ambientColor = vec3( 0.02, 0.02, 0.02 );
+        lightColor = vec3( 0.125, 0.125, 0.15725 ) * 0.1;
+        ambientColor = vec3( 0.02, 0.02, 0.02 ) * 0.01;
         fogColor = vec3( 0.103, 0.103, 0.105 );
     }
 }

@@ -2,8 +2,8 @@
 
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          30.0
-#define MAX_DEPTH_DIFFERENCE    0.3 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.3
+#define MAX_DEPTH_DIFFERENCE    0.03 //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.75
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
 #define RAY_GROWTH              1.025    //Make this number smaller to get more accurate reflections at the cost of performance
@@ -138,7 +138,7 @@ void fillPixelStruct( inout Pixel1 pixel ) {
 vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
-    direction = normalize( direction );
+    direction = normalize( direction ) * RAY_STEP_LENGTH;
     bool forward = true;
 
     //The basic idea here is the the ray goes forward until it's behind something,
@@ -159,7 +159,8 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         float maxDepthDiff = length( direction ) + RAY_DEPTH_BIAS;
         if( forward ) {
             if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                direction = -1 * normalize( direction ) * 0.2;
+                //return curCoord;
+                direction = -1 * normalize( direction ) * 0.15;
                 forward = false;
             } 
         } else {

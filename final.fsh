@@ -1,14 +1,13 @@
 #version 120
 
-#define SATURATION 0.99
+#define SATURATION 0.9
 #define CONTRAST 1.0
 
 //#define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
 #define FILM_GRAIN
-#define FILM_GRAIN_STRENGTH 0.04
-#define FILM_GRAIN_SIZE     1.6
+#define FILM_GRAIN_STRENGTH 0.075
 
 //#define BLOOM
 #define BLOOM_RADIUS 9
@@ -137,114 +136,12 @@ void contrastEnhance( inout vec3 color ) {
     color = conColor;
 }
 
-//film grain from https://dl.dropboxusercontent.com/u/11542084/FilmGrain_v1.1
-//edited slightly for formatting
-/*
-   Film Grain post-process shader v1.1  
-   Martins Upitis (martinsh) devlog-martinsh.blogspot.com
-   2013
-
-   --------------------------
-   This work is licensed under a Creative Commons Attribution 3.0 Unported License.
-   So you are free to share, modify and adapt it for your needs, and even use it for commercial use.
-   I would also love to hear about a project you are using it.
-
-   Have fun,
-   Martins
-   --------------------------
-
-   Perlin noise shader by toneburst:
-http://machinesdontcare.wordpress.com/2009/06/25/3d-perlin-noise-sphere-vertex-shader-sourcecode/
-*/
-//a random texture generator, but you can also use a pre-computed perturbation texture
-vec4 rnm(in vec2 tc) {
-    float noise =  sin( dot( tc + vec2( frameTimeCounter, frameTimeCounter ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453;
-
-    float noiseR =  fract(noise)*2.0-1.0;
-    float noiseG =  fract(noise*1.2154)*2.0-1.0; 
-    float noiseB =  fract(noise*1.3453)*2.0-1.0;
-    float noiseA =  fract(noise*1.3647)*2.0-1.0;
-                            
-    return vec4(noiseR,noiseG,noiseB,noiseA);
-}
-
-float fade(in float t) {
-    return t*t*t*(t*(t*6.0-15.0)+10.0);
-}
-
-//I (DethRaid) don't really know what these do, but they seem important
-const float permTexUnit = 1.0/256.0;		// Perm texture texel-size
-const float permTexUnitHalf = 0.5/256.0;	// Half perm texture texel-size
-
-float pnoise3D(in vec3 p) {
-    vec3 pi = permTexUnit*floor(p)+permTexUnitHalf; // Integer part, scaled so +1 moves permTexUnit texel
-    // and offset 1/2 texel to sample texel centers
-    vec3 pf = fract(p);     // Fractional part for interpolation
-
-    // Noise contributions from (x=0, y=0), z=0 and z=1
-    float perm00 = rnm(pi.xy).a ;
-    vec3  grad000 = rnm(vec2(perm00, pi.z)).rgb * 4.0 - 1.0;
-    float n000 = dot(grad000, pf);
-    vec3  grad001 = rnm(vec2(perm00, pi.z + permTexUnit)).rgb * 4.0 - 1.0;
-    float n001 = dot(grad001, pf - vec3(0.0, 0.0, 1.0));
-
-    // Noise contributions from (x=0, y=1), z=0 and z=1
-    float perm01 = rnm(pi.xy + vec2(0.0, permTexUnit)).a ;
-    vec3  grad010 = rnm(vec2(perm01, pi.z)).rgb * 4.0 - 1.0;
-    float n010 = dot(grad010, pf - vec3(0.0, 1.0, 0.0));
-    vec3  grad011 = rnm(vec2(perm01, pi.z + permTexUnit)).rgb * 4.0 - 1.0;
-    float n011 = dot(grad011, pf - vec3(0.0, 1.0, 1.0));
-
-    // Noise contributions from (x=1, y=0), z=0 and z=1
-    float perm10 = rnm(pi.xy + vec2(permTexUnit, 0.0)).a ;
-    vec3  grad100 = rnm(vec2(perm10, pi.z)).rgb * 4.0 - 1.0;
-    float n100 = dot(grad100, pf - vec3(1.0, 0.0, 0.0));
-    vec3  grad101 = rnm(vec2(perm10, pi.z + permTexUnit)).rgb * 4.0 - 1.0;
-    float n101 = dot(grad101, pf - vec3(1.0, 0.0, 1.0));
-
-    // Noise contributions from (x=1, y=1), z=0 and z=1
-    float perm11 = rnm(pi.xy + vec2(permTexUnit, permTexUnit)).a ;
-    vec3  grad110 = rnm(vec2(perm11, pi.z)).rgb * 4.0 - 1.0;
-    float n110 = dot(grad110, pf - vec3(1.0, 1.0, 0.0));
-    vec3  grad111 = rnm(vec2(perm11, pi.z + permTexUnit)).rgb * 4.0 - 1.0;
-    float n111 = dot(grad111, pf - vec3(1.0, 1.0, 1.0));
-
-    // Blend contributions along x
-    vec4 n_x = mix(vec4(n000, n001, n010, n011), vec4(n100, n101, n110, n111), fade(pf.x));
-
-    // Blend contributions along y
-    vec2 n_xy = mix(n_x.xy, n_x.zw, fade(pf.y));
-
-    // Blend contributions along z
-    float n_xyz = mix(n_xy.x, n_xy.y, fade(pf.z));
-
-    // We're done, return the final noise value.
-    return n_xyz;
-}
-
-//2d coordinate orientation thing
-vec2 coordRot(in vec2 tc, in float angle) {
-    float aspect = viewWidth / viewHeight;
-    float rotX = ((tc.x*2.0-1.0)*aspect*cos(angle)) - ((tc.y*2.0-1.0)*sin(angle));
-    float rotY = ((tc.y*2.0-1.0)*cos(angle)) + ((tc.x*2.0-1.0)*aspect*sin(angle));
-    rotX = ((rotX/aspect)*0.5+0.5);
-    rotY = rotY*0.5+0.5;
-    return vec2(rotX,rotY);
-}
-
-//I used the licensed algorithm here, making minimal variable name changes to integrate this code
-//with my own and to make the formatting consistent with my own formatting
-
 void doFilmGrain( inout vec3 color ) {
-    vec3 rotOffset = vec3( 1.425, 3.892, 5.835 );
-    vec2 rotCoordsR = coordRot( coord, frameTimeCounter + rotOffset.x );
-    vec3 noise = vec3( pnoise3D( vec3( rotCoordsR * vec2( viewWidth / FILM_GRAIN_SIZE, viewHeight / FILM_GRAIN_SIZE ) , 0.0 ) ) );
-    float luma = luma( color );
-    noise = mix( noise, vec3( 0.0 ), pow( luma, 4.0 ) );
-
-    color += noise * FILM_GRAIN_STRENGTH;
+    float noise = fract( sin( dot( coord + vec2( frameTimeCounter ), vec2( 12.8989, 78.233 ) ) ) * 43758.5453 );
+    
+    color += vec3( noise ) * FILM_GRAIN_STRENGTH;
+    color /= 1.0 + FILM_GRAIN_STRENGTH;
 }
-//licensed film grain code stops here
 
 #ifdef VINGETTE
 float vingetteAmt( in vec2 coord ) {

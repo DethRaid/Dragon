@@ -408,7 +408,7 @@ vec3 calcDirectLighting( in Pixel pixel ) {
 vec3 calcTorchLighting( in Pixel pixel ) {
     float torchFac = texture2D( gdepth, coord ).g;
     vec3 torchColor = vec3( 1, 0.6, 0.4 ) * torchFac;
-    float torchIntensity = min( length( torchColor ), 1.0 );
+    float torchIntensity = length( torchColor );
     torchIntensity = pow( torchIntensity, 2 );
     torchColor *= torchIntensity;
     return torchColor * (1 - pixel.metalness) * 1.0;
