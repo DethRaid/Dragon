@@ -14,6 +14,7 @@ varying vec2 uvLight;
 varying vec3 worldPos;
 
 varying vec3 normal;
+varying vec3 normal_raw;
 varying mat3 normalMatrix;
 
 vec3 getGerstnerDisplacement( in vec3 pos ) {
@@ -100,5 +101,6 @@ void main() {
     gl_Position = ftransform();
     
     normal = gl_NormalMatrix * gl_Normal;//getGerstnerNormal( viewPos );
+    normal_raw = gl_Normal;
     normalMatrix = gl_NormalMatrix;
 }

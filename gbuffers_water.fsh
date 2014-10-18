@@ -6,6 +6,8 @@ uniform sampler2D noisetex;
 
 uniform float frameTimeCounter;
 
+uniform mat4 gbufferModelView;
+
 varying vec4 color;
 varying vec2 uv;
 varying vec2 uvLight;
@@ -13,6 +15,7 @@ varying vec2 uvLight;
 varying vec3 worldPos;
 
 varying vec3 normal;
+varying vec3 normal_raw;
 varying mat3 normalMatrix;
 
 vec3 getWaves() {
@@ -42,11 +45,13 @@ vec3 getWaves() {
 }
 
 void main() {
-    vec3 wNormal = getWaves();
-    wNormal = normalize( wNormal * normalMatrix );
+    mat3 nMat = mat3( gbufferModelView );
+
+    vec3 wNormal = getWaves() * 2.0 - 1.0;
+    wNormal = normalMatrix * wNormal; 
     
     gl_FragData[0] = color * texture2D( diffuse, uv );
     gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1 );
-    gl_FragData[2] = vec4( normal * 0.5 + 0.5, 1.0 );
+    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 );
     //gl_FragData[0] = vec4( wNormal, 1 );
 }

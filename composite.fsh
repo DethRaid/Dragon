@@ -45,7 +45,8 @@ const int   gaux2Format             = RGBA8;
 
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
-#define SHADOW_FILTER   POISSON
+#define SHADOW_FILTER   POISSON         //PCF has better quality but is slow as mud, POISSON looks good enough
+                                        //and runs at a reasonable framerate. Your choice.
 #define MAX_PCF_SAMPLES 20              //make this number smaller for better performance at the expence of realism
 #define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
@@ -276,7 +277,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float count = 0;
 
-	for( int i = 0; i < 32; i++ ) {    
+	for( int i = 0; i < 8; i++ ) {    
 		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) *  0.005 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
@@ -320,7 +321,7 @@ float calcShadowing( inout Pixel pixel ) {
     float visibility = 1.0;
 
 #if SHADOW_FILTER == POISSON
-    //penumbraSize *= 5.0;
+    penumbraSize *= 4.0;
     float sub = 1.0 / PCSS_SAMPLES;
     int shadowCount = 0;
 	for( int i = 0; i < PCSS_SAMPLES; i++ ) {
@@ -330,7 +331,7 @@ float calcShadowing( inout Pixel pixel ) {
 			visibility -= sub;
 		}
 	}
-#else
+#else if SHADOW_FILTER == PCF
     //go from UV to texels
     int kernelSize = int( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) );
     int kernelSizeHalf = kernelSize / 2;
@@ -366,7 +367,7 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     float specularPower = pow( 10 * pixel.smoothness + 1, 2 );  //yeah
     float metalness = pixel.metalness;
     vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3( 1.0 );
-    //specularColor *= pixel.smoothness;
+    specularColor *= pixel.smoothness;
 
     //Other useful value
     vec3 viewVector = normalize( cameraPosition - pixel.position.xyz );
@@ -478,7 +479,7 @@ vec3 calcSkyScattering( in vec3 color, in float z ) {
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
-    vec3 ambientColorCorrected = ambientColor + vec3( 0.2, 0.2, 0.2 ) * pixel.metalness;
+    vec3 ambientColorCorrected = ambientColor + vec3( 0.5 ) * pixel.metalness;
     return pixel.color * pixel.directLighting + 
            pixel.color * pixel.torchLighting +
            pixel.color * ambientColorCorrected;
@@ -512,7 +513,7 @@ void main() {
     curFrag = fillPixelStruct();
     vec3 finalColor = vec3( 0 );
     
-    if( !curFrag.skipLighting && curFrag.water < 0.5 ) {
+    if( !curFrag.skipLighting ) {
         curFrag.directLighting = calcDirectLighting( curFrag );
         curFrag.torchLighting = calcTorchLighting( curFrag );
     
