@@ -19,9 +19,24 @@ varying vec3 pos;
 
 varying vec3 normal;
 varying mat3 normalMatrix;
+varying float windSpeed;
 varying float isWater;
 
+float rand( in vec2 coord ) {
+    return fract( sin( dot( coord, vec3 12.9898, 7.2534 ) ) * 41632.34 );
+}
+
+void calcWindSpeed() {
+    vec2 windTime = vec2( frameTimeCounter * 0.1 );
+    vec2 windOffset = windTime * vec2( 0.5, 0.2 );
+    vec2 windCoord = (coord - fract( coord )) * 0.125;
+    windSpeed = 0.5 * rand( windCoord ) + 0.25 * rand( windCoord * 2.0 ) 
+              + 0.125 * rand( windCoord * 4.0 ) + 0.0625 * rand( windCoord * 8.0 );
+
+}
+
 // Wave code from chocapic13's shaderpack
+// modified by DethRaid to incorporate dynamic wind speeds
 float getDisplacement( in vec3 worldPos ) {
     float fy = fract( worldPos.y + 0.001 );
 
@@ -38,6 +53,8 @@ void main() {
 
     uv = gl_MultiTexCoord0.st;
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
+
+    calcWindSpeed();
   
     //Water position determination comes from chocapic13's shaderpack, available from
     //http://www.minecraftforum.net/forums/mapping-and-modding/minecraft-mods/1293898-chocapic13s-shaders
