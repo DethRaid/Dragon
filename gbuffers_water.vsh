@@ -1,5 +1,9 @@
 #version 120
 
+#define PI 3.14159265
+
+attribute vec4 mc_Entity;
+
 uniform float frameTimeCounter;
 
 uniform vec3 cameraPosition;
@@ -14,76 +18,19 @@ varying vec2 uvLight;
 varying vec3 pos;
 
 varying vec3 normal;
-varying vec3 normal_raw;
 varying mat3 normalMatrix;
+varying float isWater;
 
-vec3 getGerstnerDisplacement( in vec3 pos ) {
-    float waveTime = frameTimeCounter;
-    float sharpness = 0.2;
-    float amplitude = 0.05;
-    vec2 direction = vec2( 10, 0 );
-    float w = 10;
+// Wave code from chocapic13's shaderpack
+float getDisplacement( in vec3 worldPos ) {
+    float fy = fract( worldPos.y + 0.001 );
 
-    float qi = sharpness / (amplitude * w);
-    float qia = qi * amplitude;
-    vec2 wd = w * direction;
-    float dwd = dot( wd, pos.xz );
-
-    vec3 displacement = vec3( 0 );
-    displacement.x += qia * direction.x * cos( dwd + waveTime );
-    displacement.z += qia * direction.y * cos( dwd + waveTime );
-    displacement.y -= amplitude * sin( dwd + waveTime ); 
-
-    amplitude = 0.035;
-    direction = vec2( 9, 1 );
-    w = 5;
-
-    qi = sharpness / (amplitude * w * 2);
-    qia = qi * amplitude;
-    wd = w * direction;
-    dwd = dot( wd, pos.xz );
-
-    displacement.x += qia * direction.x * cos( dwd + waveTime );
-    displacement.z += qia * direction.y * cos( dwd + waveTime );
-    displacement.y -= amplitude * sin( dwd + waveTime );
-
-    return displacement;
-}
-
-vec3 getGerstnerNormal( in vec3 pos ) {
-    float waveTime = frameTimeCounter;
-    float sharpness = 0.2;
-    float amplitude = 0.05;
-    vec2 direction = vec2( 10, 0 );
-    float w = 10;
-
-    float qi = sharpness / (amplitude * w);
-    float wa = w * amplitude;
-    float s = sin( dot( w * direction, pos.xz ) + waveTime );
-    float c = cos( dot( w * direction, pos.xz ) + waveTime );
-    
-    vec3 normalOut = vec3( 0 );
-    normalOut.x -= direction.x * wa * c;
-    normalOut.z -= direction.y * wa * c;
-    normalOut.y += qi * wa * s;
-    
-    amplitude = 0.035;
-    direction = vec2( 9, 1 );
-    w = 5;
-
-    qi = sharpness / (amplitude * w);
-    wa = w * amplitude;
-    s = sin( dot( w * direction, pos.xz ) + waveTime );
-    c = cos( dot( w * direction, pos.xz ) + waveTime );
-    
-    normalOut.x -= direction.x * wa * c;
-    normalOut.z -= direction.y * wa * c;
-    normalOut.y += qi * wa * s;
-
-    normalOut.xz *= 0.05;
-    normalOut.y = 1.0 - normalOut.y;
-    
-    return normalize( normalOut );
+    if( fy > 0.002 ) {
+        float wave = 0.05 * sin( 2 * PI * (frameTimeCounter * 0.75 + worldPos.x / 7.0 + worldPos.z / 13.0) )
+                   + 0.05 * sin( 2 * PI * (frameTimeCounter * 0.6 + worldPos.x / 11.0 + worldPos.z / 5.0) );
+        return clamp( wave, -fy, 1.0 - fy );
+    }
+    return 0;
 }
 
 void main() {
@@ -99,16 +46,45 @@ void main() {
     vec3 worldPos = viewPos.xyz + cameraPosition;
     pos = worldPos;
 
-    //vec3 gerstnerDisp = getGerstnerDisplacement( worldPos.xyz );
+    float displacement = 0;
+    if( mc_Entity.x == 8.0 || mc_Entity.x == 9.0 ) {
+        isWater = 1.0;
+        displacement = getDisplacement( worldPos );
+        viewPos.y += displacement;
+    }
 
-    //gl_Position = gl_ProjectionMatrix * (gbufferModelView * (viewPos + vec4( gerstnerDisp, 0 )));
-    gl_Position = ftransform();
+    gl_Position = gl_ProjectionMatrix * (gbufferModelView * viewPos);
 
-    //vec3 gerstNormal = getGerstnerNormal( worldPos.xyz );// * 2.0 - 1.0;
-    
-    //normal = gl_NormalMatrix * gerstNormal;
-   
-    normal = gl_NormalMatrix * gl_Normal;
-    normal_raw = gl_Normal;
-    normalMatrix = gl_NormalMatrix;
+    vec3 tangent = vec3( 0 );
+    vec3 binormal = vec3( 0 );
+    normal = normalize( gl_NormalMatrix * gl_Normal );
+
+    if( gl_Normal.x > 0.5 ) {
+        tangent = vec3( 0.0, 0.0, -1.0 );
+    } else if( gl_Normal.x < -0.5 ) {
+        tangent = vec3( 0.0, 0.0, 1.0 );
+    } else if( gl_Normal.y > 0.5 ) {
+        tangent = vec3( 1.0, 0.0, 0.0 );
+    } else if( gl_Normal.y < -0.5 ) {
+        tangent = vec3( 1.0, 0.0, 0.0 );
+    } else if( gl_Normal.z > 0.5 ) {
+        tangent = vec3( 1.0, 0.0, 0.0 );
+    } else if( gl_Normal.z < -0.5 ) {
+        tangent = vec3( -1.0, 0.0, 0.0 );
+    }
+
+    binormal = cross( normal, tangent );
+
+    normalMatrix = mat3( tangent.x, binormal.x, normal.x,
+                         tangent.y, binormal.y, normal.y,
+                         tangent.z, binormal.z, normal.z );
+
+    if( isWater > 0.9 ) {
+        vec3 newNormal = vec3( sin( displacement * PI ), 1.0 - cos( displacement * PI ), displacement );
+
+        float bumpMult = 0.05;
+        newNormal = newNormal * vec3( bumpMult ) + vec3( 0.0, 0.0, 1.0 - bumpMult );
+
+        normal = newNormal * normalMatrix;
+    }
 }

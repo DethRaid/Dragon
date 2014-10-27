@@ -37,18 +37,17 @@ const int   gaux2Format             = RGBA8;
 #define SOFT            1
 #define REALISTIC       2
 
-#define POISSON         0
-#define PCF             1
+#define PCF_FIXED       0
+#define PCF_VARIABLE    1
 
 #define PI              3.14159265
 #define E               2.71828183
 
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
-#define SHADOW_FILTER   POISSON         //PCF has better quality but is slow as mud, POISSON looks good enough
+#define SHADOW_FILTER   PCF_FIXED         //PCF has better quality but is slow as mud, POISSON looks good enough
                                         //and runs at a reasonable framerate. Your choice.
 #define MAX_PCF_SAMPLES 20              //make this number smaller for better performance at the expence of realism
-#define PCSS_SAMPLES    32              //don't make this number greater than 32. You'll just waste GPU time
 
 #define SSAO            false
 #define SSAO_SAMPLES    16               //more samples = prettier
@@ -187,82 +186,75 @@ vec3 calcShadowCoordinate( in Pixel pixel ) {
 
 //I'm sorry this is so long, OSX doesn't support GLSL 120 arrays
 vec2 poisson( int i ) {
-	if ( i == 0 ) {
-        return vec2( -0.4994766, -0.4100508 );
+    if( i == 0 ) {
+        return vec2( 0.680375, -0.211234 );
     } else if( i == 1 ) {
-        return vec2(  0.1725386, -0.50636 );
+        return vec2( 0.566198, 0.596880 );
     } else if( i == 2 ) {
-        return vec2( -0.3050305,  0.7459931 );
+        return vec2( 0.823295, -0.604897 );
     } else if( i == 3 ) {
-        return vec2(  0.3256707,  0.2347208 );
-
-    } else if( 1 == 4 ) {
-        return vec2( -0.1094937, -0.752005 );
+        return vec2( -0.329554, 0.536459 );
+    } else if( i == 4 ) {
+        return vec2( -0.444451, 0.107940 );
     } else if( i == 5 ) {
-        return vec2(  0.5059697, -0.7294227 );
+        return vec2( -0.045206, 0.257742 );
     } else if( i == 6 ) {
-        return vec2( -0.3904303,  0.5678311 );
+        return vec2( -0.270431, 0.026802 );
     } else if( i == 7 ) {
-        return vec2(  0.3405131,  0.4458854 );
-  
+        return vec2( 0.904459, 0.832390 );
     } else if( i == 8 ) {
-        return vec2( -0.163072,  -0.9741971 );
+        return vec2( 0.271423, 0.434594 );
     } else if( i == 9 ) {
-        return vec2(  0.4260757, -0.02231212 );
+        return vec2( -0.716795, 0.213938 );
     } else if( i == 10 ) {
-        return vec2( -0.8977778,  0.1717084 );
+        return vec2( -0.967399, -0.514226 );
     } else if( i == 11 ) {
-        return vec2(  0.02903906, 0.3999698 );
-        
-    } else if( i == 12 ) { 
-        return vec2( -0.4680224, -0.4418066 );
+        return vec2( -0.725537, 0.608354 );
+    } else if( i == 12 ) {
+        return vec2( -0.686642, -0.198111 );
     } else if( i == 13 ) {
-        return vec2(  0.09780561, -0.1236207 );
+        return vec2( -0.740419, -0.782382 );
     } else if( i == 14 ) {
-        return vec2( -0.3564819,  0.2770886 );
+        return vec2( 0.997849, -0.563486 );
     } else if( i == 15 ) {
-        return vec2(  0.0663829,  0.9336991 );
-        
+        return vec2( 0.025865, 0.678224 );
     } else if( i == 16 ) {
-        return vec2( -0.8206947, -0.3301564 );
+        return vec2( 0.225280, -0.407937 );
     } else if( i == 17 ) {
-        return vec2(  0.1038207, -0.2167438 );
+        return vec2( 0.275105, 0.048574 );
     } else if( i == 18 ) {
-        return vec2( -0.3123821,  0.2344262 );
+        return vec2( -0.012834, 0.945550 );
     } else if( i == 19 ) {
-        return vec2(  0.1979104,  0.7830779 );
-        
+        return vec2( -0.414966, 0.542715 );
     } else if( i == 20 ) {
-        return vec2( -0.6740047, -0.4649915 );
+        return vec2( 0.053490, 0.539828 );
     } else if( i == 21 ) {
-        return vec2(  0.08938109, -0.005763604 );
+        return vec2( -0.199543, 0.783059 );
     } else if( i == 22 ) {
-        return vec2( -0.6670403,  0.658087 );
+        return vec2( -0.433371, -0.295083 );
     } else if( i == 23 ) {
-        return vec2(  0.8211543,  0.365194 );
-        
+        return vec2( 0.615449, 0.838053 );
     } else if( i == 24 ) {
-        return vec2( -0.8381009, -0.1279669 );
+        return vec2( -0.860489, 0.898654 );
     } else if( i == 25 ) {
-        return vec2(  0.6365152, -0.229197 );
+        return vec2( 0.051991, -0.827888 );
     } else if( i == 26 ) {
-        return vec2( -0.1748933,  0.1948632 );
+        return vec2( -0.615572, 0.326454 );
     } else if( i == 27 ) {
-        return vec2(  0.1710306,  0.5527771 );
-        
+        return vec2( 0.780465, -0.302214 );
     } else if( i == 28 ) {
-        return vec2( -0.5874177, -0.1295959 );
+        return vec2( -0.871657, -0.959954 );
     } else if( i == 29 ) {
-        return vec2(  0.6305282, -0.5586912 );
+        return vec2( -0.084597, -0.873808 );
     } else if( i == 30 ) {
-        return vec2( -0.030519,  0.3487186 );
-    } else {
-        return vec2(  0.4240496, -0.1010172 );
+        return vec2( -0.523440, 0.941268 );
+    } else if( i == 31 ) {
+        return vec2( 0.804416, 0.701840 );
     }
 }
 
 int rand( vec2 seed ) {
-    return int( 32 * fract( sin( dot( vec2( 12.9898, 72.233 ), seed ) * 43758.5453 ) ) );
+    return int( 32 * fract( sin( dot( vec2( 12.9898, 72.233 ), seed ) ) * 43758.5453 ) );
 }
 
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
@@ -308,10 +300,7 @@ float calcShadowing( inout Pixel pixel ) {
     }
     
 #elif SHADOW_QUALITY >= SOFT
-    float penumbraSize = 3;
-
-#if SHADOW_FILTER == PCF
-    penumbraSize = 0.00049;
+    float penumbraSize = 0.00049;
 #endif
     
 #if SHADOW_QUALITY == REALISTIC
@@ -320,46 +309,34 @@ float calcShadowing( inout Pixel pixel ) {
     
     float visibility = 1.0;
 
-#if SHADOW_FILTER == POISSON
-    penumbraSize *= 4.0;
-    float sub = 1.0 / PCSS_SAMPLES;
-    int shadowCount = 0;
-	for( int i = 0; i < PCSS_SAMPLES; i++ ) {
-        int ind = rand( coord * i );
-        float shadowDepth = texture2D( shadow, shadowCoord.st + (penumbraSize * poisson( i )) ).r;
-		if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
-			visibility -= sub;
-		}
-	}
-#else if SHADOW_FILTER == PCF
-    //go from UV to texels
+#if SHADOW_FILTER == PCF_FIXED
+    float kernelSizeHalf = 4;
+    float sub = 1.0 / 81.0;
+    
+#else if SHADOW_FILTER == PCF_VARIABLE
     int kernelSize = int( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) );
     int kernelSizeHalf = kernelSize / 2;
     float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
-    float shadowDepth;
-
-    for( int i = -kernelSizeHalf; i < kernelSizeHalf; i++ ) {
-        for( int j = -kernelSizeHalf; j < kernelSizeHalf; j++ ) {
+#endif
+	for( int i = 0; i < kernelSizeHalf; i++ ) {
+        for( int j = 0; j < kernelSizeHalf; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
-            shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
+            float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
             if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
                 visibility -= sub;
             }
         }
-    }
-#endif
+	}
 
     visibility = max( visibility, 0 );
     //return 0;
     return visibility;
-#endif
 }
 
 vec3 fresnel( vec3 specularColor, float hdotl ) {
     return specularColor + (vec3( 1.0 ) - specularColor) * pow( 1.0f - hdotl, 5 );
 }
 
-//Cook-Toorance shading
 vec3 calcDirectLighting( in Pixel pixel ) {
     //data that's super important to the shading algorithm
     vec3 albedo = pixel.color;
@@ -411,7 +388,7 @@ vec3 calcTorchLighting( in Pixel pixel ) {
     float torchIntensity = length( torchColor );
     torchIntensity = pow( torchIntensity, 2 );
     torchColor *= torchIntensity;
-    return torchColor * (1 - pixel.metalness) * 1.0;
+    return torchColor * (1 - pixel.metalness) * 1000.0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -6,10 +6,10 @@
 //#define FXAA
 #define EDGE_LUMA_THRESHOLD 0.5
 
-#define FILM_GRAIN
+//#define FILM_GRAIN
 #define FILM_GRAIN_STRENGTH 0.075
 
-//#define BLOOM
+#define BLOOM
 #define BLOOM_RADIUS 9
 
 #define VINGETTE
@@ -30,6 +30,7 @@
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
 uniform sampler2D gaux1;
+uniform sampler2D gaux2;
 
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
@@ -111,17 +112,20 @@ void doBloom( inout vec3 color ) {
     vec3 colorAccum = vec3( 0 );
     int numSamples = 0;
     vec2 halfTexel = vec2( 0.5 / viewWidth, 0.5 / viewHeight );
-    for( float i = -BLOOM_RADIUS; i < BLOOM_RADIUS; i += 2 ) {
-        for( float j = -BLOOM_RADIUS; j < BLOOM_RADIUS; j += 2 ) {
-            vec3 sampledColor = texture2D( gcolor, coord + uvToTexel( int( j ), int( i ) ) + halfTexel ).rgb;
-            float lumaSample = luma( sampledColor );
-            lumaSample = pow( lumaSample, 25 );
+    float radius = BLOOM_RADIUS * 2.0;
+    for( float i = -radius; i < radius; i += 4 ) {
+        for( float j = -radius; j < radius; j += 4 ) {
+            vec2 samplePos = coord + uvToTexel( int( j ), int( i ) ) + halfTexel;
+            vec3 sampledColor = texture2D( gaux1, samplePos ).rgb;
+            float emission = texture2D( gaux2, samplePos ).r;
+            float lumaSample = sampledColor.r;
             float bloomPow = float( abs( i ) * abs( j ) );
-            colorAccum += pow( sampledColor, vec3( bloomPow ) ) * lumaSample;
+            lumaSample = pow( lumaSample, bloomPow );
+            colorAccum += sampledColor * (lumaSample * emission);
             numSamples++;
         }
     }
-    color += colorAccum / (numSamples * 3);
+    color += colorAccum / numSamples;
 }
 
 void correctColor( inout vec3 color ) {

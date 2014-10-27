@@ -1,8 +1,9 @@
 #version 120
 
+#define PI 3.14159265
+
 uniform sampler2D diffuse;
 uniform sampler2D lightmap;
-uniform sampler2D noisetex;
 
 uniform float frameTimeCounter;
 
@@ -15,42 +16,36 @@ varying vec2 uvLight;
 varying vec3 pos;
 
 varying vec3 normal;
-varying vec3 normal_raw;
 varying mat3 normalMatrix;
+varying float isWater;
 
-vec3 getWaves( float windStrength ) {
-    float waveTime = frameTimeCounter;
-    float sharpness = 0.2;
-    float amplitude = 0.01;
-    float w = 10;
-    vec2 direction = vec2( 10, 10 );
+// Taken from chociaptic13's shaderpack. See vertex shader for download location
+vec3 getWaveNormal() {
+    vec3 posxz = pos;
+    posxz.x += sin( posxz.z + frameTimeCounter ) * 0.2;
+    posxz.z += cos( posxz.x + frameTimeCounter * 0.5 ) * 0.2;
 
-    float wa = w * amplitude;
-    float qi = sharpness / (amplitude * wa);
-    float s = sin( dot( w * direction, pos.xz ) + waveTime );
-    float c = cos( dot( w * direction, pos.xz ) + waveTime );
-    s = sin( waveTime );
-    c = cos( waveTime );
+    float wave = 0.05 * sin( 2 * PI * (frameTimeCounter + posxz.x + posxz.z / 2.0) )
+               + 0.05 * sin( 2 * PI * (frameTimeCounter * 1.2 + posxz.x / 2.0 + posxz.z) );
 
-    vec3 normalOut = vec3( 0 );
-    normalOut.x += direction.x * wa * c;
-    normalOut.y += qi * wa * s;
-    normalOut.z += direction.y * wa * c;
-
-    normalOut.xz *= -1;
-    normalOut.y = 1.0 - normalOut.y;
-
-    return normalOut;
+    vec3 newNormal = vec3( sin( wave * PI ), 1.0 - cos( wave * PI ), wave );
+    float bumpMult = 0.05;
+    return newNormal * vec3( bumpMult ) + vec3( 0.0, 0.0, 1.0 - bumpMult );
 }
 
 void main() {
     mat3 nMat = mat3( gbufferModelView );
 
-    vec3 wNormal = getWaves( 0.1 ) * 2.0 - 1.0;
-    wNormal = normalMatrix * wNormal;
+    vec3 wNormal = normal;
+    vec4 matColor = color * texture2D( diffuse, uv ) * texture2D( lightmap, uv ).r;
+
+    if( isWater > 0.9 ) {
+        wNormal = getWaveNormal();
+        wNormal = wNormal * normalMatrix;
+        matColor = vec4( 0.0, 0.0, 0.0, 0.25 );
+    }
     
-    gl_FragData[0] = color * texture2D( diffuse, uv );
+    gl_FragData[0] = matColor;
     gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1 );
-    gl_FragData[2] = vec4( normal * 0.5 + 0.5, 1.0 );
-    //gl_FragData[0] = vec4( wNormal, 1 );
+    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 ); 
 }
