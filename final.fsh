@@ -9,6 +9,7 @@
 //#define FILM_GRAIN
 #define FILM_GRAIN_STRENGTH 0.075
 
+
 #define BLOOM
 #define BLOOM_RADIUS 9
 
@@ -16,6 +17,7 @@
 #define VINGETTE_MIN        0.4
 #define VINGETTE_MAX        0.65
 #define VINGETTE_STRENGTH   0.15
+
 
 #define MOTION_BLUR
 #define MOTION_BLUR_SAMPLES 16
@@ -184,7 +186,7 @@ void main() {
 #ifdef MOTION_BLUR
     color = doMotionBlur();
 #else
-    color = texture2D( gaux1, coord );
+    color = texture2D( gaux1, coord ).rgb;
 #endif
 
 #ifdef BLOOM

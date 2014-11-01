@@ -1,7 +1,7 @@
 #version 120
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          30.0
+#define MAX_RAY_LENGTH          35.0
 #define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.75
 #define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
@@ -215,6 +215,7 @@ void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
     vec3 hitColor = pixel.color;
+#if NUM_RAYS > 0
     if( !pixel.skipLighting && pixel.smoothness > 0.3 ) {
         hitColor = doLightBounce( pixel );
         
@@ -238,6 +239,7 @@ void main() {
         hitColor = (vec3( 1.0 ) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor;
         //hitColor = reflectedColor;
     }
+#endif
     
     hitColor = pow( hitColor, vec3( 1.0 / 2.2 ) );
     

@@ -3,7 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 4096;
+const int   shadowMapResolution     = 2048;
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
@@ -308,9 +308,8 @@ float calcShadowing( inout Pixel pixel ) {
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
     return step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
     
-#elif SHADOW_QUALITY >= SOFT
+#else
     float penumbraSize = 0.0049;
-#endif
     
 #if SHADOW_QUALITY == REALISTIC
     penumbraSize = calcPenumbraSize( shadowCoord );
@@ -343,6 +342,7 @@ float calcShadowing( inout Pixel pixel ) {
     visibility = max( visibility, 0 );
 
     return visibility;
+#endif
 }
 
 vec3 fresnel( vec3 specularColor, float hdotl ) {
@@ -524,7 +524,7 @@ void main() {
         finalColor = doToneMapping( finalColor );
         //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
     } else {
-        finalColor = curFrag.color;
+        finalColor = curFrag.color; 
     }
     
     gl_FragData[0] = texture2D( gcolor, coord );
