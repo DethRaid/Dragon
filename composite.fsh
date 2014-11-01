@@ -45,7 +45,7 @@ const int   gaux2Format             = RGBA8;
 
 #define SHADOW_QUALITY  REALISTIC
 #define SHADOW_BIAS     0.0065
-#define SHADOW_FILTER   PCF_FIXED         //PCF has better quality but is slow as mud, POISSON looks good enough
+#define SHADOW_FILTER   PCF_FIXED       //PCF has better quality but is slow as mud, POISSON looks good enough
                                         //and runs at a reasonable framerate. Your choice.
 #define MAX_PCF_SAMPLES 20              //make this number smaller for better performance at the expence of realism
 
@@ -166,6 +166,10 @@ float getMetalness() {
     return texture2D( gaux2, coord ).b;
 }
 
+float getSkyLighting() {
+    return max( texture2D( gdepth, coord ).r, 0.1 );
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Lighting Functions                           //
 ///////////////////////////////////////////////////////////////////////////////
@@ -194,6 +198,7 @@ vec2 poisson( int i ) {
         return vec2( 0.823295, -0.604897 );
     } else if( i == 3 ) {
         return vec2( -0.329554, 0.536459 );
+
     } else if( i == 4 ) {
         return vec2( -0.444451, 0.107940 );
     } else if( i == 5 ) {
@@ -202,6 +207,7 @@ vec2 poisson( int i ) {
         return vec2( -0.270431, 0.026802 );
     } else if( i == 7 ) {
         return vec2( 0.904459, 0.832390 );
+
     } else if( i == 8 ) {
         return vec2( 0.271423, 0.434594 );
     } else if( i == 9 ) {
@@ -210,6 +216,7 @@ vec2 poisson( int i ) {
         return vec2( -0.967399, -0.514226 );
     } else if( i == 11 ) {
         return vec2( -0.725537, 0.608354 );
+
     } else if( i == 12 ) {
         return vec2( -0.686642, -0.198111 );
     } else if( i == 13 ) {
@@ -218,6 +225,7 @@ vec2 poisson( int i ) {
         return vec2( 0.997849, -0.563486 );
     } else if( i == 15 ) {
         return vec2( 0.025865, 0.678224 );
+
     } else if( i == 16 ) {
         return vec2( 0.225280, -0.407937 );
     } else if( i == 17 ) {
@@ -226,6 +234,7 @@ vec2 poisson( int i ) {
         return vec2( -0.012834, 0.945550 );
     } else if( i == 19 ) {
         return vec2( -0.414966, 0.542715 );
+
     } else if( i == 20 ) {
         return vec2( 0.053490, 0.539828 );
     } else if( i == 21 ) {
@@ -234,6 +243,7 @@ vec2 poisson( int i ) {
         return vec2( -0.433371, -0.295083 );
     } else if( i == 23 ) {
         return vec2( 0.615449, 0.838053 );
+
     } else if( i == 24 ) {
         return vec2( -0.860489, 0.898654 );
     } else if( i == 25 ) {
@@ -242,6 +252,7 @@ vec2 poisson( int i ) {
         return vec2( -0.615572, 0.326454 );
     } else if( i == 27 ) {
         return vec2( 0.780465, -0.302214 );
+
     } else if( i == 28 ) {
         return vec2( -0.871657, -0.959954 );
     } else if( i == 29 ) {
@@ -269,7 +280,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float count = 0;
 
-	for( int i = 0; i < 8; i++ ) {    
+	for( int i = 0; i < 32; i++ ) {    
 		temp = texture2D( shadow, shadowCoord.st + (poisson( i ) *  0.005 ) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
@@ -282,7 +293,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 		penumbra = wLight * (dFragment - dBlocker) / dFragment;
 	}
     
-    return penumbra * 0.025;
+    return penumbra * 0.1;
 }
 
 float calcShadowing( inout Pixel pixel ) {
@@ -294,13 +305,11 @@ float calcShadowing( inout Pixel pixel ) {
     }
     
 #if SHADOW_QUALITY == HARD
-    float shadowDepth = texture2D( shadow, shadowCoord.st ).r;    
-    if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
-        return 0;
-    }
+    float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
+    return step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
     
 #elif SHADOW_QUALITY >= SOFT
-    float penumbraSize = 0.00049;
+    float penumbraSize = 0.0049;
 #endif
     
 #if SHADOW_QUALITY == REALISTIC
@@ -310,26 +319,29 @@ float calcShadowing( inout Pixel pixel ) {
     float visibility = 1.0;
 
 #if SHADOW_FILTER == PCF_FIXED
-    float kernelSizeHalf = 4;
+    int kernelSizeHalf = 4;
     float sub = 1.0 / 81.0;
-    
-#else if SHADOW_FILTER == PCF_VARIABLE
-    int kernelSize = int( min( penumbraSize * shadowMapResolution * 5, MAX_PCF_SAMPLES ) );
+    penumbraSize *= 500;
+
+#else
+    int kernelSize = int( min( penumbraSize * shadowMapResolution * 2, MAX_PCF_SAMPLES ) );
     int kernelSizeHalf = kernelSize / 2;
     float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
 #endif
-	for( int i = 0; i < kernelSizeHalf; i++ ) {
-        for( int j = 0; j < kernelSizeHalf; j++ ) {
+
+	for( int i = -kernelSizeHalf; i < kernelSizeHalf + 1; i++ ) {
+        for( int j = -kernelSizeHalf; j < kernelSizeHalf + 1; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
+#if SHADOW_FILTER == PCF_FIXED
+            sampleCoord *= penumbraSize;
+#endif
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            if( shadowCoord.z - shadowDepth > SHADOW_BIAS ) {
-                visibility -= sub;
-            }
+            visibility -= (1.0 - step( shadowCoord.z - shadowDepth, SHADOW_BIAS )) * sub;
         }
 	}
 
     visibility = max( visibility, 0 );
-    //return 0;
+
     return visibility;
 }
 
@@ -373,22 +385,38 @@ vec3 calcDirectLighting( in Pixel pixel ) {
 
     lambert = (vec3( 1.0 ) - specular) * lambert * (1 - metalness);
 
-    vec3 directLighting = (lambert + specular) * lightColor;
+    //use skyLighting as a maximum amount of direct lighting
+    vec3 directLighting = (lambert + specular) * lightColor * getSkyLighting();
 
 #if SHADOW_QUALITY != OFF
     directLighting *= calcShadowing( pixel );
 #endif
+    //return vec3( getSkyLighting() );
     return directLighting;
+}
+
+vec2 texelToScreen( vec2 texel ) {
+    float newx = texel.x / viewWidth;
+    float newy = texel.y / viewHeight;
+    return vec2( newx, newy );
 }
 
 //calcualtes the lighting from the torches
 vec3 calcTorchLighting( in Pixel pixel ) {
-    float torchFac = texture2D( gdepth, coord ).g;
+    //determine if there is a gradient in the torch lighting
+    float t1 = texture2D( gaux2, coord ).g - texture2D( gaux2, coord + texelToScreen( vec2( 1, 0 ) ) ).g - 0.1;
+    float t2 = texture2D( gaux2, coord ).g - texture2D( gaux2, coord + texelToScreen( vec2( 0, 1 ) ) ).g - 0.1;
+    t1 = max( t1, 0 );
+    t2 - max( t2, 0 );
+    float t3 = max( t1, t2 );
+    float torchMul = step( t3, 0.1 );
+
+    float torchFac = texture2D( gaux2, coord ).g; 
     vec3 torchColor = vec3( 1, 0.6, 0.4 ) * torchFac;
     float torchIntensity = length( torchColor );
     torchIntensity = pow( torchIntensity, 2 );
     torchColor *= torchIntensity;
-    return torchColor * (1 - pixel.metalness) * 1000.0;
+    return torchColor * (1 - pixel.metalness);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -403,19 +431,12 @@ Pixel fillPixelStruct() {
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
-    pixel.water =         getWater();
+    pixel.water =           getWater();
     pixel.directLighting =  vec3( 0 );
     pixel.torchLighting =   vec3( 0 );
     
     return pixel;
 }
-
-vec2 texelToScreen( vec2 texel ) {
-    float newx = texel.x / viewWidth;
-    float newy = texel.y / viewHeight;
-    return vec2( newx, newy );
-}
-
 
 void calcSSAO( inout Pixel pixel ) {
     float ssaoFac = SSAO_STRENGTH;
@@ -451,14 +472,15 @@ void calcSSAO( inout Pixel pixel ) {
 }
 
 vec3 calcSkyScattering( in vec3 color, in float z ) {
-    float fogFac = z * 0.0005;
+    float fogFac = z * 0.00025;
     return fogColor * fogFac + color * (1 - fogFac);
 }
 
-vec3 calcLitColor( in Pixel pixel ) {
+vec3 calcLitColor( in Pixel pixel ) { 
     vec3 ambientColorCorrected = ambientColor + vec3( 0.5 ) * pixel.metalness;
+    ambientColorCorrected *= getSkyLighting();
     return pixel.color * pixel.directLighting + 
-           pixel.color * pixel.torchLighting +
+           pixel.color * pixel.torchLighting * (1.0 - length( pixel.directLighting ) / length( lightColor )) +
            pixel.color * ambientColorCorrected;
 }
 
@@ -500,18 +522,16 @@ void main() {
 
         finalColor = calcLitColor( curFrag );
         finalColor = doToneMapping( finalColor );
+        //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
     } else {
         finalColor = curFrag.color;
     }
-
-    //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
     
     gl_FragData[0] = texture2D( gcolor, coord );
     gl_FragData[1] = texture2D( gdepth, coord );
     gl_FragData[2] = texture2D( gnormal, coord );
     
     gl_FragData[3] = vec4( finalColor, 1 );
-    //gl_FragData[3] = vec4( vec3( curFrag.metalness ), 1 );
     
     gl_FragData[4] = texture2D( gaux1, coord );
     gl_FragData[5] = texture2D( gaux2, coord );

@@ -18,6 +18,7 @@ varying vec3 pos;
 varying vec3 normal;
 varying mat3 normalMatrix;
 varying float isWater;
+varying float windSpeed;
 
 // Taken from chociaptic13's shaderpack. See vertex shader for download location
 vec3 getWaveNormal() {
@@ -25,11 +26,11 @@ vec3 getWaveNormal() {
     posxz.x += sin( posxz.z + frameTimeCounter ) * 0.2;
     posxz.z += cos( posxz.x + frameTimeCounter * 0.5 ) * 0.2;
 
-    float wave = 0.05 * sin( 2 * PI * (frameTimeCounter + posxz.x + posxz.z / 2.0) )
-               + 0.05 * sin( 2 * PI * (frameTimeCounter * 1.2 + posxz.x / 2.0 + posxz.z) );
+    float wave = 0.005 * sin( 2 * PI * (frameTimeCounter + posxz.x * 0.2 + posxz.z) )
+               + 0.005 * sin( 2 * PI * (frameTimeCounter * 1.2 + posxz.x * 0.1 + posxz.z) );
 
     vec3 newNormal = vec3( sin( wave * PI ), 1.0 - cos( wave * PI ), wave );
-    float bumpMult = 0.05;
+    float bumpMult = 0.5;
     return newNormal * vec3( bumpMult ) + vec3( 0.0, 0.0, 1.0 - bumpMult );
 }
 
@@ -42,10 +43,10 @@ void main() {
     if( isWater > 0.9 ) {
         wNormal = getWaveNormal();
         wNormal = wNormal * normalMatrix;
-        matColor = vec4( 0.0, 0.0, 0.0, 0.25 );
+       // matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
     }
     
     gl_FragData[0] = matColor;
-    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1 );
+    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 0.99 );
     gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 ); 
 }

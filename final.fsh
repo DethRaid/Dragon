@@ -15,7 +15,7 @@
 #define VINGETTE
 #define VINGETTE_MIN        0.4
 #define VINGETTE_MAX        0.65
-#define VINGETTE_STRENGTH   0.25
+#define VINGETTE_STRENGTH   0.15
 
 #define MOTION_BLUR
 #define MOTION_BLUR_SAMPLES 16

@@ -21,7 +21,10 @@ float luma( in vec3 color ) {
 void main() {
     //color
     vec4 texColor = texture2D( texture, uv ) * color;
-    
+    //decrease contrast
+    texColor.rgb = mix( vec3( 0.5 ), texColor.rgb, 0.95 );
+
+    //get data from specular texture
     vec3 sData = texture2D( specular, uv ).rgb;
     float smoothness = sData.r;
     float emission = sData.g;
@@ -34,9 +37,10 @@ void main() {
     gl_FragData[0] = texColor;
     
     //skipLighting, torch lighting, metlness, smoothness
-    gl_FragData[5] = vec4( emission, texture2D( lightmap, uvLight ).r, metalness, smoothness );
-    //gl_FragData[5] = vec4( 0.0, texture2D( lightmap, uvLight ).r, 1.0, 1.0 );
-    //gl_FragData[0] = vec4( vec3( metalness ), 1.0 );
+    gl_FragData[5] = vec4( emission, uvLight.r, metalness, smoothness );
+
+    //sky lighting, 0, 0, 1
+    gl_FragData[1] = vec4( uvLight.g, 0, 0, 1 );
 
     vec3 texnormal = texture2D( normals, uv ).xyz * 2.0 - 1.0; 
     texnormal = tbnMatrix * texnormal;
