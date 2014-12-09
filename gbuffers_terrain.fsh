@@ -12,7 +12,7 @@ varying vec2 uvLight;
 varying vec3 normal;
 varying mat3 tbnMatrix;
 
-varying float isEmissive;
+varying float depth;
 
 float luma( in vec3 color ) {
     return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
@@ -40,7 +40,7 @@ void main() {
     gl_FragData[5] = vec4( emission, uvLight.r, metalness, smoothness );
 
     //sky lighting, 0, 0, 1
-    gl_FragData[1] = vec4( uvLight.g, 0, 0, 1 );
+    gl_FragData[1] = vec4( uvLight.g, 0, gl_FragCoord.z, 1 );
 
     vec3 texnormal = texture2D( normals, uv ).xyz * 2.0 - 1.0; 
     texnormal = tbnMatrix * texnormal;

@@ -22,7 +22,7 @@ const int 	RGB16 					= 2;
 const int   RGBA16                  = 3;
 const int   RGBA8                   = 4;
 const int 	gcolorFormat 			= RGB16;
-const int 	gdepthFormat 			= RGB8;
+const int 	gdepthFormat 			= RGB16;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB16;
 const int   gaux1Format             = RGBA16;
@@ -167,7 +167,19 @@ float getMetalness() {
 }
 
 float getSkyLighting() {
-    return max( texture2D( gdepth, coord ).r, 0.1 );
+    float factor = 1.0;
+    if( texture2D( gdepth, coord ).g > 0.001 ) {
+        factor = 2.0;
+    }
+    return max( texture2D( gdepth, coord ).r * factor, 0.1 );
+}
+
+float getWaterDepth() {
+    return texture2D( gdepth, coord ).g;
+}
+
+float getTerrainDepth() {
+    return texture2D( gdepth, coord ).b;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -116,6 +116,18 @@ float getWater() {
     return texture2D( gnormal, coord ).a;
 }
 
+float getWaterDepth() {
+    float wDepth = texture2D( gdepth, coord ).g;
+    vec4 fragPos = gbufferProjectionInverse * vec4( coord * 2.0 - 1.0, wDepth * 2.0 - 1.0, 1.0 );
+    return fragPos.z / fragPos.w;
+}
+
+float getTerrainDepth() {
+    float tDepth = texture2D( gdepth, coord ).b;
+    vec4 fragPos = gbufferProjectionInverse * vec4( coord * 2.0 - 1.0, tDepth * 2.0 - 1.0, 1.0 );
+    return fragPos.z / fragPos.w;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
@@ -236,8 +248,37 @@ void main() {
 
         reflectedColor *= fresnel;
 
-        hitColor = (vec3( 1.0 ) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor;
-        //hitColor = reflectedColor;
+        // Calculate water (and glass, we're inclusive here) refractions
+        // There is at least one glaring problem with this algorithm. It assumes
+        // that the view vector, the refracted light ray, and the xz plane all
+        // form a right triangle, which is no the case. However, on a normalmapped
+        // surface, this issue should be all but impossible to discern. Plus, it's
+        // significantly faster than actually tracing the ray. I spend enough time
+        // tracing rays already
+        float wDepth = getWaterDepth();
+        vec3 refractedColor = pixel.color;
+        if( wDepth < 0 ) {
+            float tDepth = getTerrainDepth();
+            float depthDiff = tDepth - wDepth;
+            // Assume that glass and water have the same refractive index.
+            // In the future, I may find a way to pass along the IOR, but not today!
+            vec3 resultant = refract( viewVector, pixel.normal, 1.0 / 1.33 );
+        
+            float cosTheta = dot( viewVector, resultant );
+            float distToPixel = tDepth * sqrt( 1.0 - cosTheta * cosTheta ) / cosTheta;
+            // So now we need to go distToPixel units in the direction
+            // We know the normal in view space, so we can just grab the x and y
+            // components
+            // A scaling factor will probably be needed. Will find later.
+            vec2 refractOffset = viewVector.xy * distToPixel;
+            refractedColor = texture2D( composite, coord + refractOffset ).rgb;
+            // In a perfect world, I'd multiply refractedColor by the
+            // material's color. Problem is, this isn't a perfect world
+            hitColor = vec3( -tDepth );
+        }
+        //hitColor = vec3( -wDepth );
+
+        //hitColor = (vec3( 1.0 ) - fresnel) * refractedColor * (1.0 - metalness) + reflectedColor;
     }
 #endif
     

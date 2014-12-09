@@ -17,6 +17,8 @@ varying vec2 uv;
 varying vec2 uvLight;
 varying vec3 pos;
 
+varying float depth;
+
 varying vec3 normal;
 varying mat3 normalMatrix;
 varying float windSpeed;
@@ -82,6 +84,7 @@ void main() {
     }
 
     gl_Position = gl_ProjectionMatrix * (gbufferModelView * viewPos);
+    depth = gl_Position.z;
 
     vec3 tangent = vec3( 0 );
     vec3 binormal = vec3( 0 );

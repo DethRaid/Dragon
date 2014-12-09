@@ -9,7 +9,7 @@ varying vec2 uvLight;
 varying vec3 normal;
 varying mat3 tbnMatrix;
 
-varying float isEmissive;
+varying float depth;
 
 void main() {
     color = gl_Color;
@@ -17,6 +17,7 @@ void main() {
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
 
     gl_Position = ftransform();
+    depth = gl_Position.z;
 
     normal = normalize( gl_NormalMatrix * gl_Normal );
 
