@@ -59,7 +59,7 @@ float getDisplacement( in vec3 worldPos ) {
                    + amplitude * sin( 2 * PI * (wTime * 0.6 + worldPos.x / 11.0 + worldPos.z / 5.0) );
         return clamp( wave, -fy, 1.0 - fy );
     }
-    return 0;
+    return 0.0;
 }
 
 void main() {

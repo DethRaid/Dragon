@@ -48,9 +48,8 @@ void main() {
     }
     
     gl_FragData[0] = matColor;
-    //Save the water's depth in the green channel of texture 1
-    //Use alpha blending to save both the water's depth and the terrain's depth
-    gl_FragData[1] = vec4( 0, gl_FragCoord.z * 2.0, 0, 0.5 );
-    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 0.99 );
-    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 ); 
+    gl_FragData[1] = vec4( wNormal * 0.5 + 0.5, 0.0 );
+    gl_FragData[4] = vec4( 0.02, 0.0, 0.0, 1.0 );
+    gl_FragData[5] = vec4( uvLight.r, uvLight.g, 0.0, 1.0 );
+    gl_FragData[6] = vec4( gl_FragCoord.z, 0.0, 0.0, 1.0 );
 }

@@ -10,11 +10,13 @@ varying vec3 normal;
 varying mat3 tbnMatrix;
 
 varying float depth;
+varying float matID;
 
 void main() {
     color = gl_Color;
     uv = gl_MultiTexCoord0.st;// + vec2( 0.005, 0 );
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
+    matID = mc_Entity.x;
 
     gl_Position = ftransform();
     depth = gl_Position.z;
