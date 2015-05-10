@@ -1,0 +1,8 @@
+Number | Format | Data Stored
+------------------------------
+ [0]   | RGB8   | Albedo
+ [1]   | RGBA8  | Normal, Roughness
+ [2]   | RGBA16 | Direct lighting
+ [3]   | RGBA16 | Reflection
+ [4]   | RGB    | Emission, Metalness, World Depth
+ [5]   | RGB    | Water Color, Water Depth

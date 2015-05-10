@@ -11,7 +11,7 @@ void main() {
     gl_Position = ftransform();
     coord = gl_MultiTexCoord0.st;
 
-    if( worldTime > 500 && worldTime < 13000 ) {
+    /*if( worldTime > 500 && worldTime < 13000 ) {
         skyColor = vec3( 0.529, 0.808, 0.922 );
     }
     if( rainStrength > 0.1 ) {
@@ -19,5 +19,5 @@ void main() {
     }
     if( worldTime < 500 || worldTime > 13000 ) {
         skyColor = vec3( 0.1, 0.1, 0.2 );
-    }
+    }*/
 }

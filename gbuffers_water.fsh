@@ -47,7 +47,7 @@ void main() {
        // matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
     }
     
-    gl_FragData[0] = matColor;
+    gl_FragData[0] = vec4( 0.0 );
     gl_FragData[1] = vec4( wNormal * 0.5 + 0.5, 0.0 );
     gl_FragData[4] = vec4( 0.02, 0.0, 0.0, 1.0 );
     gl_FragData[5] = vec4( uvLight.r, uvLight.g, 0.0, 1.0 );

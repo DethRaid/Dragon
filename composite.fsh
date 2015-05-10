@@ -3,8 +3,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution      = 2048;
-const float shadowDistance           = 120.0;
+const int   shadowMapResolution     = 2048;
+const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
@@ -12,21 +12,21 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float sunPathRotation            = 25.0;
-const float ambientOcclusionLevel       = 0.2;
+const float sunPathRotation         = 25.0;
+const float ambientOcclusionLevel   = 0.2;
 
-const int 	R8 						= 0;
-const int 	RG8 					    = 0;
-const int 	RGB8 					= 1;
-const int 	RGB16 					= 2;
-const int    RGBA16                  = 3;
-const int    RGBA8                   = 4;
-const int    RGBA16F                 = 5;
+const int 	 R8 					= 0;
+const int 	 RG8 					= 0;
+const int 	 RGB8 					= 1;
+const int 	 RGB16 					= 2;
+const int    RGBA16                 = 3;
+const int    RGBA8                  = 4;
+const int    RGBA16F                = 5;
 
-const int 	gcolorFormat 			    = RGB8;
-const int 	gdepthFormat 			    = RGBA16;
+const int 	gcolorFormat 			= RGB16;
+const int 	gdepthFormat 			= RGBA16;
 const int 	gnormalFormat 			= RGBA16F;
-const int 	compositeFormat 		    = RGBA16F;
+const int 	compositeFormat 		= RGBA16F;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -43,10 +43,10 @@ const int 	compositeFormat 		    = RGBA16F;
 #define PI              3.14159265
 #define E               2.71828183
 
-#define SHADOW_QUALITY  REALISTIC
+#define SHADOW_QUALITY  HARD
 #define SHADOW_BIAS     0.0065
 #define SHADOW_FILTER   PCF_FIXED
-#define MAX_PCF_SAMPLES 20 //make this number smaller for better performance at the expence of realism
+#define MAX_PCF_SAMPLES 20 //make this number smaller for better performance at the expense of realism
 
 #define SSAO            false
 #define SSAO_SAMPLES    16               //more samples = prettier
@@ -182,6 +182,10 @@ float getTerrainDepth() {
     return texture2D( gdepth, coord ).b;
 }
 
+float luma( vec3 color ) {
+    return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Lighting Functions                           //
 ///////////////////////////////////////////////////////////////////////////////
@@ -306,7 +310,7 @@ void calcDirectLighting( inout Pixel pixel ) {
     ndoth = max( 0, ndoth ); 
 
     //calculate diffuse lighting
-    vec3 lambert = albedo * ndotl;
+    vec3 lambert = albedo * ndotl * (1.0 - luma( specularColor ));
 
     vec3 fresnel = fresnel( specularColor, vdoth );
 
@@ -384,33 +388,22 @@ vec3 calcSkyScattering( in vec3 color, in float z ) {
 }
 
 vec3 calcLitColor( in Pixel pixel ) {
-    return pixel.color * pixel.directLighting + 
-           pixel.color * pixel.torchLighting +
-           pixel.color * pixel.skyLighting;
-}
-
-float luma( in vec3 color ) {
-    return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+    vec3 lit = pixel.color * pixel.directLighting + 
+               pixel.color * pixel.torchLighting +
+               pixel.color * pixel.skyLighting;
+    return (lit * (1.0 - pixel.emission)) + (pixel.color * pixel.emission);
 }
 
 void main() {
     curFrag = fillPixelStruct();
     vec3 finalColor = vec3( 0 );
     
-    if( curFrag.emission < 0.5 ) {
-        calcDirectLighting( curFrag );
-        calcTorchLighting( curFrag );
-        calcSkyLighting( curFrag );
-    
-#if SSAO
-        calcSSAO( curFrag );
-#endif
+    calcDirectLighting( curFrag );
+    calcTorchLighting( curFrag );
+    calcSkyLighting( curFrag );
 
-        finalColor = calcLitColor( curFrag );
-        //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
-    } else {
-        finalColor = curFrag.color; 
-    }
+    finalColor = calcLitColor( curFrag );
+    //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
     
     gl_FragData[0] = texture2D( gcolor, coord );
     gl_FragData[1] = texture2D( gdepth, coord );

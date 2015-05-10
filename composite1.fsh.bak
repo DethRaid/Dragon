@@ -1,5 +1,6 @@
 #version 120
 
+
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          35.0
 #define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
@@ -102,35 +103,35 @@ vec2 getCoordFromCameraSpace( in vec3 position ) {
 }
 
 vec3 getColor() {
-    return pow( texture2D( gaux1, coord ).rgb, vec3( 2.2 ) );
+    return texture2D( gnormal, coord ).rgb;
 }
 
 float getEmission() {
-    return texture2D( composite, coord ).b;
+    return texture2D( gaux2, coord ).b;
 }
 
 float getWaterDepth() {
-    return texture2D( gnormal, coord ).a;
+    return texture2D( gaux3, coord ).r;
 }
 
 float getSmoothness() {
-    return texture2D( gdepth, coord ).g;
+    return texture2D( gaux1, coord ).g;
 }
 
 float getR0() {
-    return texture2D( gdepth, coord ).r;
+    return texture2D( gaux1, coord ).r;
 }
 
 vec3 getNormal() {
-    return normalize( texture2D( gnormal, coord ).xyz * 2.0 - 1.0 );
+    return normalize( texture2D( gdepth, coord ).xyz * 2.0 - 1.0 );
 }
 
 float getMetalness() {
-    return texture2D( gdepth, coord ).b;
+    return texture2D( gaux1, coord ).b;
 }
 
 float getTerrainDepth() {
-    return texture2D( gdepth, coord ).b;
+    return texture2D( gdepth, coord ).a;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,7 +149,7 @@ void fillPixelStruct( inout Pixel1 pixel ) {
     pixel.waterDepth    = getWaterDepth();
     pixel.terrainDepth  = getTerrainDepth();
 }
-
+/*
 //Determines the UV coordinate where the ray hits
 //If the returned value is not in the range [0, 1] then nothing was hit.
 //NOTHING!
@@ -214,10 +215,10 @@ vec3 doLightBounce( in Pixel1 pixel ) {
         hitUV = castRay( rayStart, rayDir );
         if( hitUV.s > 0.0 && hitUV.s < 1.0 && hitUV.t > 0.0 && hitUV.t < 1.0 ) {
             retColor += vec3( texture2D( composite, hitUV.st ).rgb * MAX_REFLECTIVITY );
-        } /*else {
-            float water = step( 0.0, pixel.waterDepth );
+        } else {
+            float water = step( 0.001, pixel.waterDepth );
             retColor += skyColor * water + pixel.color * (1.0 - water);
-        }*/
+        }
     }
     
     return retColor / NUM_RAYS;
@@ -226,31 +227,29 @@ vec3 doLightBounce( in Pixel1 pixel ) {
 float luma( vec3 color ) {
     return dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
 }
-
+*/
 void main() {
     Pixel1 pixel;
     fillPixelStruct( pixel );
-    vec3 hitColor = pixel.color;
+    /*vec3 hitColor = pixel.color;
 #if NUM_RAYS > 0
-    if( pixel.emission < 0.5 ) {
-        hitColor = doLightBounce( pixel );
-        
-        vec3 viewVector = normalize( getCameraSpacePosition( coord ) );
+    //if( pixel.emission < 0.5 ) {        
+        //vec3 viewVector = normalize( getCameraSpacePosition( coord ) );
 
-        float vdoth = clamp( dot( -viewVector, pixel.normal ), 0, 1 );
+        //float vdoth = clamp( dot( -viewVector, pixel.normal ), 0, 1 );
 
-        float smoothness = pixel.smoothness;
-        float metalness = pixel.metalness;
-        float waterness = step( 0.0, pixel.waterDepth );
+        //float smoothness = pixel.smoothness;
+        //float metalness = pixel.metalness;
+        //float waterness = step( 0.0, pixel.waterDepth );
     
-        vec3 reflectedColor = doLightBounce( pixel ).rgb; 
+        //vec3 reflectedColor = doLightBounce( pixel ).rgb; 
 
-        smoothness = pow( smoothness, 4 );
-        vec3 sColor = (pixel.color * metalness + vec3( pixel.R0 ) * (1.0 - metalness));
+        //smoothness = pow( smoothness, 4 );
+        //vec3 sColor = (pixel.color * metalness + vec3( pixel.R0 ) * (1.0 - metalness));
             //* (1.1 - waterness);
-        vec3 fresnel = sColor + (vec3( 1.0 ) - sColor) * pow( 1.0 - vdoth, 5 );
+        //vec3 fresnel = sColor + (vec3( 1.0 ) - sColor) * pow( 1.0 - vdoth, 5 );
 
-        reflectedColor *= fresnel;
+        //reflectedColor *= fresnel;
 
         // Calculate water (and glass, we're inclusive here) refractions
         // There is at least one glaring problem with this algorithm. It assumes
@@ -259,9 +258,9 @@ void main() {
         // surface, this issue should be all but impossible to discern. Plus, it's
         // significantly faster than actually tracing the ray. I spend enough time
         // tracing rays already
-        float wDepth = pixel.waterDepth;
-        vec3 refractedColor = pixel.color;
-        if( wDepth < 0 ) {
+        //float wDepth = pixel.waterDepth;
+        //vec3 refractedColor = pixel.color;
+        /*if( wDepth < 0 ) {
             float tDepth = pixel.terrainDepth;
             float depthDiff = tDepth - wDepth;
             // Assume that glass and water have the same refractive index.
@@ -279,21 +278,22 @@ void main() {
             // In a perfect world, I'd multiply refractedColor by the
             // material's color. Problem is, this isn't a perfect world
             hitColor = vec3( -tDepth );
-        }
+        }*/
         //hitColor = vec3( -wDepth );
 
-        hitColor = (vec3( 1.0 ) - fresnel) * refractedColor * (1.0 - metalness) + reflectedColor;
-    }
-#endif
+        //hitColor = (vec3( 1.0 ) - fresnel) * refractedColor * (1.0 - metalness) + reflectedColor;
+        //hitColor = reflectedColor;
+    //}
+//#endif
     
     gl_FragData[0] = texture2D( gcolor, coord );
     gl_FragData[1] = texture2D( gdepth, coord );
     gl_FragData[2] = texture2D( gnormal, coord );
-    gl_FragData[3] = texture2D( composite, coord );
-    gl_FragData[4] = texture2D( gaux1, coord );
-
-    gl_FragData[5] = vec4( hitColor, 1 );
-    gl_FragData[5] = texture2D( gaux2, coord );
     
+    gl_FragData[3] = vec4( pixel.color, 1 );
+    
+    gl_FragData[4] = texture2D( gaux1, coord );
+    gl_FragData[5] = texture2D( gaux2, coord );
     gl_FragData[6] = texture2D( gaux3, coord );
+    //gl_FragColor = vec4( 0 );
 }
