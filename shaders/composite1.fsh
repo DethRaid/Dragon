@@ -897,7 +897,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 
 	for( int i = -2; i < 3; i++ ) {
         for( int j = -2; j < 3; j++ )
-		temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) / shadowMapResolution) ).r;
+		temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * 5.0 / shadowMapResolution) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
 			count += 1.0;
