@@ -3,6 +3,9 @@
 varying vec4 color;
 
 void main() {
-    color = gl_Color;
-    gl_Position = ftransform();
+	gl_Position = ftransform();
+	
+	color = gl_Color;
+
+	gl_FogFragCoord = gl_Position.z;
 }

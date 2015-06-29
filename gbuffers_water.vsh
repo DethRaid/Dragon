@@ -1,121 +1,120 @@
 #version 120
 
-#define PI 3.14159265
+#define WAVING_WATER
 
-attribute vec4 mc_Entity;
-
-uniform float frameTimeCounter;
+uniform int worldTime;
 
 uniform vec3 cameraPosition;
 
-uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferModelView;
-uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
 
 varying vec4 color;
-varying vec2 uv;
-varying vec2 uvLight;
-varying vec3 pos;
-
-varying float depth;
+varying vec4 texcoord;
+varying vec4 lmcoord;
+varying vec3 worldPosition;
+varying vec4 vertexPos;
 
 varying vec3 normal;
-varying mat3 normalMatrix;
-varying float windSpeed;
-varying float isWater;
+varying vec3 globalNormal;
+varying vec3 tangent;
+varying vec3 binormal;
+varying vec3 viewVector;
+varying float distance;
 
-float rand( in vec2 coord ) {
-    return fract( sin( dot( coord, vec2( 12.9898, 7.2534 ) ) ) * 41632.34 );
-}
+attribute vec4 mc_Entity;
 
-void calcWindSpeed( in vec2 coord ) {
-    vec2 windTime = vec2( frameTimeCounter );
-    vec2 windOffset = windTime * vec2( 0.5, 0.2 );
-
-    coord += vec2( frameTimeCounter );
-
-    vec2 wc1 = coord * 0.025;
-    wc1 -= fract( wc1 );
-    vec2 wc2 = coord * 0.05;
-    wc2 -= fract( wc2 );
-    vec2 wc3 = coord * 0.1;
-    wc3 -= fract( wc3 );
-    vec2 wc4 = coord * 0.2;
-    wc4 -= fract( wc4 );
-
-    windSpeed = 0.5 * rand( wc1 ) + 0.25 * rand( wc2 ) + 0.125 * rand( wc3 ) + 0.0625 * rand( wc4 );
-}
-
-// Wave code from chocapic13's shaderpack
-// modified by DethRaid to incorporate dynamic wind speeds
-float getDisplacement( in vec3 worldPos ) {
-    float fy = fract( worldPos.y + 0.001 );
-    float wTime = frameTimeCounter;
-
-    float amplitude = 0.05;
-
-    if( fy > 0.002 ) {
-        float wave = amplitude * sin( 2 * PI * (wTime * 0.75 + worldPos.x / 7.0 + worldPos.z / 13.0) )
-                   + amplitude * sin( 2 * PI * (wTime * 0.6 + worldPos.x / 11.0 + worldPos.z / 5.0) );
-        return clamp( wave, -fy, 1.0 - fy );
-    }
-    return 0.0;
-}
+varying float iswater;
+varying float isice;
 
 void main() {
-    color = gl_Color;
 
-    uv = gl_MultiTexCoord0.st;
-    uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
+	iswater = 0.0f;
+	isice = 0.0f;
 
-    //Water position determination comes from chocapic13's shaderpack, available from
-    //http://www.minecraftforum.net/forums/mapping-and-modding/minecraft-mods/1293898-chocapic13s-shaders
-    vec4 position = gl_ModelViewMatrix * gl_Vertex;
-    vec4 viewPos = gbufferModelViewInverse * position;
-    vec3 worldPos = viewPos.xyz + cameraPosition;
-    pos = worldPos;
 
-    float displacement = 0;
-    if( mc_Entity.x == 8.0 || mc_Entity.x == 9.0 ) {
-        isWater = 1.0;
-        calcWindSpeed( worldPos.xz );
-        displacement = getDisplacement( worldPos );
-        viewPos.y += displacement;
-    }
+	
+	if (mc_Entity.x == 79) {
+		isice = 1.0f;
+	}
+	
+		 vertexPos = gl_Vertex;
+		 
+	if (mc_Entity.x == 95 || mc_Entity.x == 160) {
+		isice = 1.0f;
+	}
 
-    gl_Position = gl_ProjectionMatrix * (gbufferModelView * viewPos);
-    depth = gl_Position.z;
+	if (mc_Entity.x == 1971.0f)
+	{
+		iswater = 1.0f;
+	}
+	
+	if (mc_Entity.x == 8 || mc_Entity.x == 9) {
+		iswater = 1.0f;
+	}
+	
+		
+	vec4 viewPos = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;
+	vec4 position = viewPos;
 
-    vec3 tangent = vec3( 0 );
-    vec3 binormal = vec3( 0 );
-    normal = normalize( gl_NormalMatrix * gl_Normal );
+	worldPosition.xyz = viewPos.xyz + cameraPosition.xyz;
 
-    if( gl_Normal.x > 0.5 ) {
-        tangent = vec3( 0.0, 0.0, -1.0 );
-    } else if( gl_Normal.x < -0.5 ) {
-        tangent = vec3( 0.0, 0.0, 1.0 );
-    } else if( gl_Normal.y > 0.5 ) {
-        tangent = vec3( 1.0, 0.0, 0.0 );
-    } else if( gl_Normal.y < -0.5 ) {
-        tangent = vec3( 1.0, 0.0, 0.0 );
-    } else if( gl_Normal.z > 0.5 ) {
-        tangent = vec3( 1.0, 0.0, 0.0 );
-    } else if( gl_Normal.z < -0.5 ) {
-        tangent = vec3( -1.0, 0.0, 0.0 );
-    }
+	vec4 localPosition = gl_ModelViewMatrix * gl_Vertex;
 
-    binormal = cross( normal, tangent );
+	distance = length(localPosition.xyz);
 
-    normalMatrix = mat3( tangent.x, binormal.x, normal.x,
-                         tangent.y, binormal.y, normal.y,
-                         tangent.z, binormal.z, normal.z );
+	gl_Position = gl_ProjectionMatrix * (gbufferModelView * position);
 
-    if( isWater > 0.9 ) {
-        vec3 newNormal = vec3( sin( displacement * PI ), 1.0 - cos( displacement * PI ), displacement );
+	
+	color = gl_Color;
+	
+	texcoord = gl_TextureMatrix[0] * gl_MultiTexCoord0;
 
-        float bumpMult = 0.05;
-        newNormal = newNormal * vec3( bumpMult ) + vec3( 0.0, 0.0, 1.0 - bumpMult );
+	lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;
+	
 
-        normal = newNormal * normalMatrix;
-    }
+
+	gl_FogFragCoord = gl_Position.z;
+
+
+	
+	
+	normal = normalize(gl_NormalMatrix * gl_Normal);
+	globalNormal = normalize(gl_Normal);
+
+	if (gl_Normal.x > 0.5) {
+		//  1.0,  0.0,  0.0
+		tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0, -1.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
+	} else if (gl_Normal.x < -0.5) {
+		// -1.0,  0.0,  0.0
+		tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
+	} else if (gl_Normal.y > 0.5) {
+		//  0.0,  1.0,  0.0
+		tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
+	} else if (gl_Normal.y < -0.5) {
+		//  0.0, -1.0,  0.0
+		tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
+	} else if (gl_Normal.z > 0.5) {
+		//  0.0,  0.0,  1.0
+		tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
+	} else if (gl_Normal.z < -0.5) {
+		//  0.0,  0.0, -1.0
+		tangent  = normalize(gl_NormalMatrix * vec3(-1.0,  0.0,  0.0));
+		binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
+	}
+	
+	mat3 tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
+                          tangent.y, binormal.y, normal.y,
+                          tangent.z, binormal.z, normal.z);
+
+	viewVector = (gl_ModelViewMatrix * gl_Vertex).xyz;
+	viewVector = normalize(tbnMatrix * viewVector);
+
+
+	
 }

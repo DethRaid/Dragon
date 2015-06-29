@@ -1,5 +1,7 @@
 #version 120
 
+#define SKY_DESATURATION 0.0f
+
 varying vec4 texcoord;
 
 uniform vec3 sunPosition;
@@ -57,7 +59,7 @@ void main() {
 	upVector = normalize(upPosition);
 	
 	
-	float timePow = 4.0f;
+	float timePow = 3.2f;
 
 	float LdotUp = dot(upVector, sunVector);
 	float LdotDown = dot(-upVector, sunVector);
@@ -74,8 +76,7 @@ void main() {
 	timeSkyDark = 0.0f;
 
 
-	float horizonTime = CubicSmooth(clamp01((1.0 - abs(LdotUp)) * 4.0f - 3.0f));
-	horizonTime = 1.0 - pow(1.0 - horizonTime, 3.0);
+	float horizonTime = CubicSmooth(clamp01((1.0 - abs(LdotUp)) * 7.0f - 6.0f));
 	
 	const float rayleigh = 0.02f;
 
@@ -137,7 +138,7 @@ void main() {
 
 
 	sunrise_amb = vec3(0.19f, 0.35f, 0.7f) * 0.15f;
-	noon_amb    = vec3(0.15f, 0.29f, 0.99f);
+	noon_amb    = vec3(0.11f, 0.24f, 0.99f);
 	midnight_amb = vec3(0.005f, 0.01f, 0.02f) * 0.025f;
 	
 	colorSkylight = sunrise_amb * timeSunriseSunset  +  noon_amb * timeNoon  +  midnight_amb * timeMidnight;
@@ -178,10 +179,10 @@ void main() {
 
 				
 	//Saturate sunlight colors
-	colorSunlight = pow(colorSunlight, vec3(4.2f));
+	colorSunlight = pow(colorSunlight, vec3(2.9f));
 	
 	colorSunlight *= 1.0f - horizonTime;
-
+	
 	
 	 colorBouncedSunlight = mix(colorSunlight, colorSkylight, 0.15f);
 	 
