@@ -30,12 +30,12 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 
 /* Dethraid's CHS variables */
-#define HARD        0
-#define SOFT        1
-#define REALISTIC   2
+#define HARD            0
+#define SOFT            1
+#define REALISTIC       2
 
-#define PCF_SIZE    5
-#define SHADOW_MODE REALISTIC
+#define PCF_SIZE_HALF   5
+#define SHADOW_MODE     REALISTIC
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -171,7 +171,7 @@ uniform sampler2D gdepth;
 uniform sampler2D gdepthtex;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
-uniform sampler2DShadow shadow;
+uniform sampler2D shadow;
 //uniform sampler2D shadowcolor;
 uniform sampler2D noisetex;
 uniform sampler2D gaux1;
@@ -866,15 +866,19 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
-vec3 calcShadowCoordinate( in Pixel pixel ) {
-    vec4 shadowCoord = pixel.position;
-    shadowCoord.xyz -= cameraPosition;
-    shadowCoord = shadowModelView * shadowCoord;
+vec3 calcShadowCoordinate( in vec4 fragPosition ) {
+    //fragPosition.xyz -= cameraPosition;
+    vec4 shadowCoord = shadowModelView * fragPosition;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
     
+    float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
+		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+		shadowCoord.xy *= 1.0f / distortFactor;
+        
     shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
-    float dFrag = (1 + shadowCoord.z) * 0.5 + 0.005;
+    
+    float dFrag = (1 + shadowCoord.z) * 0.5;// + 0.005;
     
     return vec3( shadowCoord.st, dFrag );
 }
@@ -908,46 +912,44 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     return penumbra * 0.1;
 }
 
-float calcShadowing( inout Pixel pixel ) {
-    vec3 shadowCoord = calcShadowCoordinate( pixel );
+float calcShadowing( in vec4 fragPosition ) {
+    vec3 shadowCoord = calcShadowCoordinate( fragPosition );
     
     if( shadowCoord.x > 1 || shadowCoord.x < 0 ||
         shadowCoord.y > 1 || shadowCoord.y < 0 ) {
         return 1.0;
     }
     
-#if SHADOW_QUALITY == HARD
+    float visibility = 1.0;
+    
+#if SHADOW_MODE == HARD
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
-    return step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
+    return step( shadowCoord.z - shadowDepth, 0.0 );
     
 #else
-    float penumbraSize = 0.0049;
+    float penumbraSize = 0.0049;    // whoo magic number!
     
-#if SHADOW_QUALITY == REALISTIC
+#if SHADOW_MODE == REALISTIC
     penumbraSize = calcPenumbraSize( shadowCoord );
 #endif
-    
-    float visibility = 1.0;
 
-#if SHADOW_FILTER == PCF_FIXED
-    int kernelSizeHalf = 4;
-    float sub = 1.0 / 81.0;
-    penumbraSize *= 500;
+#if SHADOW_MODE == PCF
+    int kernelSizeHalf = PCF_SIZE_HALF;
+    float sub = 1.0 / (4.0 * PCF_SIZE_HALF * PCF_SIZE_HALF);
+    penumbraSize *= 100;
 
 #else
-    int kernelSize = int( min( penumbraSize * shadowMapResolution * 2, MAX_PCF_SAMPLES ) );
+    int kernelSize = int( min( penumbraSize * shadowMapResolution * 2, PCF_SIZE_HALF ) );
     int kernelSizeHalf = kernelSize / 2;
-    float sub = 1.0 / (4 * kernelSizeHalf * kernelSizeHalf);
+    float sub = 1.0 / (4 * PCF_SIZE_HALF * PCF_SIZE_HALF);
 #endif
 
-	for( int i = -kernelSizeHalf; i < kernelSizeHalf + 1; i++ ) {
-        for( int j = -kernelSizeHalf; j < kernelSizeHalf + 1; j++ ) {
+	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF + 1; i++ ) {
+        for( int j = -PCF_SIZE_HALF; j < PCF_SIZE_HALF + 1; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
-#if SHADOW_FILTER == PCF_FIXED
             sampleCoord *= penumbraSize;
-#endif
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            visibility -= (1.0 - step( shadowCoord.z - shadowDepth, SHADOW_BIAS )) * sub;
+            visibility -= (1.0 - step( shadowCoord.z - shadowDepth, 0.0 )) * sub;
         }
 	}
 
@@ -970,9 +972,9 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 		
 		
 		vec4 worldposition = vec4(0.0f);
-			 worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
+			worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
 			
-		float yDistanceSquared  = worldposition.y * worldposition.y;
+		/*float yDistanceSquared  = worldposition.y * worldposition.y;
 		
 		worldposition = shadowModelView * worldposition;	//Transform from world space to shadow space
 		float comparedepth = -worldposition.z;				//Surface distance from sun to be compared to the shadow map
@@ -985,10 +987,11 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 		worldposition.xy *= 1.0f / distortFactor;
 		worldposition = worldposition * 0.5f + 0.5f;		//Transform from shadow space to shadow map coordinates
 		
-		
-		float shadowMult = 0.0f;																			//Multiplier used to fade out shadows at distance
+		*/
+        float fademult = 0.15f;
+		float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
 		float shading = 0.0f;
-		
+		/*
 		
 		
 		if (distance < shadowDistance && comparedepth > 0.0f &&											//Avoid computing shadows past the shadow map projection
@@ -1001,20 +1004,7 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 				  diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
 				  //diffthresh /= shadingStruct.direct + 0.1f;
 
-            // Shadow variables
-            float shadowCoverage = 0.0f;
-            float shadowDistance;
-            float sampleDistance = worldposition.z - 0.0008f * diffthresh;
-            vec2 shadowCoord;
-            
-            #if SHADOW_QUALITY == HARD
-            shadowCoord = ()shadowGBuffferModelViewInverse * worldPosition).uv;
-            float shadowDistance = texture2D( shadow,  )
-            
-			diffthresh *= 3.0f;
-			shading = shadow2DLod(shadow, vec3(worldposition.st, worldposition.z - 0.0008f * diffthresh), 3).x;
-            
-			#if defined ENABLE_SOFT_SHADOWS
+           #if defined ENABLE_SOFT_SHADOWS
 
 				int count = 0;
 				float spread = 1.0f / shadowMapResolution;
@@ -1030,12 +1020,12 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 			#else
 				diffthresh *= 3.0f;
 				shading = shadow2DLod(shadow, vec3(worldposition.st, worldposition.z - 0.0008f * diffthresh), 3).x;
-			#endif
-
-			
-		}
+			#endif*/
+            
+			shading = calcShadowing( worldposition );
+		//}
 		
-		shading = mix(1.0f, shading, shadowMult);
+		//shading = mix(1.0f, shading, shadowMult);
 
 		surface.shadow = shading;
 		
@@ -2733,7 +2723,7 @@ void main() {
 	//SnowShader(surface);
 
 	
-	
+	//finalComposite = vec3( surface.shadow );
 
 
 #ifdef NO_GODRAYS
