@@ -31,11 +31,11 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 /* Dethraid's CHS variables */
 #define HARD            0
-#define SOFT            1
+#define PCF            1
 #define REALISTIC       2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     REALISTIC
+#define SHADOW_MODE     PCF
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -933,15 +933,13 @@ float calcShadowing( in vec4 fragPosition ) {
     penumbraSize = calcPenumbraSize( shadowCoord );
 #endif
 
-#if SHADOW_MODE == PCF
-    int kernelSizeHalf = PCF_SIZE_HALF;
     float sub = 1.0 / (4.0 * PCF_SIZE_HALF * PCF_SIZE_HALF);
-    penumbraSize *= 100;
-
+    
+#if SHADOW_MODE == PCF
+    penumbraSize *= 500;
 #else
     int kernelSize = int( min( penumbraSize * shadowMapResolution * 2, PCF_SIZE_HALF ) );
     int kernelSizeHalf = kernelSize / 2;
-    float sub = 1.0 / (4 * PCF_SIZE_HALF * PCF_SIZE_HALF);
 #endif
 
 	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF + 1; i++ ) {
@@ -973,59 +971,10 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 		
 		vec4 worldposition = vec4(0.0f);
 			worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
-			
-		/*float yDistanceSquared  = worldposition.y * worldposition.y;
-		
-		worldposition = shadowModelView * worldposition;	//Transform from world space to shadow space
-		float comparedepth = -worldposition.z;				//Surface distance from sun to be compared to the shadow map
-		
-		worldposition = shadowProjection * worldposition;													
-		worldposition /= worldposition.w;
-
-		float dist = sqrt(worldposition.x * worldposition.x + worldposition.y * worldposition.y);
-		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-		worldposition.xy *= 1.0f / distortFactor;
-		worldposition = worldposition * 0.5f + 0.5f;		//Transform from shadow space to shadow map coordinates
-		
-		*/
+            
         float fademult = 0.15f;
 		float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
-		float shading = 0.0f;
-		/*
-		
-		
-		if (distance < shadowDistance && comparedepth > 0.0f &&											//Avoid computing shadows past the shadow map projection
-			 worldposition.s < 1.0f && worldposition.s > 0.0f && worldposition.t < 1.0f && worldposition.t > 0.0f) {
-			 
-			float fademult = 0.15f;
-				shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out
-			
-			float diffthresh = dist * 1.0f + 0.10f;
-				  diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
-				  //diffthresh /= shadingStruct.direct + 0.1f;
-
-           #if defined ENABLE_SOFT_SHADOWS
-
-				int count = 0;
-				float spread = 1.0f / shadowMapResolution;
-
-				for (float i = -1.0f; i <= 1.0f; i += 1.0f) {
-					for (float j = -1.0f; j <= 1.0f; j += 1.0f) {
-						 shading += shadow2D(shadow, vec3(worldposition.st + vec2(i, j) * spread, worldposition.z - 0.0018f * diffthresh)).x;
-						count += 1;
-					}
-				}
-				shading /= count;
-				 	
-			#else
-				diffthresh *= 3.0f;
-				shading = shadow2DLod(shadow, vec3(worldposition.st, worldposition.z - 0.0008f * diffthresh), 3).x;
-			#endif*/
-            
-			shading = calcShadowing( worldposition );
-		//}
-		
-		//shading = mix(1.0f, shading, shadowMult);
+		float shading = calcShadowing( worldposition );
 
 		surface.shadow = shading;
 		
