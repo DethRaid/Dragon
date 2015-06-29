@@ -31,11 +31,11 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 /* Dethraid's CHS variables */
 #define HARD            0
-#define PCF            1
-#define REALISTIC       2
+#define PCF             1
+#define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCF
+#define SHADOW_MODE     PCSS
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -909,7 +909,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 		penumbra = wLight * (dFragment - dBlocker) / dFragment;
 	}
     
-    return penumbra * 0.1;
+    return penumbra * 100;
 }
 
 float calcShadowing( in vec4 fragPosition ) {
@@ -927,20 +927,13 @@ float calcShadowing( in vec4 fragPosition ) {
     return step( shadowCoord.z - shadowDepth, 0.0 );
     
 #else
-    float penumbraSize = 0.0049;    // whoo magic number!
+    float penumbraSize = 2.5;    // whoo magic number!
     
-#if SHADOW_MODE == REALISTIC
+#if SHADOW_MODE == PCSS
     penumbraSize = calcPenumbraSize( shadowCoord );
 #endif
 
     float sub = 1.0 / (4.0 * PCF_SIZE_HALF * PCF_SIZE_HALF);
-    
-#if SHADOW_MODE == PCF
-    penumbraSize *= 500;
-#else
-    int kernelSize = int( min( penumbraSize * shadowMapResolution * 2, PCF_SIZE_HALF ) );
-    int kernelSizeHalf = kernelSize / 2;
-#endif
 
 	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF + 1; i++ ) {
         for( int j = -PCF_SIZE_HALF; j < PCF_SIZE_HALF + 1; j++ ) {
