@@ -866,9 +866,14 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
-vec3 calcShadowCoordinate( in vec4 fragPosition ) {
+vec3 calcShadowCoordinate(in vec4 fragPosition ) {
+
+	  vec4 worldposition = vec4(0.0f);
+		  worldposition = gbufferModelViewInverse * surface.screenSpacePosition;
+
     //fragPosition.xyz -= cameraPosition;
-    vec4 shadowCoord = shadowModelView * fragPosition;
+    vec4 shadowCoord = shadowModelView * worldposition;
+		float comparedepth = -shadowCoord.z;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
 
@@ -889,7 +894,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 0.1;// / 3.5;
+	float wLight = 0.0;// / 3.5;
 
 	// Sample the shadow map 8 times
 	float temp;
@@ -957,14 +962,14 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 							  + surface.screenSpacePosition.y * surface.screenSpacePosition.y
 							  + surface.screenSpacePosition.z * surface.screenSpacePosition.z);
 
-
-
 		vec4 worldposition = vec4(0.0f);
 			worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
 
-        float fademult = 0.15f;
-		float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
-		float shading = calcShadowing( worldposition );
+
+				  float CalcShad = calcShadowing( worldposition );
+        	float fademult = 0.15f;
+					float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
+					float shading = mix(1.0f, CalcShad, shadowMult);
 
 		surface.shadow = shading;
 
