@@ -20,8 +20,8 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define SATURATION_BOOST 0.2f 			//How saturated the final image should be. 0 is unchanged saturation. Higher values create more saturated image
 
 //Define one of these, not more, not less.
-	#define TONEMAP_NATURAL
-	//#define TONEMAP_FILMIC
+	//#define TONEMAP_NATURAL
+	#define TONEMAP_FILMIC
 
 //#define LOCAL_OPERATOR					//Use local operator when tone mapping. Local operators increase image sharpness and local contrast but can cause haloing
 	
