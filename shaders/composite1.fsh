@@ -34,8 +34,8 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCF             1
 #define PCSS            2
 
-#define PCF_SIZE_HALF   10
-#define SHADOW_MODE     PCSS
+#define PCF_SIZE_HALF   5
+#define SHADOW_MODE     HARD
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -866,14 +866,8 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
-vec3 calcShadowCoordinate(in vec4 fragPosition ) {
-
-	  vec4 worldposition = vec4(0.0f);
-		  worldposition = gbufferModelViewInverse * surface.screenSpacePosition;
-
-    //fragPosition.xyz -= cameraPosition;
-    vec4 shadowCoord = shadowModelView * worldposition;
-		float comparedepth = -shadowCoord.z;
+vec3 calcShadowCoordinate( in vec4 fragPosition ) {
+    vec4 shadowCoord = shadowModelView * fragPosition;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
 
@@ -894,11 +888,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-<<<<<<< HEAD
 	float wLight = 0.5;
-=======
-	float wLight = 0.0;// / 3.5;
->>>>>>> b98cf18fb14b13f66b42fecb9f8b9baa41f0920c
 
 	// Sample the shadow map 8 times
 	float temp;
@@ -907,12 +897,13 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 
     // pre-blocker search
 	for( int i = -2; i < 2; i++ ) {
-        for( int j = -2; j < 2; j++ )
-		temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * 20 / shadowMapResolution) ).r;
-		if( temp < dFragment ) {
-            dBlocker += temp;
-			numBlockers += 1.0;
-		}
+        for( int j = -2; j < 2; j++ ) {
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * 20 / shadowMapResolution) ).r;
+            if( temp < dFragment ) {
+                dBlocker += temp;
+                numBlockers += 1.0;
+            }
+        }
 	}
 
 	if( numBlockers > 0.1 ) {
