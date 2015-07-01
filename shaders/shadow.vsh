@@ -100,6 +100,7 @@ void main() {
 	lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;
 	texcoord = gl_MultiTexCoord0;
 
+    // Transform from shadow space to world space
 	vec4 position = gl_Position;
 
 		 //position *= position.w;
@@ -349,6 +350,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
     }
 #endif
 
+    // Transition from 
 	//position = gbufferModelViewInverse * position;
 	position.xyz -= cameraPosition.xyz;
 	position = shadowModelView * position;
@@ -356,7 +358,8 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 
 	normal = normalize(gl_NormalMatrix * gl_Normal);
 
-	position.z += pow(max(0.0, 1.0 - dot(normal, vec3(0.0, 0.0, 1.0))), 4.0) * 0.01;
+    float facingLightFactor = dot(normal, vec3(0.0, 0.0, 1.0));
+	position.z += pow(max(0.0, 1.0 - facingLightFactor), 4.0) * 0.01;
 
 
 	gl_Position = position;
@@ -365,7 +368,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
 
-	gl_Position.xy *= 1.0f / distortFactor;
+	//gl_Position.xy *= 1.0f / distortFactor;
 
 
 	vPosition = gl_Position;

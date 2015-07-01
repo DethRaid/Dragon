@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     HARD
+#define SHADOW_MODE     PCF
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -873,7 +873,7 @@ vec3 calcShadowCoordinate( in vec4 fragPosition ) {
 
     float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
 		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-		shadowCoord.xy *= 1.0f / distortFactor;
+		//shadowCoord.xy *= 1.0f / distortFactor;
 
     shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
 
