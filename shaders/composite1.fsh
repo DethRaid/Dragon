@@ -889,25 +889,25 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 1.5;// / 3.5;
+	float wLight = 0.5;
 
 	// Sample the shadow map 8 times
 	float temp;
-	float count = 0;
+	float numBlockers = 0;
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
 
     // pre-blocker search
-	for( int i = -1; i < 1; i++ ) {
-        for( int j = -1; j < 1; j++ )
-		temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / shadowMapResolution) ).r;
+	for( int i = -2; i < 2; i++ ) {
+        for( int j = -2; j < 2; j++ )
+		temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * 20 / shadowMapResolution) ).r;
 		if( temp < dFragment ) {
             dBlocker += temp;
-			count += 1.0;
+			numBlockers += 1.0;
 		}
 	}
 
-	if( count > 0.1 ) {
-		dBlocker /= count;
+	if( numBlockers > 0.1 ) {
+		dBlocker /= numBlockers;
 		penumbra = (dFragment - dBlocker) / dFragment;
 	}
     
@@ -930,20 +930,22 @@ float calcShadowing( in vec4 fragPosition ) {
     penumbraSize = calcPenumbraSize( shadowCoord );
 #endif
 
-    float sub = 1.0 / (4.0 * PCF_SIZE_HALF * PCF_SIZE_HALF);
+    float numBlockers = 0.0;
+    float numSamples = 0.0;
 
 	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF; i++ ) {
         for( int j = -PCF_SIZE_HALF; j < PCF_SIZE_HALF; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
             sampleCoord *= penumbraSize;
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            visibility -= (1.0 - step( shadowCoord.z - shadowDepth, 0.0 )) * sub;
+            numBlockers += step( shadowCoord.z - shadowDepth, 0.0 );
+            numSamples++;
         }
 	}
 
-    visibility = max( visibility, 0 );
+    visibility = max( numBlockers / numSamples, 0 );
 
-    return penumbraSize;
+    return visibility;
 #endif
 }
 
