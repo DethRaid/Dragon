@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCF
+#define SHADOW_MODE     HARD
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -866,14 +866,21 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
-vec3 calcShadowCoordinate( in vec4 fragPosition ) {
+vec3 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
     vec4 shadowCoord = shadowModelView * fragPosition;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
+    
+    // Transform the normal from camera space to shadow space
+    vec3 normal_WorldSpace = normalize( (gbufferModelViewInverse * vec4( fragNormal, 0.0 )).xyz );
+    vec3 normal_ShadowSpace = normalize( (shadowModelView * vec4( normal_WorldSpace, 0.0 )).xyz );
+    
+    float facingLightFactor = dot( normal_ShadowSpace, vec3( 0.0, 0.0, 1.0 ) );
+	shadowCoord.z -= pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.01;
 
     float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
 		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-		//shadowCoord.xy *= 1.0f / distortFactor;
+		shadowCoord.xy *= 1.0f / distortFactor;
 
     shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
 
@@ -914,8 +921,8 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     return penumbra * 25;
 }
 
-float calcShadowing( in vec4 fragPosition ) {
-    vec3 shadowCoord = calcShadowCoordinate( fragPosition );
+float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
+    vec3 shadowCoord = calcShadowCoordinate( fragPosition, fragNormal );
 
     float visibility = 1.0;
 
@@ -963,10 +970,11 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 			worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
 
 
-				  float CalcShad = calcShadowing( worldposition );
-        	float fademult = 0.15f;
-					float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
-					float shading = mix(1.0f, CalcShad, shadowMult);
+		float CalcShad = calcShadowing( worldposition, surface.normal );
+        
+        float fademult = 0.15f;
+			float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
+			float shading = mix(1.0f, CalcShad, shadowMult);
 
 		surface.shadow = shading;
 

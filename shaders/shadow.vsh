@@ -368,7 +368,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
 
-	//gl_Position.xy *= 1.0f / distortFactor;
+	gl_Position.xy *= 1.0f / distortFactor;
 
 
 	vPosition = gl_Position;
