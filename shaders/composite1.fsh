@@ -870,13 +870,13 @@ vec3 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
     vec4 shadowCoord = shadowModelView * fragPosition;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
-    
+
     // Transform the normal from camera space to shadow space
     vec3 normal_WorldSpace = normalize( (gbufferModelViewInverse * vec4( fragNormal, 0.0 )).xyz );
     vec3 normal_ShadowSpace = normalize( (shadowModelView * vec4( normal_WorldSpace, 0.0 )).xyz );
-    
+
     float facingLightFactor = dot( normal_ShadowSpace, vec3( 0.0, 0.0, 1.0 ) );
-	shadowCoord.z -= pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.01;
+	shadowCoord.z -= pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.0001;
 
     float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
 		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
@@ -971,7 +971,7 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 
 
 		float CalcShad = calcShadowing( worldposition, surface.normal );
-        
+
         float fademult = 0.15f;
 			float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
 			float shading = mix(1.0f, CalcShad, shadowMult);
