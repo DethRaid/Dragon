@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCSS
+#define SHADOW_MODE     HARD
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -866,27 +866,27 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
-vec3 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
+vec4 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
     vec4 shadowCoord = shadowModelView * fragPosition;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
 
     // Transform the normal from camera space to shadow space
-    vec3 normal_WorldSpace = normalize( (gbufferModelViewInverse * vec4( fragNormal, 0.0 )).xyz );
+    /*vec3 normal_WorldSpace = normalize( (gbufferModelViewInverse * vec4( fragNormal, 0.0 )).xyz );
     vec3 normal_ShadowSpace = normalize( (shadowModelView * vec4( normal_WorldSpace, 0.0 )).xyz );
 
     float facingLightFactor = dot( normal_ShadowSpace, vec3( 0.0, 0.0, 1.0 ) );
-	shadowCoord.z -= pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.0001;
+	shadowCoord.z += pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.01;*/
 
     float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
-		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-		shadowCoord.xy *= 1.0f / distortFactor;
+	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+	shadowCoord.xy *= 1.0f / distortFactor;
 
-    shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
+    shadowCoord = shadowCoord * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
 
-    float dFrag = (1 + shadowCoord.z) * 0.5;// + 0.005;
+    //float dFrag = (1 + shadowCoord.z) * 0.5;// + 0.005;
 
-    return vec3( shadowCoord.st, dFrag );
+    return vec4( shadowCoord.xyz, dist );
 }
 
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
@@ -903,10 +903,10 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
     
     // pre-blocker search
-	for( int i = -4; i < 4; i++ ) {
-        for( int j = -4; j < 4; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * (1.0 / 9.0) * searchSize / shadowMapResolution) ).r;
-            if( temp < dFragment ) {
+	for( int i = -2; i < 2; i++ ) {
+        for( int j = -2; j < 2; j++ ) {
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * (1.0 / 5.0) * searchSize / shadowMapResolution) ).r;
+            if( dFragment - temp > 0 ) {
                 dBlocker += temp;
                 numBlockers += 1.0;
             }
@@ -922,7 +922,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 }
 
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
-    vec3 shadowCoord = calcShadowCoordinate( fragPosition, fragNormal );
+    vec4 shadowCoord = calcShadowCoordinate( fragPosition, fragNormal );
 
     float visibility = 1.0;
 
@@ -934,18 +934,27 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     float penumbraSize = 1.5;    // whoo magic number!
 
 #if SHADOW_MODE == PCSS
-    penumbraSize = calcPenumbraSize( shadowCoord );
+    penumbraSize = calcPenumbraSize( shadowCoord.xyz );
 #endif
 
     float numBlockers = 0.0;
     float numSamples = 0.0;
+    
+    float diffthresh = shadowCoord.w * 1.0f + 0.10f;
+	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
+    
+    mat2 kernelRotation = mat2(
+        cos( 30.0 ), sin( 30.0 ),
+        -sin( 30.0 ), cos( 30.0 )
+    );
 
 	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF; i++ ) {
         for( int j = -PCF_SIZE_HALF; j < PCF_SIZE_HALF; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
             sampleCoord *= penumbraSize;
+            sampleCoord = kernelRotation * sampleCoord;
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            numBlockers += step( shadowCoord.z - shadowDepth, 0.0 );
+            numBlockers += step( shadowCoord.z - shadowDepth, 0.0018f * diffthresh );
             numSamples++;
         }
 	}
