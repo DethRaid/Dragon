@@ -876,7 +876,7 @@ vec4 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
     vec3 normal_ShadowSpace = normalize( (shadowModelView * vec4( normal_WorldSpace, 0.0 )).xyz );
 
     float facingLightFactor = dot( normal_ShadowSpace, vec3( 0.0, 0.0, 1.0 ) );
-	shadowCoord.z += pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.01;*/
+	shadowCoord.z += pow( max( 0.0, 1.0 - facingLightFactor ), 4.0 ) * 0.0001;*/
 
     float dist = sqrt(shadowCoord.x * shadowCoord.x + shadowCoord.y * shadowCoord.y);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
@@ -901,7 +901,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float numBlockers = 0;
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
-    
+
     // pre-blocker search
 	for( int i = -2; i < 2; i++ ) {
         for( int j = -2; j < 2; j++ ) {
@@ -939,10 +939,10 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 
     float numBlockers = 0.0;
     float numSamples = 0.0;
-    
+
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
-    
+
     mat2 kernelRotation = mat2(
         cos( 30.0 ), sin( 30.0 ),
         -sin( 30.0 ), cos( 30.0 )
