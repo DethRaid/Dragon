@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCSS
+#define SHADOW_MODE     PCF
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -895,7 +895,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 13;
+	float wLight = 50;
 
 	// Sample the shadow map 8 times
 	float temp;
@@ -931,7 +931,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     return step( shadowCoord.z - shadowDepth, 0.0 );
 
 #else
-    float penumbraSize = 1.5;    // whoo magic number!
+    float penumbraSize = 0.5;    // whoo magic number!
 
 #if SHADOW_MODE == PCSS
     penumbraSize = calcPenumbraSize( shadowCoord.xyz );
@@ -954,7 +954,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
             sampleCoord *= penumbraSize;
             sampleCoord = kernelRotation * sampleCoord;
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            numBlockers += step( shadowCoord.z - shadowDepth, 0.0018f * diffthresh );
+            numBlockers += step( shadowCoord.z - shadowDepth, 0.0018f );//* diffthresh );
             numSamples++;
         }
 	}
