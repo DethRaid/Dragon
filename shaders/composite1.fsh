@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     HARD
+#define SHADOW_MODE     PCSS
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -895,7 +895,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 50;
+	float wLight = 13;
 
 	// Sample the shadow map 8 times
 	float temp;
@@ -903,10 +903,10 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
     
     // pre-blocker search
-	for( int i = -2; i < 2; i++ ) {
-        for( int j = -2; j < 2; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * (1.0 / 5.0) * searchSize / shadowMapResolution) ).r;
-            if( dFragment - temp > 0 ) {
+	for( int i = -2; i < 3; i++ ) {
+        for( int j = -2; j < 3; j++ ) {
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 50)) ).r;
+            if( dFragment - temp > 0.0035 ) {
                 dBlocker += temp;
                 numBlockers += 1.0;
             }
@@ -948,8 +948,8 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
         -sin( 30.0 ), cos( 30.0 )
     );
 
-	for( int i = -PCF_SIZE_HALF; i < PCF_SIZE_HALF; i++ ) {
-        for( int j = -PCF_SIZE_HALF; j < PCF_SIZE_HALF; j++ ) {
+	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
+        for( int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
             sampleCoord *= penumbraSize;
             sampleCoord = kernelRotation * sampleCoord;
