@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCSS
+#define SHADOW_MODE     PCF //PCSS is very broken, if you want to have a go at trying to fix it, go for it, tell us if you come up with anything
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -935,7 +935,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
             }
         }
 	}
-    
+
     if( numBlockers > 0.1 ) {
        // dBlocker = sqrt( dBlocker );
 		dBlocker /= numBlockers;
@@ -968,10 +968,10 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
 
     float rotateAmount = texture2D(
-        noisetex, 
-        texcoord.st * vec2( 
-            viewWidth / noiseTextureResolution, 
-            viewHeight / noiseTextureResolution 
+        noisetex,
+        texcoord.st * vec2(
+            viewWidth / noiseTextureResolution,
+            viewHeight / noiseTextureResolution
         ) ).r * 2.0f - 1.0f;
 
     mat2 kernelRotation = mat2(
