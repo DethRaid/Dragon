@@ -918,7 +918,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 
 	if( numBlockers > 0.1 ) {
 		dBlocker /= numBlockers;
-		preBlockDepth = (dFragment - dBlocker) / dFragment;
+		preBlockDepth = (dFragment - dBlocker) * wLight / dFragment;
 	}
     
     dBlocker = 0;
@@ -934,8 +934,13 @@ float calcPenumbraSize( vec3 shadowCoord ) {
             }
         }
 	}
+    
+    if( numBlockers > 0.1 ) {
+		dBlocker /= numBlockers;
+		penumbra = (dFragment - dBlocker) * wLight / dFragment;
+	}
 
-    return preBlockDepth;
+    return penumbra;
 }
 
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
@@ -980,7 +985,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 
     visibility = max( numBlockers / numSamples, 0 );
 
-    return penumbraSize;
+    return visibility;
 #endif
 }
 
