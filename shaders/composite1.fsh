@@ -35,7 +35,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCSS            2
 
 #define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCF
+#define SHADOW_MODE     PCSS
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -864,6 +864,8 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 	}
 }
 
+
+
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
 vec4 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
@@ -901,11 +903,12 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float numBlockers = 0;
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
+    float preBlockDepth = 0;
 
     // pre-blocker search
 	for( int i = -2; i < 3; i++ ) {
         for( int j = -2; j < 3; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 50)) ).r;
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 25)) ).r;
             if( dFragment - temp > 0.0035 ) {
                 dBlocker += temp;
                 numBlockers += 1.0;
@@ -915,10 +918,24 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 
 	if( numBlockers > 0.1 ) {
 		dBlocker /= numBlockers;
-		penumbra = (dFragment - dBlocker) * wLight / dFragment;
+		preBlockDepth = (dFragment - dBlocker) / dFragment;
+	}
+    
+    dBlocker = 0;
+    numBlockers = 0;
+    
+    // Actual blocker search
+    for( int i = -2; i < 3; i++ ) {
+        for( int j = -2; j < 3; j++ ) {
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * preBlockDepth / (shadowMapResolution * 75)) ).r;
+            if( dFragment - temp > 0.0035 ) {
+                dBlocker += temp;
+                numBlockers += 1.0;
+            }
+        }
 	}
 
-    return penumbra;
+    return preBlockDepth;
 }
 
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
@@ -942,10 +959,12 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
-
+    
+    float rotateAmount = texture2D( noisetex, texcoord.st * vec2( viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution ) ).r * 2.0f - 1.0f;
+    
     mat2 kernelRotation = mat2(
-        cos( 30.0 ), sin( 30.0 ),
-        -sin( 30.0 ), cos( 30.0 )
+        cos( rotateAmount ), -sin( rotateAmount ),
+        sin( rotateAmount ), cos( rotateAmount )
     );
 
 	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
@@ -954,14 +973,14 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
             sampleCoord *= penumbraSize;
             sampleCoord = kernelRotation * sampleCoord;
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            numBlockers += step( shadowCoord.z - shadowDepth, 0.0018f );//* diffthresh );
+            numBlockers += step( shadowCoord.z - shadowDepth, 0.00018f );
             numSamples++;
         }
 	}
 
     visibility = max( numBlockers / numSamples, 0 );
 
-    return visibility;
+    return penumbraSize;
 #endif
 }
 
