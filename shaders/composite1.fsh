@@ -888,7 +888,8 @@ vec4 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
 
     //float dFrag = (1 + shadowCoord.z) * 0.5;// + 0.005;
 
-    return vec4( shadowCoord.xyz, dist );
+		float depthBias = distortFactor*distortFactor*(0.0097297*tan(acos(surface.NdotL)) + 0.01729729729)/2.8888888;
+    return vec4( shadowCoord.xyz, dist-depthBias );
 }
 
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
@@ -920,10 +921,10 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 		dBlocker /= numBlockers;
 		preBlockDepth = (dFragment - dBlocker) / dFragment;
 	}
-    
+
     dBlocker = 0;
     numBlockers = 0;
-    
+
     // Actual blocker search
     for( int i = -2; i < 3; i++ ) {
         for( int j = -2; j < 3; j++ ) {
@@ -959,9 +960,9 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
-    
+
     float rotateAmount = texture2D( noisetex, texcoord.st * vec2( viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution ) ).r * 2.0f - 1.0f;
-    
+
     mat2 kernelRotation = mat2(
         cos( rotateAmount ), -sin( rotateAmount ),
         sin( rotateAmount ), cos( rotateAmount )
