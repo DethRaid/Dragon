@@ -898,7 +898,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 50;
+	float wLight = 15;
 
 	// Sample the shadow map 8 times
 	float temp;
@@ -910,7 +910,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	for( int i = -2; i < 3; i++ ) {
         for( int j = -2; j < 3; j++ ) {
             temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 25)) ).r;
-            if( dFragment - temp > 0.0035 ) {
+            if( dFragment - temp > 0.0015 ) {
                 dBlocker += temp;
                 numBlockers += 1.0;
             }
@@ -928,20 +928,21 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     // Actual blocker search
     for( int i = -2; i < 3; i++ ) {
         for( int j = -2; j < 3; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * preBlockDepth / (shadowMapResolution * 75)) ).r;
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 75)) ).r;
             if( dFragment - temp > 0.0035 ) {
-                dBlocker += temp;
+                dBlocker += temp * temp;
                 numBlockers += 1.0;
             }
         }
 	}
     
     if( numBlockers > 0.1 ) {
+       // dBlocker = sqrt( dBlocker );
 		dBlocker /= numBlockers;
 		penumbra = (dFragment - dBlocker) * wLight / dFragment;
 	}
 
-    return penumbra;
+    return max( penumbra, 0.0001 );
 }
 
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
@@ -966,7 +967,12 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
 
-    float rotateAmount = texture2D( noisetex, texcoord.st * vec2( viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution ) ).r * 2.0f - 1.0f;
+    float rotateAmount = texture2D(
+        noisetex, 
+        texcoord.st * vec2( 
+            viewWidth / noiseTextureResolution, 
+            viewHeight / noiseTextureResolution 
+        ) ).r * 2.0f - 1.0f;
 
     mat2 kernelRotation = mat2(
         cos( rotateAmount ), -sin( rotateAmount ),
