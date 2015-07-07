@@ -33,11 +33,51 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define HARD            0
 #define PCF             1
 #define PCSS            2
+#define POISSON         3
 
+/*
+ * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
+ * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
+ * you'd see if the Earth's sun was as big in the sky as Minecraft's
+ */
+#define LIGHT_SIZE                  15
+
+/*
+ * Defined the minimum about of shadow blur when PCSS is enabled. A value of
+ * 0.175 allows for reasonably hard shadows with a very minimal amount of
+ * aliasing, a value of 0.45 almost completely removes aliasing but doesn't
+ * allow hard shadows when the distance from the shadow caster to the shadow
+ * receiver is very small
+ */
 #define MIN_PENUMBRA_SIZE           0.175
-#define BLOCKER_SEARCH_SAMPLES_HALF 2
+
+/*
+ * The number of samples to use for PCSS's blocker search. A higher value allows
+ * for higher quality shadows at the expense of framerate 
+ */
+#define BLOCKER_SEARCH_SAMPLES_HALF 5
+
+/*
+ * The number of samples to use for shadow blurring. More samples means blurrier
+ * shadows at the expense of framerate. A value of 5 is recommended
+ */
 #define PCF_SIZE_HALF               5
+
+/*
+ * If set to 1, a random rotation will be applied to the shadow filter to reduce
+ * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
+ * resulting in ugly banding but giving you a few more frames per second.
+ */
+#define USE_RANDOM_ROTATION         1
+
+/*
+ * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
+ * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
+ * shadows with a variable-size blur. PCSS is the most realistic option but also
+ * the slowest, HARD is the fastest at the expense of realism.
+ */
 #define SHADOW_MODE                 PCSS
+
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -900,34 +940,11 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float dFragment = shadowCoord.z;
 	float dBlocker = 0;
 	float penumbra = 0;
-	float wLight = 15;
 
-	// Sample the shadow map 8 times
 	float temp;
 	float numBlockers = 0;
-    float searchSize = wLight * (dFragment - 9.5) / dFragment;
-    /*float preBlockDepth = 0;
+    float searchSize = LIGHT_SIZE * (dFragment - 9.5) / dFragment;
 
-    // pre-blocker search
-	for( int i = -2; i < 3; i++ ) {
-        for( int j = -2; j < 3; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 25)) ).r;
-            if( dFragment - temp > 0.0015 ) {
-                dBlocker += temp;
-                numBlockers += 1.0;
-            }
-        }
-	}
-
-	if( numBlockers > 0.1 ) {
-		dBlocker /= numBlockers;
-		preBlockDepth = (dFragment - dBlocker) * wLight / dFragment;
-	}
-
-    dBlocker = 0;
-    numBlockers = 0;*/
-
-    // Actual blocker search
     for( int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++ ) {
         for( int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++ ) {
             temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 25)) ).r;
@@ -939,9 +956,8 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	}
 
     if( numBlockers > 0.1 ) {
-       // dBlocker = sqrt( dBlocker );
 		dBlocker /= numBlockers;
-		penumbra = (dFragment - dBlocker) * wLight / dFragment;
+		penumbra = (dFragment - dBlocker) * LIGHT_SIZE / dFragment;
 	}
 
     return max( penumbra, MIN_PENUMBRA_SIZE );
@@ -969,6 +985,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
 
+#if USE_RANDOM_ROTATION
     float rotateAmount = texture2D(
         noisetex,
         texcoord.st * vec2(
@@ -980,12 +997,15 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
         cos( rotateAmount ), -sin( rotateAmount ),
         sin( rotateAmount ), cos( rotateAmount )
     );
+#endif
 
 	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
         for( int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
             sampleCoord *= penumbraSize;
+#if USE_RANDOM_ROTATION
             sampleCoord = kernelRotation * sampleCoord;
+#endif
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
             numBlockers += step( shadowCoord.z - shadowDepth, 0.00018f );
             numSamples++;
