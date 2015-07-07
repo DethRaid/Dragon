@@ -34,8 +34,10 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PCF             1
 #define PCSS            2
 
-#define PCF_SIZE_HALF   5
-#define SHADOW_MODE     PCF //PCSS is very broken, if you want to have a go at trying to fix it, go for it, tell us if you come up with anything
+#define MIN_PENUMBRA_SIZE           0.175
+#define BLOCKER_SEARCH_SAMPLES_HALF 2
+#define PCF_SIZE_HALF               5
+#define SHADOW_MODE                 PCSS
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
@@ -904,7 +906,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	float temp;
 	float numBlockers = 0;
     float searchSize = wLight * (dFragment - 9.5) / dFragment;
-    float preBlockDepth = 0;
+    /*float preBlockDepth = 0;
 
     // pre-blocker search
 	for( int i = -2; i < 3; i++ ) {
@@ -923,14 +925,14 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 	}
 
     dBlocker = 0;
-    numBlockers = 0;
+    numBlockers = 0;*/
 
     // Actual blocker search
-    for( int i = -2; i < 3; i++ ) {
-        for( int j = -2; j < 3; j++ ) {
-            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 75)) ).r;
-            if( dFragment - temp > 0.0035 ) {
-                dBlocker += temp * temp;
+    for( int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++ ) {
+        for( int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++ ) {
+            temp = texture2D( shadow, shadowCoord.st + (vec2( i, j ) * searchSize / (shadowMapResolution * 25)) ).r;
+            if( dFragment - temp > 0.0015 ) {
+                dBlocker += temp;// * temp;
                 numBlockers += 1.0;
             }
         }
@@ -942,7 +944,7 @@ float calcPenumbraSize( vec3 shadowCoord ) {
 		penumbra = (dFragment - dBlocker) * wLight / dFragment;
 	}
 
-    return max( penumbra, 0.0001 );
+    return max( penumbra, MIN_PENUMBRA_SIZE );
 }
 
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
