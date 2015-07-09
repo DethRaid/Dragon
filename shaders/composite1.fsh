@@ -342,11 +342,12 @@ float 	GetUnderwaterLightmapSky(in vec2 coord) {
 
 
 //Specularity
-float 	GetSpecularity(in vec2 coord) {			//Function that retrieves how reflective any surface/pixel is in the scene. Used for reflections and specularity
+vec3 	GetSpecularColor(in vec2 coord) {
 	return texture2D(composite, texcoord.st).r;
 }
 
-float 	GetGlossiness(in vec2 coord) {			//Function that retrieves how reflective any surface/pixel is in the scene. Used for reflections and specularity
+// Retrieves the roughness of a given fragment
+float 	GetRoughness(in vec2 coord) {			
 	return texture2D(composite, texcoord.st).g;
 }
 
@@ -649,13 +650,10 @@ struct DiffuseAttributesStruct {			//Diffuse surface shading attributes
 };
 
 struct SpecularAttributesStruct {			//Specular surface shading attributes
-	float specularity;			//How reflective a surface is
-	float extraSpecularity;		//Additional reflectance for specular reflections from sun only
-	float glossiness;			//How smooth or rough a specular surface is
+	float specularColor;		//How reflective a surface is
+	float roughness;			//How smooth or rough a specular surface is
 	float metallic;				//from 0 - 1. 0 representing non-metallic, 1 representing fully metallic.
-	float gain;					//Adjust specularity further
-	float base;					//Reflectance when the camera is facing directly at the surface normal. 0 allows only the fresnel effect to add specularity
-	float fresnelPower; 		//Curve of fresnel effect. Higher values mean the surface has to be viewed at more extreme angles to see reflectance
+	vec3 fresnel;
 };
 
 struct SkyStruct { 				//All sky shading attributes
@@ -2137,6 +2135,12 @@ float getnoise(vec2 pos) {
     return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
 }
 
+vec3 calculateFresnelSchlick( in vec3 n, in float ndotv ) {
+    vec3 R0 = (vec3( 1.0 ) - n) / (vec3( 1.0 ) + n);
+    R0 = R0 * R0;
+    return R0 + (vec3( 1.0 ) - R0) * pow(1.0 - ndotv, 5.0);
+}
+
 void initializeSky( inout SurfaceStruct surface ) {
     //Initialize sky surface properties
 	surface.sky.albedo 		= GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
@@ -2166,9 +2170,9 @@ void initializeSurface( inout SurfaceStruct surface ) {
 	surface.screenSpacePosition = GetScreenSpacePosition(texcoord.st);
 	surface.viewVector 			= normalize(surface.screenSpacePosition.rgb);	//Gets the view vector
 	surface.lightVector 		= lightVector;									//Gets the sunlight vector
-	surface.upVector 			= upVector;										//Store the up vector
+	surface.upVector 			= upVector;
 
-	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);					//Gets material ids
+	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);	
 	CalculateMasks(surface.mask);
 
 	surface.albedo *= 1.0f - float(surface.mask.sky);   //Remove the sky from surface albedo, because sky will be handled separately
@@ -2190,17 +2194,26 @@ void initializeLightmap( inout MCLightmapStruct mcLightmap ) {
 
 void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
     //Initialize default surface shading attributes
-	surface.diffuse.roughness 			= 0.0f;					//Default surface roughness
+	surface.diffuse.roughness 			= GetRoughness(texcoord.st);
 	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
 	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
 
-	surface.specular.specularity 		= GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
-	surface.specular.extraSpecularity 	= 0.0f;							//Default value for extra specularity
-	surface.specular.glossiness 		= GetGlossiness(texcoord.st);
-	surface.specular.metallic 			= 0.0f;							//Default value of how metallic the surface is
-	surface.specular.gain 				= 1.0f;							//Default surface specular gain
-	surface.specular.base 				= 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
-	surface.specular.fresnelPower 		= 5.0f;							//Default surface fresnel power
+	surface.specular.specularColor 		= GetSpecularColor(texcoord.st);	//Gets the reflectance/specularColor of the surface
+	surface.specular.roughness 		    = GetRoughness(texcoord.st);
+    
+    // If the surface is more than 50% specular, I assume it's a metal. This is probably wrong. A PBR texture pack could fix this
+	surface.specular.metallic 			= step( GetSpecularity( texcoord.st ), 0.5 );
+    
+    // For some reason, leaves are considered to be super specular. I need to get rid of that
+    if( surface.mask.leaves ) {
+        surface.specular.metallic = 0;
+    }
+   
+    // Generate the specular color from the metalness
+    surface.specular.specularColor  = vec3( 0.02 ) + (surface.albedo * surface.specular.metallic);
+   
+    float ndotv = dot( surface.normal, surface.viewVector );
+	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
 }
 
 void calculateDirectLighting( inout ShadingStruct shading ) {
@@ -2514,7 +2527,7 @@ void main() {
 	if (finalComposite.b > 1.0f) {
 		finalComposite.b = 0.0f;
 	}
-
+    
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
 #endif
@@ -2529,5 +2542,5 @@ void main() {
 		gl_FragData[1] = vec4(surface.mask.matIDs, surface.shadow * surface.cloudShadow * pow(mcLightmap.sky, 0.2f), mcLightmap.sky, 1.0f);
 #endif
 	gl_FragData[2] = vec4(surface.normal.rgb * 0.5f + 0.5f, 1.0f);
-	gl_FragData[3] = vec4(surface.specular.specularity, surface.cloudAlpha, surface.specular.glossiness, 1.0f);
+	gl_FragData[3] = vec4(surface.specular.specularColor, surface.cloudAlpha, surface.specular.roughness, 1.0f);
 }
