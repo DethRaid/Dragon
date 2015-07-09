@@ -2097,10 +2097,8 @@ vec4 BilateralUpsample(const in float scale, in vec2 offset, in float depth, in 
 
 			float sampleDepth = GetDepthLinear(texcoord.st + coord * 2.0f * (exp2(scale)));
 			vec3 sampleNormal = GetNormals(texcoord.st + coord * 2.0f * (exp2(scale)));
-			//float weight = 1.0f / (pow(abs(sampleDepth - depth) * 1000.0f, 2.0f) + 0.001f);
 			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
 				  weight *= max(0.0f, dot(sampleNormal, normal) * 2.0f - 1.0f);
-			//weight = 1.0f;
 
 			light +=	pow(texture2DLod(gaux1, (texcoord.st) * (1.0f / exp2(scale )) + 	offset + coord, 1), vec4(2.2f, 2.2f, 2.2f, 1.0f)) * weight;
 
@@ -2108,17 +2106,12 @@ vec4 BilateralUpsample(const in float scale, in vec2 offset, in float depth, in 
 		}
 	}
 
-
 	light /= max(0.00001f, weights);
 
 	if (weights < 0.01f)
 	{
 		light =	pow(texture2DLod(gaux1, (texcoord.st) * (1.0f / exp2(scale 	)) + 	offset, 2), vec4(2.2f, 2.2f, 2.2f, 1.0f));
 	}
-
-
-	// vec3 light =	texture2DLod(gcolor, (texcoord.st) * (1.0f / pow(2.0f, 	scale 	)) + 	offset, 2).rgb;
-
 
 	return light;
 }
@@ -2141,11 +2134,167 @@ vec4 Delta(vec3 albedo, vec3 normal, float skylight)
 }
 
 float getnoise(vec2 pos) {
-return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
+    return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
+}
 
+void initializeSky( inout SurfaceStruct surface ) {
+    //Initialize sky surface properties
+	surface.sky.albedo 		= GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
+
+	surface.sky.tintColor 	= mix(colorSunlight, vec3(colorSunlight.r), vec3(0.8f));									//Initializes the defualt tint color for the sky
+	surface.sky.tintColor 	*= mix(1.0f, 100.0f, timeSkyDark); //Boost sky color at night																		
+    
+    //Scale sunglow back to be less intense
+    vec3 sunspot = vec3( float( CalculateSunspot( surface ) ) );
+	surface.sky.sunSpot   	= sunspot * vec3(min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot))) * colorSunlight;
+	surface.sky.sunSpot 	*= 1.0f - timeMidnight;
+	surface.sky.sunSpot   	*= 300.0f;
+	surface.sky.sunSpot 	*= 1.0f - rainStrength;
+	//surface.sky.sunSpot     *= 1.0f - timeMidnight;
+
+	AddSkyGradient(surface);
+	AddSunglow(surface);
+}
+
+void initializeSurface( inout SurfaceStruct surface ) {
+    //Initialize surface properties required for lighting calculation for any surface that is not part of the sky
+	surface.albedo 				= GetAlbedoLinear(texcoord.st);
+	surface.albedo 				= pow(surface.albedo, vec3(1.4f));
+	surface.normal 				= GetNormals(texcoord.st);
+	surface.depth  				= GetDepth(texcoord.st);
+	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 
+	surface.screenSpacePosition = GetScreenSpacePosition(texcoord.st);
+	surface.viewVector 			= normalize(surface.screenSpacePosition.rgb);	//Gets the view vector
+	surface.lightVector 		= lightVector;									//Gets the sunlight vector
+	surface.upVector 			= upVector;										//Store the up vector
+
+	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);					//Gets material ids
+	CalculateMasks(surface.mask);
+
+	surface.albedo *= 1.0f - float(surface.mask.sky);   //Remove the sky from surface albedo, because sky will be handled separately
+    
+	initializeSky( surface );
+    
+#ifdef GI
+    vec4 wlv 					= shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
+	surface.worldLightVector 	= normalize(wlv.xyz);
+#endif
+}
+
+void initializeLightmap( inout MCLightmapStruct mcLightmap ) {
+    //Initialize MCLightmap values
+	mcLightmap.torch 		= GetLightmapTorch(texcoord.st);
+	mcLightmap.sky   		= GetLightmapSky(texcoord.st);
+	mcLightmap.lightning    = 0.0f;
+}
+
+void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
+    //Initialize default surface shading attributes
+	surface.diffuse.roughness 			= 0.0f;					//Default surface roughness
+	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
+	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
+
+	surface.specular.specularity 		= GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
+	surface.specular.extraSpecularity 	= 0.0f;							//Default value for extra specularity
+	surface.specular.glossiness 		= GetGlossiness(texcoord.st);
+	surface.specular.metallic 			= 0.0f;							//Default value of how metallic the surface is
+	surface.specular.gain 				= 1.0f;							//Default surface specular gain
+	surface.specular.base 				= 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
+	surface.specular.fresnelPower 		= 5.0f;							//Default surface fresnel power
+}
+
+void calculateDirectLighting( inout ShadingStruct shading ) {
+    //Calculate surface shading
+	CalculateNdotL(surface);
+	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
+	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
+	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
+	shading.direct 				*= shading.sunlightVisibility;
+	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
+	shading.waterDirect 		= shading.direct;
+	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
+	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
+	shading.heldLight 	= CalculateHeldLightShading(surface);
+    
+#ifndef GI
+	shading.bounced 	= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
+	shading.scattered 	= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
+	shading.scatteredUp = CalculateScatteredUpLight(surface);
+#endif
+}
+
+void calculateSkyLighting( inout LightmapStruct lightmap ) {
+    //Colorize surface shading and store in lightmaps
+	lightmap.sunlight 			= vec3(shading.direct) * colorSunlight;
+	AddCloudGlow(lightmap.sunlight, surface);
+
+	lightmap.skylight 			= vec3(mcLightmap.sky);
+    
+    float wetnessFactor = mix( 0.7f, 1.0f, wetness );
+	lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * wetnessFactor * (1.0f - rainStrength);
+	lightmap.skylight 			*= shading.skylight;
+	lightmap.skylight 			*= mix(1.0f, 5.0f, float(surface.mask.clouds));
+	lightmap.skylight 			*= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
+	lightmap.skylight 			*= surface.ao.skylight;
+	lightmap.skylight 			+= mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
+	lightmap.skylight 			*= mix(1.0f, 1.2f, rainStrength);
+}
+
+void calculateNonSkyLighting( inout LightmapStruct lightmap ) {
+    lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
+
+	lightmap.torchlight 		= mcLightmap.torch * colorTorchlight;
+	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
+
+	lightmap.nolight 			= vec3(0.05f);
+	lightmap.nolight 			*= surface.ao.constant;
+
+
+	lightmap.heldLight 			= vec3(shading.heldLight);
+	lightmap.heldLight 			*= colorTorchlight;
+	lightmap.heldLight 			*= heldBlockLightValue / 16.0f;
 }
 
 
+void calculateWaterEye( inout LightmapStruct lightmap ) {
+    vec3 halfColor = mix(colorWaterMurk, vec3(1.0f), vec3(0.5f));
+    lightmap.sunlight *= mcLightmap.sky * halfColor;
+	lightmap.skylight *= halfColor;
+	lightmap.bouncedSunlight *= 0.0f;
+	lightmap.scatteredSunlight *= halfColor;
+	lightmap.nolight *= halfColor;
+	lightmap.scatteredUpLight *= halfColor;
+}
+
+void applyLightmaps( inout FinalStruct final ) {
+    //Apply lightmaps to albedo and generate final shaded surface
+	final.nolight 			= surface.albedo * lightmap.nolight;
+	final.sunlight 			= surface.albedo * lightmap.sunlight;
+	final.skylight 			= surface.albedo * lightmap.skylight;
+	final.bouncedSunlight 	= surface.albedo * lightmap.bouncedSunlight;
+	final.scatteredSunlight = surface.albedo * lightmap.scatteredSunlight;
+	final.scatteredUpLight  = surface.albedo * lightmap.scatteredUpLight;
+	final.torchlight 		= surface.albedo * lightmap.torchlight;
+    
+	final.underwater        = surface.water.albedo * colorWaterBlue;
+	final.underwater 		*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
+
+	//final.glow.torch 				= pow(surface.albedo, vec3(4.0f)) * float(surface.mask.torch);
+	final.glow.lava 				= Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
+
+	final.glow.glowstone 			= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
+	final.torchlight 			   *= 1.0f - float(surface.mask.glowstone);
+
+	final.glow.fire 				= surface.albedo * float(surface.mask.fire);
+	final.glow.fire 				= pow(final.glow.fire, vec3(1.0f));
+
+	final.glow.torch 				= pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
+
+	//Remove glow items from torchlight to keep control
+	final.torchlight *= 1.0f - float(surface.mask.lava);
+
+	final.heldLight = lightmap.heldLight * surface.albedo;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2154,291 +2303,31 @@ return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void main() {
 
-#ifdef NO_GI
-	//Initialize surface properties required for lighting calculation for any surface that is not part of the sky
-	surface.albedo 				= GetAlbedoLinear(texcoord.st);					//Gets the albedo texture
-	surface.albedo 				= pow(surface.albedo, vec3(1.4f));
-	//surface.albedo 				= vec3(0.8f);
-	surface.normal 				= GetNormals(texcoord.st);						//Gets the screen-space normals
-	surface.depth  				= GetDepth(texcoord.st);						//Gets the scene depth
-	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
-	surface.screenSpacePosition = GetScreenSpacePosition(texcoord.st); 			//Gets the screen-space position
-	surface.viewVector 			= normalize(surface.screenSpacePosition.rgb);	//Gets the view vector
-	surface.lightVector 		= lightVector;									//Gets the sunlight vector
-	surface.upVector 			= upVector;										//Store the up vector
-
-
-
-	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);					//Gets material ids
-	CalculateMasks(surface.mask);
-
-
-
-	surface.albedo *= 1.0f - float(surface.mask.sky); 						//Remove the sky from surface albedo, because sky will be handled separately
-
-	//surface.water.albedo = surface.albedo * float(surface.mask.water);		//Store underwater albedo
-	//surface.albedo *= 1.0f - float(surface.mask.water);						//Remove water from surface albedo to handle water separately
-
-
-
-	//Initialize sky surface properties
-	surface.sky.albedo 		= GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
-
-	surface.sky.tintColor 	= mix(colorSunlight, vec3(colorSunlight.r), vec3(0.8f));									//Initializes the defualt tint color for the sky
-	surface.sky.tintColor 	*= mix(1.0f, 100.0f, timeSkyDark); 													//Boost sky color at night																		//Scale sunglow back to be less intense
-
-	surface.sky.sunSpot   	= vec3(float(CalculateSunspot(surface))) * vec3((min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)))) * colorSunlight;
-	surface.sky.sunSpot 	*= 1.0f - timeMidnight;
-	surface.sky.sunSpot   	*= 300.0f;
-	surface.sky.sunSpot 	*= 1.0f - rainStrength;
-	//surface.sky.sunSpot     *= 1.0f - timeMidnight;
-
-	AddSkyGradient(surface);
-	AddSunglow(surface);
-
-
-
-	//Initialize MCLightmap values
-	mcLightmap.torch 		= GetLightmapTorch(texcoord.st);	//Gets the lightmap for light coming from emissive blocks
-
-
-	mcLightmap.sky   		= GetLightmapSky(texcoord.st);		//Gets the lightmap for light coming from the sky
-	// mcLightmap.sky 		= 1.0f / pow((1.0f - mcLightmap.sky + 0.00001f), 2.0f);
-	// mcLightmap.sky 		-= 1.0f;
-	// mcLightmap.sky 		= max(0.0f, mcLightmap.sky);
-
-	mcLightmap.lightning    = 0.0f;								//gets the lightmap for light coming from lightning
-
-
-	//Initialize default surface shading attributes
-	surface.diffuse.roughness 			= 0.0f;					//Default surface roughness
-	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
-	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
-
-	surface.specular.specularity 		= GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
-	surface.specular.extraSpecularity 	= 0.0f;							//Default value for extra specularity
-	surface.specular.glossiness 		= GetGlossiness(texcoord.st);
-	surface.specular.metallic 			= 0.0f;							//Default value of how metallic the surface is
-	surface.specular.gain 				= 1.0f;							//Default surface specular gain
-	surface.specular.base 				= 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
-	surface.specular.fresnelPower 		= 5.0f;							//Default surface fresnel power
-
-
-
-
-	//Calculate surface shading
-	CalculateNdotL(surface);
-	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
-	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
-	shading.direct 				*= shading.sunlightVisibility;
-	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
-	shading.waterDirect 		= shading.direct;
-	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
-	shading.bounced 	= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
-	shading.scattered 	= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
-	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
-	shading.scatteredUp = CalculateScatteredUpLight(surface);
-	shading.heldLight 	= CalculateHeldLightShading(surface);
-
-
-	InitializeAO(surface);
-	//if (texcoord.s < 0.5f && texcoord.t < 0.5f)
-	//CalculateAO(surface);
-
-
-	//Colorize surface shading and store in lightmaps
-	lightmap.sunlight 			= vec3(shading.direct) * colorSunlight;
-	AddCloudGlow(lightmap.sunlight, surface);
-	//lightmap.sunlight 			*= 2.0f - AO;
-
-	lightmap.skylight 			= vec3(mcLightmap.sky);
-	lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * (mix(0.7f, 1.0f, wetness)) * (1.0f - rainStrength);
-	//lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(0.2f));
-	lightmap.skylight 			*= shading.skylight;
-	lightmap.skylight 			*= mix(1.0f, 5.0f, float(surface.mask.clouds));
-	lightmap.skylight 			*= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
-	lightmap.skylight 			*= surface.ao.skylight;
-	//lightmap.skylight 			*= surface.ao.constant * 0.5f + 0.5f;
-	lightmap.skylight 			+= mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
-	lightmap.skylight 			*= mix(1.0f, 1.2f, rainStrength);
-
+	initializeSurface( surface );
+    initializeLightmap( mcLightmap );
+    initializeDiffuseAndSpecular( surface );
+    
+    calculateDirectLighting( shading );
+	InitializeAO( surface );
+    calculateSkyLighting( lightmap );
+    calculateNonSkyLighting( lightmap );
+    
+#ifndef GI
+    // Calculate GI
 	lightmap.bouncedSunlight	= vec3(shading.bounced) * colorBouncedSunlight;
 	lightmap.bouncedSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.75f));
 	lightmap.bouncedSunlight 	*= mix(1.0f, 0.25f, timeSunrise + timeSunset);
 	lightmap.bouncedSunlight 	*= mix(1.0f, 0.0f, rainStrength);
 	lightmap.bouncedSunlight 	*= surface.ao.bouncedSunlight;
-	//lightmap.bouncedSunlight 	*= surface.ao.constant * 0.5f + 0.5f;
-
 
 	lightmap.scatteredSunlight  = vec3(shading.scattered) * colorScatteredSunlight * (1.0f - rainStrength);
 	lightmap.scatteredSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.0f));
-	//lightmap.scatteredSunlight  *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
-
-	lightmap.torchlight 		= mcLightmap.torch * colorTorchlight;
-	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
-
-	lightmap.nolight 			= vec3(0.05f);
-	lightmap.nolight 			*= surface.ao.constant;
-
-	lightmap.scatteredUpLight 	= vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
+    
+    lightmap.scatteredUpLight 	= vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
 	lightmap.scatteredUpLight   *= pow(mcLightmap.sky, 0.5f);
 	lightmap.scatteredUpLight 	*= surface.ao.scatteredUpLight;
 	lightmap.scatteredUpLight 	*= mix(1.0f, 0.1f, rainStrength);
-	//lightmap.scatteredUpLight   *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.heldLight 			= vec3(shading.heldLight);
-	lightmap.heldLight 			*= colorTorchlight;
-	lightmap.heldLight 			*= heldBlockLightValue / 16.0f;
-
-
-
-
-	//If eye is in water
-	if (isEyeInWater > 0) {
-		vec3 halfColor = mix(colorWaterMurk, vec3(1.0f), vec3(0.5f));
-		lightmap.sunlight *= mcLightmap.sky * halfColor;
-		lightmap.skylight *= halfColor;
-		lightmap.bouncedSunlight *= 0.0f;
-		lightmap.scatteredSunlight *= halfColor;
-		lightmap.nolight *= halfColor;
-		lightmap.scatteredUpLight *= halfColor;
-	}
-
-	surface.albedo.rgb = mix(surface.albedo.rgb, pow(surface.albedo.rgb, vec3(2.0f)), vec3(float(surface.mask.fire)));
-
-	//Apply lightmaps to albedo and generate final shaded surface
-	final.nolight 			= surface.albedo * lightmap.nolight;
-	final.sunlight 			= surface.albedo * lightmap.sunlight;
-	final.skylight 			= surface.albedo * lightmap.skylight;
-	final.bouncedSunlight 	= surface.albedo * lightmap.bouncedSunlight;
-	final.scatteredSunlight = surface.albedo * lightmap.scatteredSunlight;
-	final.scatteredUpLight  = surface.albedo * lightmap.scatteredUpLight;
-	final.torchlight 		= surface.albedo * lightmap.torchlight;
-	final.underwater        = surface.water.albedo * colorWaterBlue;
-	// final.underwater 		*= GetUnderwaterLightmapSky(texcoord.st);
-	// final.underwater  		+= vec3(0.9f, 1.00f, 0.35f) * float(surface.mask.water) * 0.065f;
-	 final.underwater 		*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
-
-
-	//final.glow.torch 				= pow(surface.albedo, vec3(4.0f)) * float(surface.mask.torch);
-	final.glow.lava 				= Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
-
-	final.glow.glowstone 			= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
-	final.torchlight 			   *= 1.0f - float(surface.mask.glowstone);
-
-	final.glow.fire 				= surface.albedo * float(surface.mask.fire);
-	final.glow.fire 				= pow(final.glow.fire, vec3(1.0f));
-
-	final.glow.torch 				= pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
-
-
-	//Remove glow items from torchlight to keep control
-	final.torchlight *= 1.0f - float(surface.mask.lava);
-
-	final.heldLight = lightmap.heldLight * surface.albedo;
-#endif
-
-#ifdef GI
-
-	//Initialize surface properties required for lighting calculation for any surface that is not part of the sky
-	surface.albedo 				= GetAlbedoLinear(texcoord.st);					//Gets the albedo texture
-	surface.albedo 				= pow(surface.albedo, vec3(1.4f));
-
-	//surface.albedo 				= vec3(0.8f);
-
-	surface.normal 				= GetNormals(texcoord.st);						//Gets the screen-space normals
-	surface.depth  				= GetDepth(texcoord.st);						//Gets the scene depth
-	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
-	surface.screenSpacePosition = GetScreenSpacePosition(texcoord.st); 			//Gets the screen-space position
-	surface.viewVector 			= normalize(surface.screenSpacePosition.rgb);	//Gets the view vector
-	surface.lightVector 		= lightVector;									//Gets the sunlight vector
-	surface.upVector 			= upVector;										//Store the up vector
-	vec4 wlv 					= shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
-	surface.worldLightVector 	= normalize(wlv.xyz);
-	surface.upVector 			= upVector;										//Store the up vector
-
-
-	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);					//Gets material ids
-	CalculateMasks(surface.mask);
-
-
-
-	surface.albedo *= 1.0f - float(surface.mask.sky); 						//Remove the sky from surface albedo, because sky will be handled separately
-
-	//surface.water.albedo = surface.albedo * float(surface.mask.water);		//Store underwater albedo
-	//surface.albedo *= 1.0f - float(surface.mask.water);						//Remove water from surface albedo to handle water separately
-
-
-
-	//Initialize sky surface properties
-	surface.sky.albedo 		= GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
-
-	//surface.sky.tintColor   = vec3(1.0f);
-	surface.sky.tintColor 	= mix(colorSunlight, vec3(colorSunlight.r), vec3(0.8f));									//Initializes the defualt tint color for the sky
-	surface.sky.tintColor 	*= mix(1.0f, 100.0f, timeSkyDark); 														//Boost sky color at night																		//Scale sunglow back to be less intense
-
-	surface.sky.sunSpot   	= vec3(float(CalculateSunspot(surface))) * vec3((min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)))) * colorSunlight;
-	surface.sky.sunSpot 	*= 1.0f - timeMidnight;
-	surface.sky.sunSpot   	*= 300.0f;
-	surface.sky.sunSpot 	*= 1.0f - rainStrength;
-	//surface.sky.sunSpot     *= 1.0f - timeMidnight;
-
-	AddSkyGradient(surface);
-	AddSunglow(surface);
-
-
-
-	//Initialize MCLightmap values
-	mcLightmap.torch 		= GetLightmapTorch(texcoord.st);	//Gets the lightmap for light coming from emissive blocks
-
-
-	mcLightmap.sky   		= GetLightmapSky(texcoord.st);		//Gets the lightmap for light coming from the sky
-	// mcLightmap.sky 		= 1.0f / pow((1.0f - mcLightmap.sky + 0.00001f), 2.0f);
-	// mcLightmap.sky 		-= 1.0f;
-	// mcLightmap.sky 		= max(0.0f, mcLightmap.sky);
-
-	mcLightmap.lightning    = 0.0f;								//gets the lightmap for light coming from lightning
-
-
-	//Initialize default surface shading attributes
-	surface.diffuse.roughness 			= 0.0f;					//Default surface roughness
-	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
-	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
-
-	surface.specular.specularity 		= GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
-	surface.specular.extraSpecularity 	= 0.0f;							//Default value for extra specularity
-	surface.specular.glossiness 		= GetGlossiness(texcoord.st);
-	surface.specular.metallic 			= 0.0f;							//Default value of how metallic the surface is
-	surface.specular.gain 				= 1.0f;							//Default surface specular gain
-	surface.specular.base 				= 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
-	surface.specular.fresnelPower 		= 5.0f;							//Default surface fresnel power
-
-
-
-
-	//Calculate surface shading
-	CalculateNdotL(surface);
-	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
-	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
-	shading.direct 				*= shading.sunlightVisibility;
-	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
-	shading.waterDirect 		= shading.direct;
-	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
-	//shading.bounced 	= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
-	//shading.scattered 	= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
-	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
-	//shading.scatteredUp = CalculateScatteredUpLight(surface);
-	shading.heldLight 	= CalculateHeldLightShading(surface);
-
-
-	InitializeAO(surface);
-	//if (texcoord.s < 0.5f && texcoord.t < 0.5f)
-	//CalculateAO(surface);
-
+#else
 	float ao = 1.0;
 
 	vec4 delta = vec4(0.0);
@@ -2447,108 +2336,20 @@ void main() {
 	delta = Delta(surface.albedo.rgb, surface.normal.xyz, mcLightmap.sky);
 
 	ao = delta.a;
-
-
-	//Colorize surface shading and store in lightmaps
-	lightmap.sunlight 			= vec3(shading.direct) * colorSunlight;
-	AddCloudGlow(lightmap.sunlight, surface);
-	//lightmap.sunlight 			*= 2.0f - AO;
-
-	lightmap.skylight 			= vec3(mcLightmap.sky);
-	lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * (mix(0.7f, 1.0f, wetness)) * (1.0f - rainStrength);
-	//lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(0.2f));
-	lightmap.skylight 			*= shading.skylight;
-	lightmap.skylight 			*= mix(1.0f, 5.0f, float(surface.mask.clouds));
-	lightmap.skylight 			*= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
-	lightmap.skylight 			*= surface.ao.skylight;
-	//lightmap.skylight 			*= surface.ao.constant * 0.5f + 0.5f;
-	lightmap.skylight 			+= mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
-	lightmap.skylight 			*= mix(1.0f, 1.2f, rainStrength);
-	lightmap.skylight 			*= ao;
-
-
-	// lightmap.bouncedSunlight	= vec3(shading.bounced) * colorBouncedSunlight;
-	// lightmap.bouncedSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.75f));
-	// lightmap.bouncedSunlight 	*= mix(1.0f, 0.25f, timeSunriseSunset);
-	// lightmap.bouncedSunlight 	*= mix(1.0f, 0.0f, rainStrength);
-	// lightmap.bouncedSunlight 	*= surface.ao.bouncedSunlight;
-	// lightmap.bouncedSunlight 	*= ao;
-	//lightmap.bouncedSunlight 	*= surface.ao.constant * 0.5f + 0.5f;
-
-
-	// lightmap.scatteredSunlight  = vec3(shading.scattered) * colorScatteredSunlight * (1.0f - rainStrength);
-	// lightmap.scatteredSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.0f));
-	// lightmap.scatteredSunlight 	*= ao;
-	//lightmap.scatteredSunlight  *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
-
-	lightmap.torchlight 		= mcLightmap.torch * colorTorchlight;
-	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
+    
 	lightmap.torchlight 		*= ao;
-
-	lightmap.nolight 			= vec3(0.05f);
-	lightmap.nolight 			*= surface.ao.constant;
 	lightmap.nolight 			*= ao;
-
-	//lightmap.scatteredUpLight 	= vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
-	//lightmap.scatteredUpLight   *= pow(mcLightmap.sky, 0.5f);
-	//lightmap.scatteredUpLight 	*= surface.ao.scatteredUpLight;
-	//lightmap.scatteredUpLight 	*= mix(1.0f, 0.1f, rainStrength);
-	//lightmap.scatteredUpLight   *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.heldLight 			= vec3(shading.heldLight);
-	lightmap.heldLight 			*= colorTorchlight;
-	lightmap.heldLight 			*= heldBlockLightValue / 16.0f;
-
-
-
+#endif
 
 	//If eye is in water
 	if (isEyeInWater > 0) {
-		vec3 halfColor = mix(colorWaterMurk, vec3(1.0f), vec3(0.5f));
-		lightmap.sunlight *= mcLightmap.sky * halfColor;
-		lightmap.skylight *= halfColor;
-		lightmap.bouncedSunlight *= 0.0f;
-		lightmap.scatteredSunlight *= halfColor;
-		lightmap.nolight *= halfColor;
-		lightmap.scatteredUpLight *= halfColor;
+		calculateWaterEye( lightmap );
 	}
 
 	surface.albedo.rgb = mix(surface.albedo.rgb, pow(surface.albedo.rgb, vec3(2.0f)), vec3(float(surface.mask.fire)));
 
-	//Apply lightmaps to albedo and generate final shaded surface
-	final.nolight 			= surface.albedo * lightmap.nolight;
-	final.sunlight 			= surface.albedo * lightmap.sunlight;
-	final.skylight 			= surface.albedo * lightmap.skylight;
-	final.bouncedSunlight 	= surface.albedo * lightmap.bouncedSunlight;
-	final.scatteredSunlight = surface.albedo * lightmap.scatteredSunlight;
-	final.scatteredUpLight  = surface.albedo * lightmap.scatteredUpLight;
-	final.torchlight 		= surface.albedo * lightmap.torchlight;
-	final.underwater        = surface.water.albedo * colorWaterBlue;
-	// final.underwater 		*= GetUnderwaterLightmapSky(texcoord.st);
-	// final.underwater  		+= vec3(0.9f, 1.00f, 0.35f) * float(surface.mask.water) * 0.065f;
-	 final.underwater 		*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
+	applyLightmaps( final );
 
-
-	//final.glow.torch 				= pow(surface.albedo, vec3(4.0f)) * float(surface.mask.torch);
-	final.glow.lava 				= Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
-
-	final.glow.glowstone 			= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
-	final.torchlight 			   *= 1.0f - float(surface.mask.glowstone);
-
-	final.glow.fire 				= surface.albedo * float(surface.mask.fire);
-	final.glow.fire 				= pow(final.glow.fire, vec3(1.0f));
-
-	final.glow.torch 				= pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
-
-
-	//Remove glow items from torchlight to keep control
-	final.torchlight *= 1.0f - float(surface.mask.lava);
-
-	final.heldLight = lightmap.heldLight * surface.albedo;
-
-#endif
 
 	//Do night eye effect on outdoor lighting and sky
 	DoNightEye(final.sunlight);
@@ -2570,19 +2371,16 @@ void main() {
 
 
 	//Apply lightmaps to albedo and generate final shaded surface
-	vec3 finalComposite = final.sunlight 			* 0.9f 	* 1.5f * sunlightMult				//Add direct sunlight
-						+ final.skylight 			* 0.05f				//Add ambient skylight
-						+ final.nolight 			* 0.00005f 			//Add base ambient light
-						//+ final.bouncedSunlight 	* 0.005f 	* sunlightMult				//Add fake bounced sunlight
-						//+ final.scatteredSunlight 	* 0.02f		* sunlightMult			//Add fake scattered sunlight
-						//+ final.scatteredUpLight 	* 0.0015f 	* sunlightMult
-						+ final.torchlight 			* 5.0f 			//Add light coming from emissive blocks
-						+ final.glow.lava			* 2.6f
-						+ final.glow.glowstone		* 2.1f
-						+ final.glow.fire			* 0.35f
-						+ final.glow.torch			* 1.15f
+	vec3 finalComposite = final.sunlight 		* 0.9f 	* 1.5f * sunlightMult				//Add direct sunlight
+						+ final.skylight 		* 0.05f				//Add ambient skylight
+						+ final.nolight 		* 0.00005f 			//Add base ambient light
+						+ final.torchlight 		* 5.0f 			//Add light coming from emissive blocks
+						+ final.glow.lava		* 2.6f
+						+ final.glow.glowstone	* 2.1f
+						+ final.glow.fire		* 0.35f
+						+ final.glow.torch		* 1.15f
 						#ifdef HELD_LIGHT
-						+ final.heldLight 			* 0.05f
+						+ final.heldLight 		* 0.05f
 						#endif
 						;
 
@@ -2699,26 +2497,12 @@ void main() {
 
 #endif
 
-	//finalComposite.rgb = texture2D(shadowcolor, texcoord.st).rgb * 0.05f;
-	//finalComposite.rgb = vec3(AO) * 0.2f;
-
-	//finalComposite = mix(finalComposite, cloudsTexture.rgb, cloudsTexture.a);
-
-
-
-	finalComposite *= 0.0007f;												//Scale image down for HDR
+	finalComposite *= 0.0007f;	//Scale image down for HDR
 	finalComposite.b *= 1.0f;
 
-
-
-
-	 //TestRaymarch(finalComposite.rgb, surface);
-	  //finalComposite.rgb = surface.debug * 0.00004f;
-
-	 finalComposite = pow(finalComposite, vec3(1.0f / 2.2f)); 					//Convert final image into gamma 0.45 space to compensate for gamma 2.2 on displays
-	 finalComposite = pow(finalComposite, vec3(1.0f / BANDING_FIX_FACTOR)); 	//Convert final image into banding fix space to help reduce color banding
-
-
+	finalComposite = pow(finalComposite, vec3(1.0f / 2.2f)); 					//Convert final image into gamma 0.45 space to compensate for gamma 2.2 on displays
+	finalComposite = pow(finalComposite, vec3(1.0f / BANDING_FIX_FACTOR)); 	//Convert final image into banding fix space to help reduce color banding
+    
 	if (finalComposite.r > 1.0f) {
 		finalComposite.r = 0.0f;
 	}
@@ -2730,12 +2514,6 @@ void main() {
 	if (finalComposite.b > 1.0f) {
 		finalComposite.b = 0.0f;
 	}
-
-	//SnowShader(surface);
-
-
-	//finalComposite = vec3( surface.shadow );
-
 
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
@@ -2752,7 +2530,4 @@ void main() {
 #endif
 	gl_FragData[2] = vec4(surface.normal.rgb * 0.5f + 0.5f, 1.0f);
 	gl_FragData[3] = vec4(surface.specular.specularity, surface.cloudAlpha, surface.specular.glossiness, 1.0f);
-	// gl_FragData[4] = vec4(surface.albedo, 1.0f);
-	// gl_FragData[5] = vec4(lightmap.)
-
 }
