@@ -340,10 +340,8 @@ float 	GetUnderwaterLightmapSky(in vec2 coord) {
 	return texture2D(composite, coord).r;
 }
 
-
-//Specularity
-vec3 	GetSpecularColor(in vec2 coord) {
-	return texture2D(composite, texcoord.st).r;
+float   getMetalness( in vec2 coord ) {
+    return step( texture2D(composite, coord ).r, 0.5 );
 }
 
 // Retrieves the roughness of a given fragment
@@ -650,7 +648,7 @@ struct DiffuseAttributesStruct {			//Diffuse surface shading attributes
 };
 
 struct SpecularAttributesStruct {			//Specular surface shading attributes
-	float specularColor;		//How reflective a surface is
+	vec3 specularColor;		    //How reflective a surface is
 	float roughness;			//How smooth or rough a specular surface is
 	float metallic;				//from 0 - 1. 0 representing non-metallic, 1 representing fully metallic.
 	vec3 fresnel;
@@ -727,8 +725,8 @@ struct Plane {
 struct SurfaceStruct { 			//Surface shading properties, attributes, and functions
 
 	//Attributes that change how shading is applied to each pixel
-		DiffuseAttributesStruct  diffuse;			//Contains all diffuse surface attributes
-		SpecularAttributesStruct specular;			//Contains all specular surface attributes
+	DiffuseAttributesStruct  diffuse;			//Contains all diffuse surface attributes
+	SpecularAttributesStruct specular;			//Contains all specular surface attributes
 
 	SkyStruct 	    sky;			//Sky shading attributes and properties
 	WaterStruct 	water;			//Water shading attributes and properties
@@ -737,24 +735,24 @@ struct SurfaceStruct { 			//Surface shading properties, attributes, and function
 	AOStruct 		ao;				//ambient occlusion
 
 	//Properties that are required for lighting calculation
-		vec3 	albedo;					//Diffuse texture aka "color texture"
-		vec3 	normal;					//Screen-space surface normals
-		float 	depth;					//Scene depth
-		float   linearDepth; 			//Linear depth
+	vec3 	albedo;					//Diffuse texture aka "color texture"
+	vec3 	normal;					//Screen-space surface normals
+	float 	depth;					//Scene depth
+	float   linearDepth; 			//Linear depth
 
-		vec4	screenSpacePosition;	//Vector representing the screen-space position of the surface
-		vec3 	viewVector; 			//Vector representing the viewing direction
-		vec3 	lightVector; 			//Vector representing sunlight direction
-		Ray 	viewRay;
-		vec3 	worldLightVector;
-		vec3  	upVector;				//Vector representing "up" direction
-		float 	NdotL; 					//dot(normal, lightVector). used for direct lighting calculation
-		vec3 	debug;
+	vec4	screenSpacePosition;	//Vector representing the screen-space position of the surface
+	vec3 	viewVector; 			//Vector representing the viewing direction
+	vec3 	lightVector; 			//Vector representing sunlight direction
+	Ray 	viewRay;
+	vec3 	worldLightVector;
+	vec3  	upVector;				//Vector representing "up" direction
+	float 	NdotL; 					//dot(normal, lightVector). used for direct lighting calculation
+	vec3 	debug;
 
-		float 	shadow;
-		float 	cloudShadow;
+	float 	shadow;
+	float 	cloudShadow;
 
-		float 	cloudAlpha;
+	float 	cloudAlpha;
 } surface;
 
 struct LightmapStruct {			//Lighting information to light the scene. These are untextured colored lightmaps to be multiplied with albedo to get the final lit and textured image.
@@ -2198,12 +2196,9 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
 	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
 	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
 
-	surface.specular.specularColor 		= GetSpecularColor(texcoord.st);	//Gets the reflectance/specularColor of the surface
 	surface.specular.roughness 		    = GetRoughness(texcoord.st);
-    
     // If the surface is more than 50% specular, I assume it's a metal. This is probably wrong. A PBR texture pack could fix this
-	surface.specular.metallic 			= step( GetSpecularity( texcoord.st ), 0.5 );
-    
+	surface.specular.metallic 			= getMetalness( texcoord.st );
     // For some reason, leaves are considered to be super specular. I need to get rid of that
     if( surface.mask.leaves ) {
         surface.specular.metallic = 0;
