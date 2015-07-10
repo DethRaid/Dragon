@@ -2542,5 +2542,5 @@ void main() {
 		gl_FragData[1] = vec4(surface.mask.matIDs, surface.shadow * surface.cloudShadow * pow(mcLightmap.sky, 0.2f), mcLightmap.sky, 1.0f);
 #endif
 	gl_FragData[2] = vec4(surface.normal.rgb * 0.5f + 0.5f, 1.0f);
-	gl_FragData[3] = vec4(surface.specular.specularColor, surface.cloudAlpha, surface.specular.roughness, 1.0f);
+	gl_FragData[3] = vec4(surface.specular.metallic, surface.cloudAlpha, surface.specular.roughness, 1.0f);
 }
