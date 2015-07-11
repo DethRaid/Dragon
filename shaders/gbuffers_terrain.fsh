@@ -1,22 +1,6 @@
 #version 120
 
-/*
- _______ _________ _______  _______  _ 
-(  ____ \\__   __/(  ___  )(  ____ )( )
-| (    \/   ) (   | (   ) || (    )|| |
-| (_____    | |   | |   | || (____)|| |
-(_____  )   | |   | |   | ||  _____)| |
-      ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _ 
-\_______)   )_(   (_______)|/       (_)
-
-Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
-
-*/
-
-
-
-////////////////////////////////////////////////////ADJUSTABLE VARIABLES/////////////////////////////////////////////////////////
+////////////////////////////////////////////////////ADJUSTABLE VARIABLES//////////////////
 
 #define NORMAL_MAP_MAX_ANGLE 1.0f   		//The higher the value, the more extreme per-pixel normal mapping (bump mapping) will be.
 #define TILE_RESOLUTION 128
@@ -28,7 +12,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 //#define OLD_SPECULAR					// Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
 #define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
 
-///////////////////////////////////////////////////END OF ADJUSTABLE VARIABLES///////////////////////////////////////////////////
+///////////////////////////////////////////////////END OF ADJUSTABLE VARIABLES///////////////////////
 
 /* DRAWBUFFERS:0123 */
 
@@ -72,8 +56,7 @@ const int GL_EXP = 2048;
 const float bump_distance = 78.0f;
 const float fademult = 0.1f;
 
-vec4 cubic(float x)
-{
+vec4 cubic(float x) {
     float x2 = x * x;
     float x3 = x2 * x;
     vec4 w;
@@ -84,8 +67,7 @@ vec4 cubic(float x)
     return w / 6.f;
 }
 
-vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
-{
+vec4 BicubicTexture(in sampler2D tex, in vec2 coord) {
 	int resolution = 64;
 
 	coord *= resolution;
@@ -113,9 +95,7 @@ vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
     return mix( mix(sample3, sample2, sx), mix(sample1, sample0, sx), sy);
 }
 
-
-vec2 OffsetCoord(in vec2 coord, in vec2 offset, in int level)
-{
+vec2 OffsetCoord(in vec2 coord, in vec2 offset, in int level) {
 	int tileResolution = TILE_RESOLUTION;
 	ivec2 atlasTiles = ivec2(32, 16);
 	ivec2 atlasResolution = tileResolution * atlasTiles;
@@ -144,8 +124,7 @@ vec2 OffsetCoord(in vec2 coord, in vec2 offset, in int level)
 	return offsetCoord;
 }
 
-vec3 Get3DNoise(in vec3 pos)
-{
+vec3 Get3DNoise(in vec3 pos) {
 	pos.z += 0.0f;
 	vec3 p = floor(pos);
 	vec3 f = fract(pos);
@@ -160,8 +139,7 @@ vec3 Get3DNoise(in vec3 pos)
 	return mix(xy1, xy2, vec3(f.z));
 }
 
-vec3 Get3DNoiseNormal(in vec3 pos)
-{
+vec3 Get3DNoiseNormal(in vec3 pos) {
 	float center = Get3DNoise(pos + vec3( 0.0f, 0.0f, 0.0f)).x * 2.0f - 1.0f;
 	float left 	 = Get3DNoise(pos + vec3( 0.1f, 0.0f, 0.0f)).x * 2.0f - 1.0f;
 	float up     = Get3DNoise(pos + vec3( 0.0f, 0.1f, 0.0f)).x * 2.0f - 1.0f;
@@ -179,12 +157,7 @@ vec3 Get3DNoiseNormal(in vec3 pos)
 	return noiseNormal.xyz;
 }
 
-
-vec3 CalculateRainBump(in vec3 pos)
-{
-
-	
-
+vec3 CalculateRainBump(in vec3 pos) {
 	pos.y += frameTimeCounter * 3.0f;
 	pos.xz *= 1.0f;
 
@@ -201,13 +174,9 @@ vec3 CalculateRainBump(in vec3 pos)
 	return Get3DNoiseNormal(pos).xyz;
 }
 
-float GetModulatedRainSpecular(in vec3 pos)
-{
-	//pos.y += frameTimeCounter * 3.0f;
+float GetModulatedRainSpecular(in vec3 pos) {
 	pos.xz *= 1.0f;
 	pos.y *= 0.2f;
-
-	// pos.y += Get3DNoise(pos.xyz * vec3(1.0f, 0.0f, 1.0f)).x * 2.0f;
 
 	vec3 p = pos;
 
@@ -220,17 +189,12 @@ float GetModulatedRainSpecular(in vec3 pos)
 	return n;
 }
 
-
-vec4 GetTexture(in sampler2D tex, in vec2 coord)
-{
+vec4 GetTexture(in sampler2D tex, in vec2 coord) {
 	#ifdef PARALLAX
 		vec4 t = vec4(0.0f);
-		if (distance < 10.0f)
-		{
+		if (distance < 10.0f) {
 			t = texture2DLod(tex, coord, 0);
-		}
-		else
-		{
+		} else {
 			t = texture2D(tex, coord);
 		}
 		return t;
@@ -240,8 +204,7 @@ vec4 GetTexture(in sampler2D tex, in vec2 coord)
 }
 
 
-vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
-{
+vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector) {
 	vec2 parallaxCoord = coord.st;
 	const int maxSteps = 112;
 	vec3 stepSize = vec3(0.002f, 0.002f, 0.2f);
@@ -256,57 +219,32 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 
 	float heightmap = GetTexture(normals, coord.st).a;
 
-	//if (viewVector.z < 0.0f)
-	//{
-		vec3 pCoord = vec3(0.0f, 0.0f, 1.0f);
+	vec3 pCoord = vec3(0.0f, 0.0f, 1.0f);
 
-		//make "pop out"
-		//pCoord.st += (viewVector.xy * stepSize.xy) / (viewVector.z * stepSize.z);
+	if (heightmap < 1.0f) {
+		vec3 step = viewVector * stepSize;
+		float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) / 16.0;
+		step *= distAngleWeight;
+		step *= 2.0f;
 
-		if (heightmap < 1.0f)
-		{
-			vec3 step = viewVector * stepSize;
-			float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) / 16.0;
-				 step *= distAngleWeight;
-				 step *= 2.0f;
+		float sampleHeight = heightmap;
 
-			float sampleHeight = heightmap;
-
-			for (int i = 0; sampleHeight < pCoord.z && i < 240; ++i)
-			{
-				//if (heightmap < pCoord.z)
-				pCoord.xy = mix(pCoord.xy, pCoord.xy + step.xy, clamp((pCoord.z - sampleHeight) / (stepSize.z * 1.0 * distAngleWeight / (-viewVector.z + 0.05)), 0.0, 1.0));
-				pCoord.z += step.z;
-				//pCoord += step;
-				sampleHeight = GetTexture(normals, OffsetCoord(coord.st, pCoord.st, 0)).a;
-
-			}
-
-
-			parallaxCoord.xy = OffsetCoord(coord.st, pCoord.st, 0);
-		}
-
-	//}
-
-	//parallaxCoord.xy = OffsetCoord(coord.st, viewVector.xy * (1.0f - heightmap) * 0.0025f, 0);
+		for (int i = 0; sampleHeight < pCoord.z && i < 240; ++i) {
+		    pCoord.xy = mix(pCoord.xy, pCoord.xy + step.xy, clamp((pCoord.z - sampleHeight) / (stepSize.z * 1.0 * distAngleWeight / (-viewVector.z + 0.05)), 0.0, 1.0));
+			pCoord.z += step.z;
+			sampleHeight = GetTexture(normals, OffsetCoord(coord.st, pCoord.st, 0)).a;
+        }
+        parallaxCoord.xy = OffsetCoord(coord.st, pCoord.st, 0);
+	}
 
 	return parallaxCoord;
 }
 
-
-void main() {	
-
+void main() {
 	vec4 modelView = (gl_ModelViewMatrix * vertexPos);
-		 // modelView.x *= aspectRatio;
-		 // modelView.z *= 1.4f;
-		 // modelView = gl_ProjectionMatrix * modelView;
-		 // modelView.xyz /= modelView.w;
-
-		 // modelView.z = -modelView.z;
 
 	vec3 viewVector = normalize(tbnMatrix * modelView.xyz);
 		 viewVector.x /= 2.0f;
-
 		 viewVector = normalize(viewVector);
 
 	vec2 parallaxCoord = texcoord.st;
@@ -317,167 +255,99 @@ void main() {
 
 	float height = GetTexture(normals, parallaxCoord).a;
 
-
 	float w = wetness;
 
-
-		
 	vec4 spec = GetTexture(specular, parallaxCoord.st);
 	vec4 specs = texture2D(specular, parallaxCoord.st);
 
 	float wet = GetModulatedRainSpecular(worldPosition.xyz);
 
-#ifdef OLD_SPECULAR	
+#ifdef OLD_SPECULAR
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
 	//wet *= wetAngle;
 
-	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
-	{
-
-	}
-	else
-	{
+	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f) {
+	} else {
 		 specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
 		 specs.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
 	}
-#endif	
-	
-#ifdef NEW_SPECULAR	
+#endif
+
+#ifdef NEW_SPECULAR
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
 	wet *= wetAngle;
 
-	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
-	{
+	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f) {
 		spec.g = 0.0f;
-	}
-	else
-	{
+	} else {
 		wet = clamp(wet * 1.5f - 0.2f, 0.0f, 1.0f);
-		 spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
-		 spec.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
-		 // spec.g += wet;
-		 // spec.b += wet;
+		spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
+		spec.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
 	}
 #endif
 
 	//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
 	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	
+
 	//Separate lightmap types
 	lightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
 	lightmap.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
 
 	lightmap.b = pow(lightmap.b, 1.0f);
 	lightmap.r = pow(lightmap.r, 3.0f);
-	// vec4 clr = color;
-	// 	 clr.rgb = clr.rgb / normalize(clr.rbg);
-	// 	 clr.rgb *= 0.5f;
-	// 	 clr.rgb = vec3(max(color.r, max(color.g, color.b)));
 
-	// float ao = (color.r + color.g + color.b) / 3.0f;
+	float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
+	 	  wetfactor *= w;
 
-	// float colorDiff = abs(color.r - color.g);
-	// 	  colorDiff += abs(color.r - color.b);
-	// 	  colorDiff += abs(color.g - color.b);
-
-	// if (colorDiff > 0.001f) {
-	// 	ao = 1.0f;
-	// }
-
-	// ao = pow(ao, 13.0f);
-
-	 // lightmap.b *= ao;
-
-	 // lightmap.r *= ao * 0.5f + 0.5f;
-
-	 float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
-	 	   wetfactor *= w;
-
-	 //spec.g += 0.9f;
 	 spec.g *= wetfactor;
-	 
+
 #ifdef OLD_SPECULAR
 	 specs.g *= wetfactor;
 #endif
 
-
-
-	
-	
-	
 	vec4 frag2;
-	
-	if (distance < bump_distance) {
-	
-			vec3 bump = GetTexture(normals, parallaxCoord.st).rgb * 2.0f - 1.0f;
-			
-			float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
-	              bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.97f);
-				  
-			bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
 
-			//bump += CalculateRainBump(worldPosition.xyz);
-			
-			frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
-			
+	if (distance < bump_distance) {
+		vec3 bump = GetTexture(normals, parallaxCoord.st).rgb * 2.0f - 1.0f;
+
+		float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
+	    bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.97f);
+
+		bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
+
+		frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
 	} else {
-	
-			frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);					
+		frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);
 	}
 
 	//Diffuse
 	vec4 albedo = GetTexture(texture, parallaxCoord.st) * color;
-
-		//sunlightVisibility *= clamp(dot(frag2.rgb * 2.0f - 1.0f, normalize(sunPosition.xyz)), 0.0f, 1.0f);
-
-		//albedo.rgb *= sunlightVisibility * 0.8f + 0.2f;
-
-		 //albedo.rgb *= texture2D(normals, parallaxCoord.st, int(mipLevel), false).a;
-
-		// vec3 noise = Get3DNoise(worldPosition.xyz);
-
-		// albedo.rgb = noise.rgb;
-
 	vec3 upVector = normalize(upPosition);
-
 	float darkFactor = clamp(spec.g, 0.0f, 0.2f) / 0.2f;
 
-	//albedo.rgb *= mix(1.0f, 0.9f, darkFactor);
 	albedo.rgb = pow(albedo.rgb, vec3(mix(1.0f, 1.25f, darkFactor)));
-	//albedo.rgb = vec3(1.0f);
 
+	float metallicMask = 0.0f;
 
-
-		float metallicMask = 0.0f;
-		
-		if (   abs(materialIDs - 20.0f) < 0.1f
-			|| abs(materialIDs - 21.0f) < 0.1f
-			|| abs(materialIDs - 22.0f) < 0.1f
-			|| abs(materialIDs - 23.0f) < 0.1f) {
-			metallicMask = 1.0f;
-		}
-		
-
-		
+	if (   abs(materialIDs - 20.0f) < 0.1f
+		|| abs(materialIDs - 21.0f) < 0.1f
+        || abs(materialIDs - 22.0f) < 0.1f
+		|| abs(materialIDs - 23.0f) < 0.1f) {
+		metallicMask = 1.0f;
+	}
 
 	float mats_1 = materialIDs;
 		  mats_1 += 0.1f;
 
-	// if (abs(materialIDs - 60.0f) < 0.1f)
-	// {
-	// 	mats_1 = 0.0f;
-	// 	albedo.rgb = gl_Fog.color.rgb * 1.0f;
-	// }
-
 	gl_FragData[0] = albedo;
 
-	//Depth  
+	//Depth
 	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);
 
 	//normal
 	gl_FragData[2] = frag2;
-		
-#ifdef SPECULARITY	
+
+#ifdef SPECULARITY
 	//specularity
 	#ifdef NEW_SPECULAR
 	gl_FragData[3] = vec4(spec.r + spec.g, spec.b, 0.0f, 1.0f);
@@ -485,6 +355,5 @@ void main() {
 	#ifdef OLD_SPECULAR
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
 	#endif
-#endif	
-
+#endif
 }
