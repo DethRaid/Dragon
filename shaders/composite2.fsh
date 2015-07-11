@@ -1,21 +1,7 @@
 #version 120
 
-/*
- _______ _________ _______  _______  _
-(  ____ \\__   __/(  ___  )(  ____ )( )
-| (    \/   ) (   | (   ) || (    )|| |
-| (_____    | |   | |   | || (____)|| |
-(_____  )   | |   | |   | ||  _____)| |
-      ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _
-\_______)   )_(   (_______)|/       (_)
-
-Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
-
-*/
 /////////////////////////CONFIGURABLE VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////CONFIGURABLE VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 #define BANDING_FIX_FACTOR 1.0f
 
 #define SMOOTH_SKY
@@ -39,7 +25,6 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define MOONRAYS					//Make sure if you enable/disable this to do the same in Composite, PLEASE NOTE Moonrays have a bug at sunset/sunrise
 
-
 #define NO_UNDERWATER_RAYS
 
 //#define NO_GODRAYS				//NOTE!! if you disable GODRAYS then you MUST enable this so the shader wont crash
@@ -50,7 +35,6 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* DRAWBUFFERS:2 */
-
 const bool gcolorMipmapEnabled = true;
 const bool compositeMipmapEnabled = true;
 
@@ -75,9 +59,8 @@ uniform float rainStrength;
 uniform float wetness;
 uniform float aspectRatio;
 uniform float frameTimeCounter;
-uniform int worldTime;
+uniform int   worldTime;
 uniform int   isEyeInWater;
-
 
 uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
@@ -97,7 +80,6 @@ varying vec3 upVector;
 uniform vec3 sunPosition;
 uniform vec3 moonPosition;
 
-
 varying float timeSunrise;
 varying float timeNoon;
 varying float timeSunset;
@@ -111,14 +93,9 @@ varying vec3 moonlight;
 varying vec3 colorSkylight;
 varying vec3 colorBouncedSunlight;
 
-
-
-
 #define ANIMATION_SPEED 1.0f
 
 //#define ANIMATE_USING_WORLDTIME
-
-
 
 #ifdef ANIMATE_USING_WORLDTIME
 #define FRAME_TIME worldTime * ANIMATION_SPEED / 20.0f
@@ -126,36 +103,31 @@ varying vec3 colorBouncedSunlight;
 #define FRAME_TIME frameTimeCounter * ANIMATION_SPEED
 #endif
 
-
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-vec3 GetNormals(in vec2 coord) {
+vec3 	GetNormals(in vec2 coord) {
 	vec3 normal = vec3(0.0f);
 		 normal = texture2DLod(gnormal, coord.st, 0).rgb;
 	normal = normal * 2.0f - 1.0f;
-
 	normal = normalize(normal);
 
 	return normal;
 }
 
-float GetDepth(in vec2 coord) {
+float 	GetDepth(in vec2 coord) {
 	return texture2D(gdepthtex, coord).x;
 }
 
-float 	ExpToLinearDepth(in float depth)
-{
+float 	ExpToLinearDepth(in float depth) {
 	return 2.0f * near * far / (far + near - (2.0f * depth - 1.0f) * (far - near));
 }
 
-float GetDepthLinear(vec2 coord) {
+float 	GetDepthLinear(vec2 coord) {
     return 2.0 * near * far / (far + near - (2.0 * texture2D(gdepthtex, coord).x - 1.0) * (far - near));
 }
 
 vec4  	GetViewSpacePosition(in vec2 coord) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
 	float depth = GetDepth(coord);
-		  //depth += float(GetMaterialMask(coord, 5)) * 0.38f;
 	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * depth - 1.0f, 1.0f);
 		 fragposition /= fragposition.w;
 
@@ -166,61 +138,37 @@ float 	GetMaterialIDs(in vec2 coord) {			//Function that retrieves the texture t
 	return texture2D(gdepth, coord).r;
 }
 
-float GetSunlightVisibility(in vec2 coord)
-{
+float 	GetSunlightVisibility(in vec2 coord) {
 	return texture2D(gdepth, coord).g;
 }
 
-float cubicPulse(float c, float w, float x)
-{
+float 	cubicPulse(float c, float w, float x) {
 	x = abs(x - c);
 	if (x > w) return 0.0f;
 	x /= w;
 	return 1.0f - x * x * (3.0f - 2.0f * x);
 }
 
-bool 	GetMaterialMask(in vec2 coord, in int ID, in float matID) {
-		  matID = floor(matID * 255.0f);
-
-	if (matID == ID) {
-		return true;
-	} else {
-		return false;
-	}
-}
-
-bool 	GetSkyMask(in vec2 coord, in float matID)
-{
+bool 	GetMaterialMask(in int ID, in float matID) {
 	matID = floor(matID * 255.0f);
 
-	if (matID < 1.0f || matID > 254.0f)
-	{
-		return true;
-	} else {
-		return false;
-	}
+	return matID == ID;
 }
 
-bool 	GetSkyMask(in vec2 coord)
-{
+bool 	GetSkyMask(in float matID) {
+	return GetMaterialMask( 0, matID ) || GetMaterialMask( 254, matID );
+}
+
+bool 	GetSkyMask(in vec2 coord) {
 	float matID = GetMaterialIDs(coord);
-	matID = floor(matID * 255.0f);
-
-	if (matID < 1.0f || matID > 254.0f)
-	{
-		return true;
-	} else {
-		return false;
-	}
+	return GetSkyMask( matID );
 }
 
-float 	GetSpecularity(in vec2 coord)
-{
+float 	GetSpecularity(in vec2 coord) {
 	return texture2D(composite, coord).r;
 }
 
-float 	GetRoughness(in vec2 coord)
-{
+float 	GetRoughness(in vec2 coord) {
 	return texture2D(composite, coord).b;
 }
 
@@ -445,36 +393,35 @@ struct Intersection {
 /////////////////////////STRUCT FUNCTIONS//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void 	CalculateMasks(inout MaskStruct mask) {
-	mask.sky 			= GetSkyMask(texcoord.st, mask.matIDs);
+	mask.sky 			= GetSkyMask( mask.matIDs );
 	mask.land	 		= !mask.sky;
-	mask.tallGrass 		= GetMaterialMask(texcoord.st, 2, mask.matIDs);
-	mask.leaves	 		= GetMaterialMask(texcoord.st, 3, mask.matIDs);
-	mask.ice		 	= GetMaterialMask(texcoord.st, 4, mask.matIDs);
-	mask.hand	 		= GetMaterialMask(texcoord.st, 5, mask.matIDs);
-	mask.translucent	= GetMaterialMask(texcoord.st, 6, mask.matIDs);
+	mask.tallGrass 		= GetMaterialMask(2, mask.matIDs);
+	mask.leaves	 		= GetMaterialMask(3, mask.matIDs);
+	mask.ice		 	= GetMaterialMask(4, mask.matIDs);
+	mask.hand	 		= GetMaterialMask(5, mask.matIDs);
+	mask.translucent	= GetMaterialMask(6, mask.matIDs);
 
-	mask.glow	 		= GetMaterialMask(texcoord.st, 10, mask.matIDs);
+	mask.glow	 		= GetMaterialMask(10, mask.matIDs);
 
-	mask.goldBlock 		= GetMaterialMask(texcoord.st, 20, mask.matIDs);
-	mask.ironBlock 		= GetMaterialMask(texcoord.st, 21, mask.matIDs);
-	mask.diamondBlock	= GetMaterialMask(texcoord.st, 22, mask.matIDs);
-	mask.emeraldBlock	= GetMaterialMask(texcoord.st, 23, mask.matIDs);
-	mask.sand	 		= GetMaterialMask(texcoord.st, 24, mask.matIDs);
-	mask.sandstone 		= GetMaterialMask(texcoord.st, 25, mask.matIDs);
-	mask.stone	 		= GetMaterialMask(texcoord.st, 26, mask.matIDs);
-	mask.cobblestone	= GetMaterialMask(texcoord.st, 27, mask.matIDs);
-	mask.wool			= GetMaterialMask(texcoord.st, 28, mask.matIDs);
+	mask.goldBlock 		= GetMaterialMask(20, mask.matIDs);
+	mask.ironBlock 		= GetMaterialMask(21, mask.matIDs);
+	mask.diamondBlock	= GetMaterialMask(22, mask.matIDs);
+	mask.emeraldBlock	= GetMaterialMask(23, mask.matIDs);
+	mask.sand	 		= GetMaterialMask(24, mask.matIDs);
+	mask.sandstone 		= GetMaterialMask(25, mask.matIDs);
+	mask.stone	 		= GetMaterialMask(26, mask.matIDs);
+	mask.cobblestone	= GetMaterialMask(27, mask.matIDs);
+	mask.wool			= GetMaterialMask(28, mask.matIDs);
 
-	mask.torch 			= GetMaterialMask(texcoord.st, 30, mask.matIDs);
-	mask.lava 			= GetMaterialMask(texcoord.st, 31, mask.matIDs);
-	mask.glowstone 		= GetMaterialMask(texcoord.st, 32, mask.matIDs);
-	mask.fire 			= GetMaterialMask(texcoord.st, 33, mask.matIDs);
+	mask.torch 			= GetMaterialMask(30, mask.matIDs);
+	mask.lava 			= GetMaterialMask(31, mask.matIDs);
+	mask.glowstone 		= GetMaterialMask(32, mask.matIDs);
+	mask.fire 			= GetMaterialMask(33, mask.matIDs);
 
 	mask.water 			= GetWaterMask(mask.matIDs);
 }
 
-vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface)
-{
+vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 	float reflectionRange = 2.0f;
     float initialStepAmount = 1.0 - clamp(1.0f / 100.0, 0.0, 0.99);
 		  initialStepAmount *= 1.0f;
