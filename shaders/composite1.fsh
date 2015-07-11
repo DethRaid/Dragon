@@ -289,7 +289,7 @@ float 	GetUnderwaterLightmapSky(in vec2 coord) {
 }
 
 float   getMetalness( in vec2 coord ) {
-    return step( texture2D(composite, coord ).r, 0.9 );
+    return step( 0.25, texture2D( composite, coord ).r );
 }
 
 // Retrieves the roughness of a given fragment
@@ -790,8 +790,6 @@ float 	CalculateDirectLighting(in SurfaceStruct surface) {
 	}
 }
 
-
-
 /** DethRaid's shadowing stuff **/
 //from SEUS v8
 vec4 calcShadowCoordinate( in vec4 fragPosition, in vec3 fragNormal ) {
@@ -1077,7 +1075,6 @@ void 	AddSunglow(inout SurfaceStruct surface) {
 
 	surface.sky.albedo *= 1.0f + antiSunglowFactor * 2.0f * (1.0f - rainStrength);
 }
-
 
 void 	AddCloudGlow(inout vec3 color, in SurfaceStruct surface) {
 	float glow = CalculateSunglow(surface);
@@ -1906,24 +1903,26 @@ void initializeLightmap( inout MCLightmapStruct mcLightmap ) {
 }
 
 void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
-  //Initialize default surface shading attributes
+  	//Initialize default surface shading attributes
 	surface.diffuse.roughness 			= GetRoughness(texcoord.st);
 	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
 	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
 
 	surface.specular.roughness 		    = GetRoughness(texcoord.st);
-  // If the surface is more than 50% specular, I assume it's a metal. This is probably wrong. A PBR texture pack could fix this
+  	// If the surface is more than 50% specular, I assume it's a metal. This is probably wrong. A PBR texture pack could fix this
 	surface.specular.metallic 			= getMetalness( texcoord.st );
-  // For some reason, leaves are considered to be super specular. I need to get rid of that
-  if( surface.mask.leaves ) {
-      surface.specular.metallic = 0;
-  }
+  	// For some reason, leaves are considered to be super specular. I need to get rid of that
+  	if( surface.mask.leaves ) {
+      	surface.specular.metallic = 0;
+  	}
 
-  // Generate the specular color from the metalness
-  surface.specular.specularColor  = vec3( 0.02 ) + (surface.albedo * surface.specular.metallic);
+  	// Generate the specular color from the metalness
+  	surface.specular.specularColor  = vec3( 0.02 ) + (surface.albedo * surface.specular.metallic);
 
-  float ndotv = dot( surface.normal, surface.viewVector );
+  	float ndotv = dot( surface.normal, surface.viewVector );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
+	// Subtract the speculr color from the albedo to maintain conservaion of energy
+	surface.albedo -= surface.specular.fresnel;
 }
 
 void calculateDirectLighting( inout ShadingStruct shading ) {
@@ -2091,7 +2090,7 @@ void main() {
 
 
 	//Apply lightmaps to albedo and generate final shaded surface
-	vec3 finalComposite = final.sunlight 		* 0.9f 	* 1.5f * sunlightMult				//Add direct sunlight
+	vec3 finalComposite = final.sunlight 		* 0.9f 	* 1.5f * sunlightMult	//Add direct sunlight
 						+ final.skylight 		* 0.05f				//Add ambient skylight
 						+ final.nolight 		* 0.00005f 			//Add base ambient light
 						+ final.torchlight 		* 5.0f 			//Add light coming from emissive blocks
@@ -2114,18 +2113,14 @@ void main() {
 		 finalComposite 	+= surface.sky.albedo;		//Add sky to final image
 
 #ifdef GI
-		 finalComposite 	+= delta.rgb * sunlightMult;
+		finalComposite 	+= delta.rgb * sunlightMult;
 #endif
 
-		 vec4 cloudsTexture = pow(texture2DLod(gaux2, texcoord.st / 4.0, 0).rgba, vec4(2.2, 2.2, 2.2, 1.0));
-
-
-
-	//if eye is in water, do underwater fog
-	if (isEyeInWater > 0) {
-		CalculateUnderwaterFog(surface, finalComposite);
-	}
-
+		vec4 cloudsTexture = pow(texture2DLod(gaux2, texcoord.st / 4.0, 0).rgba, vec4(2.2, 2.2, 2.2, 1.0));
+		//if eye is in water, do underwater fog
+		if (isEyeInWater > 0) {
+			CalculateUnderwaterFog(surface, finalComposite);
+		}
 
 #ifdef RAIN_FOG
 	CalculateRainFog(finalComposite.rgb, surface);
@@ -2234,8 +2229,6 @@ void main() {
 	if (finalComposite.b > 1.0f) {
 		finalComposite.b = 0.0f;
 	}
-
-  finalComposite = surface.specular.specularColor;
 
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
