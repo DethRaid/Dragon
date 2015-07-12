@@ -1,13 +1,13 @@
 #version 120
 
 /*
- _______ _________ _______  _______  _ 
+ _______ _________ _______  _______  _
 (  ____ \\__   __/(  ___  )(  ____ )( )
 | (    \/   ) (   | (   ) || (    )|| |
 | (_____    | |   | |   | || (____)|| |
 (_____  )   | |   | |   | ||  _____)| |
       ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _ 
+/\____) |   | |   | (___) || )       _
 \_______)   )_(   (_______)|/       (_)
 
 Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
@@ -38,11 +38,11 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 
 	float padding = 0.02f;
 
-	if (	texcoord.s - offset.s + padding < 1.0f / scale + (padding * 2.0f) 
+	if (	texcoord.s - offset.s + padding < 1.0f / scale + (padding * 2.0f)
 		&&  texcoord.t - offset.t + padding < 1.0f / scale + (padding * 2.0f)
-		&&  texcoord.s - offset.s + padding > 0.0f 
+		&&  texcoord.s - offset.s + padding > 0.0f
 		&&  texcoord.t - offset.t + padding > 0.0f) {
-		
+
 		vec3 bloom = vec3(0.0f);
 		float allWeights = 0.0f;
 
@@ -78,7 +78,7 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 	} else {
 		return vec3(0.0f);
 	}
-	
+
 }
 
 
@@ -88,21 +88,21 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void main() {
-	
-	
+
+
 	vec3 bloom  = CalculateBloom(2, vec2(0.0f)				+ vec2(0.000f, 0.000f)	);
 		 bloom += CalculateBloom(3, vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	);
 		 bloom += CalculateBloom(4, vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	);
-		 bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
-		 bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
-		 bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
+		 //bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
+		 //bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
+		 //bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
 		 //bloom += CalculateBloom(8, vec2(0.28f, 0.25f)		+ vec2(0.125f, 0.025f)	);
 		 bloom = pow(bloom, vec3(1.0f / (1.0f + 1.2f)));
 
-	
+
 	//gl_FragData[0] = vec4(color.rgb, 0.0f);
 	gl_FragData[0] = vec4(bloom.rgb, 1.0f);
 	//gl_FragData[1] = texture2D(gnormal, texcoord.st);
-	
+
 
 }

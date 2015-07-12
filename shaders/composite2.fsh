@@ -16,7 +16,7 @@
 #define NEW_WATER_REFLECT			//Best version to use 95% of bugs gone/ small bug with the sunrise/set when looking down into water
 
 //----------Refletion--------//
-#define NUM_REFLECTION_RAYS		16
+#define NUM_REFLECTION_RAYS		1
 //----End Reflections--------//
 
 //----------GodRays----------//
@@ -360,7 +360,7 @@ struct SurfaceStruct {
 	float  	specularity;
 	vec3 	specularColor;			// F0
 	float 	roughness;
-	float   fresnelPower;
+	vec3    fresnel;
 	float 	baseSpecularity;
 	Ray 	viewRay;
 
@@ -416,6 +416,12 @@ void 	CalculateMasks(inout MaskStruct mask) {
 	mask.fire 			= GetMaterialMask(33, mask.matIDs);
 
 	mask.water 			= GetWaterMask(mask.matIDs);
+}
+
+vec3 calculateFresnelSchlick( in vec3 n, in float ndotv ) {
+    vec3 F0 = (vec3( 1.0 ) - n) / (vec3( 1.0 ) + n);
+    F0 = F0 * F0;
+    return F0 + ((vec3( 1.0 ) - F0) * pow(1.0 - ndotv, 5.0));
 }
 
 vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
@@ -1073,77 +1079,55 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 #endif
 
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
-	float specularity = surface.specularity * surface.specularity * surface.specularity;
-	      specularity = max(0.0f, specularity * 1.15f - 0.15f);
-
 	bool defaultItself = false;
 
 	surface.rDepth = 0.0f;
 
 	if (surface.mask.sky) {
-		specularity = 0.0f;
+		surface.fresnel = vec3( 0.0f );
 	}
 
-	if (surface.mask.water) {
-		specularity = 0.7f;
-		surface.roughness = 0.0f;
-		surface.fresnelPower = 6.0f;
-		surface.baseSpecularity = 0.02f;
+	vec4 reflection = vec4( 0.0f );
+	vec3 origNormal = surface.normal;
+	for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
+		vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
+
+		//surface.normal = origNormal + (noise3 * surface.roughness);
+		#ifdef NEW_WATER_REFLECT
+		reflection += ComputeRaytraceReflection(surface);
+		#endif
+
+		#ifdef OLD_WATER_REFLECT
+		reflection += ComputeWaterReflection(surface);
+		#endif
 	}
 
-	if (surface.mask.ironBlock) {
-		surface.baseSpecularity = 1.0f;
+	reflection /= NUM_REFLECTION_RAYS;
+	surface.normal = origNormal;
+
+	float surfaceLightmap = GetLightmapSky(texcoord.st);
+	#ifdef NEW_WATER_REFLECT
+	vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
+	#endif
+
+	#ifdef OLD_WATER_REFLECT
+	vec4 fakeSkyReflection = ComputeSkyReflection(surface);
+	#endif
+
+	vec3 noSkyToReflect = vec3(0.0f);
+
+	if (defaultItself){
+		noSkyToReflect = surface.color.rgb;
 	}
 
-	if (surface.mask.goldBlock) {
-		surface.baseSpecularity = 1.0f;
-	}
+	fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
+	reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
+	reflection.a = fakeSkyReflection.a;
 
-	specularity *= 1.0f - surface.cloudAlpha;
+	reflection.rgb *= surface.fresnel;
 
-	if (specularity > 0.00f) {
-		vec4 reflection = vec4( 0.0f );
-		vec3 origNormal = surface.normal;
-		for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
-			vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
-
-			surface.normal = origNormal + (noise3 * surface.roughness);
-			#ifdef NEW_WATER_REFLECT
-			reflection += ComputeRaytraceReflection(surface);
-			#endif
-
-			#ifdef OLD_WATER_REFLECT
-			reflection += ComputeWaterReflection(surface);
-			#endif
-		}
-
-		reflection /= NUM_REFLECTION_RAYS;
-		surface.normal = origNormal;
-
-		float surfaceLightmap = GetLightmapSky(texcoord.st);
-#ifdef NEW_WATER_REFLECT
-		vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
-#endif
-
-#ifdef OLD_WATER_REFLECT
-		vec4 fakeSkyReflection = ComputeSkyReflection(surface);
-#endif
-
-		vec3 noSkyToReflect = vec3(0.0f);
-
-		if (defaultItself){
-			noSkyToReflect = surface.color.rgb;
-		}
-
-		fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
-		reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
-		reflection.a = fakeSkyReflection.a * specularity;
-
-		reflection.rgb *= surface.specularColor;
-
-		surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
-		surface.reflection = reflection;
-	}
+	surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
+	surface.reflection = reflection;
 }
 
 void CalculateSpecularHighlight(inout SurfaceStruct surface) {
@@ -1158,16 +1142,13 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 
 		float spec = pow(HdotN, gloss * 8000.0f + 10.0f);
 
-		float fresnel = pow(clamp(1.0f + dot(normalize(surface.viewSpacePosition.xyz), surface.normal.xyz), 0.0f, 1.0f), surface.fresnelPower) * (1.0f - surface.baseSpecularity) + surface.baseSpecularity;
-
-		spec *= fresnel;
 		spec *= surface.sunlightVisibility;
 
 		spec *= gloss * 9000.0f + 10.0f;
 		spec *= surface.specularity * surface.specularity * surface.specularity;
 		spec *= 1.0f - rainStrength;
 
-		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * surface.specularColor;
+		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * surface.fresnel;
 
 		surface.color += specularHighlight / 500.0f;
 	}
@@ -1182,7 +1163,6 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 
 	vec4 reflectionSum = vec4(0.0f);
 
-	surface.fresnelPower = 6.0f;
 	surface.baseSpecularity = 0.0f;
 
 	if (surface.mask.ironBlock) {
@@ -1221,9 +1201,9 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 		reflectionSum.rgb /= 10.0f;
 
 		fresnel *= 0.9;
-		fresnel = pow(fresnel, surface.fresnelPower);
+		fresnel = pow(fresnel, 5.0);
 
-		surface.color = mix(surface.color, reflectionSum.rgb * 1.0f, vec3(specularity) * fresnel * (1.0f - surface.baseSpecularity) + surface.baseSpecularity);
+		surface.color = mix(surface.color, reflectionSum.rgb * 1.0f, vec3(specularity) * surface.fresnel);
 	}
 }
 
@@ -1276,8 +1256,7 @@ void FixNormals(inout vec3 normal, in vec3 viewPosition) {
 }
 
 float getnoise(vec2 pos) {
-return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
-
+	return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1301,7 +1280,9 @@ void main() {
 	surface.specularity = GetSpecularity(texcoord.st);
 	surface.specularColor = mix( vec3( 0.03 ), surface.color, surface.specularity );
 	surface.roughness = 1.0f - GetRoughness(texcoord.st);
-	surface.fresnelPower = 6.0f + surface.roughness * 0.0f;
+
+	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
+	surface.fresnel = calculateFresnelSchlick( vec3( 1.0 ) - surface.specularColor, ndotv );
 	surface.baseSpecularity = 0.02f;
 
 	surface.mask.matIDs = GetMaterialIDs(texcoord.st);
@@ -1317,19 +1298,17 @@ void main() {
 		CloudPlane(surface);
 	#endif
 
-vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
+	vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
 	tpos = vec4(tpos.xyz/tpos.w,1.0);
 	vec2 pos1 = tpos.xy/tpos.z;
 	vec2 lightPos = pos1*0.5+0.5;
 	float gr = 0.0;
 
-#ifdef GODRAYS
+	#ifdef GODRAYS
 
-#ifdef NO_UNDERWATER_RAYS
-if (isEyeInWater > 0.9) {
-
-	} else {
-#endif
+	#ifdef NO_UNDERWATER_RAYS
+	if (isEyeInWater < 0.9) {
+	#endif
 
 	float truepos = sign(sunPosition.z); //temporary fix that check if the sun/moon position is correct
 	if (truepos < 0.05) {
@@ -1367,12 +1346,12 @@ if (isEyeInWater > 0.9) {
 
 
 	}
-#ifdef MOONRAYS
+	#ifdef MOONRAYS
 	else {
-	tpos = vec4(-sunPosition,1.0)*gbufferProjection;
-	tpos = vec4(tpos.xyz/tpos.w,1.0);
-	pos1 = tpos.xy/tpos.z;
-	lightPos = pos1*0.5+0.5;
+		tpos = vec4(-sunPosition,1.0)*gbufferProjection;
+		tpos = vec4(tpos.xyz/tpos.w,1.0);
+		pos1 = tpos.xy/tpos.z;
+		lightPos = pos1*0.5+0.5;
 
 		if (truepos > 0.05) {
 			vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
@@ -1404,15 +1383,15 @@ if (isEyeInWater > 0.9) {
 				tw += weight;
 				gr += sample;
 			}
-		surface.color.rgb += 5.0f*colorSunlight*Moon_exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay/2.5*truepos*timeMidnight;
+			surface.color.rgb += 5.0f*colorSunlight*Moon_exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay/2.5*truepos*timeMidnight;
+		}
 	}
-}
 
-#endif
-#ifdef NO_UNDERWATER_RAYS
-}
-#endif
-#endif
+	#endif
+	#ifdef NO_UNDERWATER_RAYS
+	}
+	#endif
+	#endif
 
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
