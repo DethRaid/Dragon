@@ -149,6 +149,7 @@ const int 		gdepthFormat 			= RGBA8;
 const int 		gnormalFormat 			= RGBA16;
 const int 		compositeFormat 		= RGBA8;
 #endif
+
 const float 	eyeBrightnessHalflife 	= 10.0f;
 const float 	centerDepthHalflife 	= 2.0f;
 const float 	wetnessHalflife 		= 100.0f;
@@ -238,12 +239,13 @@ uniform int heldBlockLightValue;
 /////////////////////////FUNCTIONS///////////////////////////////////////////////////////////////////
 
 //Get gbuffer textures
-vec3  	GetAlbedoLinear(in vec2 coord) {			//Function that retrieves the diffuse texture and convert it into linear space.
-	return pow(texture2D(gcolor, coord).rgb, vec3(2.2f));
-}
 
 vec3  	GetAlbedoGamma(in vec2 coord) {			//Function that retrieves the diffuse texture and leaves it in gamma space.
 	return texture2D(gcolor, coord).rgb;
+}
+
+vec3  	GetAlbedoLinear(in vec2 coord) {			//Function that retrieves the diffuse texture and convert it into linear space.
+	return pow(GetAlbedoGamma( coord ), vec3(2.2f));
 }
 
 vec3  	GetNormals(in vec2 coord) {				//Function that retrieves the screen space surface normals. Used for lighting calculations
@@ -2229,6 +2231,8 @@ void main() {
 	if (finalComposite.b > 1.0f) {
 		finalComposite.b = 0.0f;
 	}
+
+	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
 
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
