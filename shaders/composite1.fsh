@@ -316,18 +316,14 @@ bool  	GetSky(in vec2 coord) {					//Function that returns true for any pixel th
 }
 
 bool 	GetMaterialMask(in vec2 coord, in int ID, in float matID) {
-		  matID = floor(matID * 255.0f);
+	matID = floor(matID * 255.0f);
 
 	//Catch last part of sky
 	if (matID > 254.0f) {
 		matID = 0.0f;
 	}
 
-	if (matID == ID) {
-		return true;
-	} else {
-		return false;
-	}
+	return matID == ID;
 }
 
 //Water
@@ -338,29 +334,22 @@ float 	GetWaterTex(in vec2 coord) {				//Function that returns the texture used 
 bool  	GetWaterMask(in vec2 coord, in float matID) {					//Function that returns "true" if a pixel is water, and "false" if a pixel is not water.
 	matID = floor(matID * 255.0f);
 
-	if (matID >= 35.0f && matID <= 51) {
-		return true;
-	} else {
-		return false;
-	}
+	return matID >= 35.0f && matID <= 51;
 }
 
 //Surface calculations
-vec4  	GetScreenSpacePosition(in vec2 coord) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
-	float depth = GetDepth(coord);
-		  depth += float(GetMaterialMask(coord, 5, GetMaterialIDs(coord))) * 0.38f;
-	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * depth - 1.0f, 1.0f);
-		 fragposition /= fragposition.w;
-
-	return fragposition;
-}
-
 vec4  	GetScreenSpacePosition(in vec2 coord, in float depth) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
 		  //depth += float(GetMaterialMask(coord, 5)) * 0.38f;
 	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * depth - 1.0f, 1.0f);
 		 fragposition /= fragposition.w;
 
 	return fragposition;
+}
+
+vec4  	GetScreenSpacePosition(in vec2 coord) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
+	float depth = GetDepth(coord);
+		  depth += float(GetMaterialMask(coord, 5, GetMaterialIDs(coord))) * 0.38f;
+	return GetScreenSpacePosition( coord, depth );
 }
 
 vec4 	GetWorldSpacePosition(in vec2 coord, in float depth) {
@@ -516,7 +505,6 @@ vec3 	CalculateNoisePattern1(vec2 offset, float size) {
 	return texture2D(noisetex, coord).xyz;
 }
 
-
 void DrawDebugSquare(inout vec3 color) {
 	vec2 pix = vec2(1.0f / viewWidth, 1.0f / viewHeight);
 
@@ -558,8 +546,6 @@ struct MCLightmapStruct {		//Lightmaps directly from MC engine
 	vec3 torchVector; 			//Vector in screen space that represents the direction of average light transfered
 	vec3 skyVector;
 } mcLightmap;
-
-
 
 struct DiffuseAttributesStruct {			//Diffuse surface shading attributes
 	float roughness;			//Roughness of surface. More roughness will use Oren Nayar reflectance.
@@ -843,16 +829,16 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
 
     float visibility = 1.0;
 
-#if SHADOW_MODE == HARD
+	#if SHADOW_MODE == HARD
     float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
     return step( shadowCoord.z - shadowDepth, 0.0 );
 
-#else
+	#else
     float penumbraSize = 0.5;    // whoo magic number!
 
-#if SHADOW_MODE == PCSS
+	#if SHADOW_MODE == PCSS
     penumbraSize = calcPenumbraSize( shadowCoord.xyz );
-#endif
+	#endif
 
     float numBlockers = 0.0;
     float numSamples = 0.0;
@@ -860,7 +846,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     float diffthresh = shadowCoord.w * 1.0f + 0.10f;
 	diffthresh *= 3.0f / (shadowMapResolution / 2048.0f);
 
-#if USE_RANDOM_ROTATION
+	#if USE_RANDOM_ROTATION
     float rotateAmount = texture2D(
         noisetex,
         texcoord.st * vec2(
@@ -872,15 +858,15 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
         cos( rotateAmount ), -sin( rotateAmount ),
         sin( rotateAmount ), cos( rotateAmount )
     );
-#endif
+	#endif
 
 	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
         for( int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++ ) {
             vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
             sampleCoord *= penumbraSize;
-#if USE_RANDOM_ROTATION
+			#if USE_RANDOM_ROTATION
             sampleCoord = kernelRotation * sampleCoord;
-#endif
+			#endif
             float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
             numBlockers += step( shadowCoord.z - shadowDepth, 0.00018f );
             numSamples++;
@@ -890,7 +876,7 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     visibility = max( numBlockers / numSamples, 0 );
 
     return visibility;
-#endif
+	#endif
 }
 
 float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct shadingStruct) {				//Calculates shadows
@@ -1848,9 +1834,9 @@ float getnoise(vec2 pos) {
 }
 
 vec3 calculateFresnelSchlick( in vec3 n, in float ndotv ) {
-    vec3 R0 = (n - vec3( 1.0 )) / (n + vec3( 1.0 ));
-    R0 = R0 * R0;
-    return R0 + (vec3( 1.0 ) - R0) * pow(1.0 - ndotv, 5.0);
+    vec3 F0 = (vec3( 1.0 ) - n) / (vec3( 1.0 ) + n);
+    //F0 = F0 * F0;
+    return F0 + ((vec3( 1.0 ) - F0) * pow(1.0 - ndotv, 5.0));
 }
 
 void initializeSky( inout SurfaceStruct surface ) {
@@ -1921,7 +1907,7 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	// Generate the specular color from the metalness
   	surface.specular.specularColor = mix( vec3( 0.03 ), surface.albedo, surface.specular.metallic);
 
-  	float ndotv = dot( surface.normal, surface.viewVector );
+  	float ndotv = max( dot( surface.normal, -normalize( surface.viewVector ) ), 0.0f );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
 	// Subtract the speculr color from the albedo to maintain conservaion of energy
 	//surface.albedo -= surface.specular.fresnel;
@@ -2090,7 +2076,6 @@ void main() {
 	const float sunlightMult = 1.45f;
 #endif
 
-
 	//Apply lightmaps to albedo and generate final shaded surface
 	vec3 finalComposite = final.sunlight 		* 0.9f 	* 1.5f * sunlightMult	//Add direct sunlight
 						+ final.skylight 		* 0.05f				//Add ambient skylight
@@ -2106,8 +2091,8 @@ void main() {
 						;
 
 	//Apply sky to final composite
-		 surface.sky.albedo *= 0.85f;
-		 surface.sky.albedo = surface.sky.albedo * surface.sky.tintColor + surface.sky.sunglow + surface.sky.sunSpot;
+	surface.sky.albedo *= 0.85f;
+	surface.sky.albedo = surface.sky.albedo * surface.sky.tintColor + surface.sky.sunglow + surface.sky.sunSpot;
 #ifdef CLOUD_PLANE
 		 CloudPlane(surface);
 #endif

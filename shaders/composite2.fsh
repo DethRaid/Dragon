@@ -1036,8 +1036,7 @@ void ReflectedCloudPlane(inout vec3 color, inout SurfaceStruct surface)
 	}
 }
 
-void CloudPlane(inout SurfaceStruct surface)
-{
+void CloudPlane(inout SurfaceStruct surface) {
 	//Initialize view ray
 	vec4 worldVector = gbufferModelViewInverse * (-GetViewSpacePosition(texcoord.st));
 
@@ -1045,8 +1044,6 @@ void CloudPlane(inout SurfaceStruct surface)
 	surface.viewRay.origin = vec3(0.0f);
 
 	float sunglow = CalculateSunglow(surface);
-
-
 
 	float cloudsAltitude = 540.0f;
 	float cloudsThickness = 150.0f;
@@ -1060,17 +1057,14 @@ void CloudPlane(inout SurfaceStruct surface)
 	float stepSize = 25.5f;
 	planeHeight -= cloudsThickness * 0.85f;
 
-
 	Plane pl;
 	pl.origin = vec3(0.0f, cameraPosition.y - planeHeight, 0.0f);
 	pl.normal = vec3(0.0f, 1.0f, 0.0f);
 
 	Intersection i = RayPlaneIntersectionWorld(surface.viewRay, pl);
 
-	if (i.angle < 0.0f)
-	{
-		if (i.distance < surface.linearDepth || surface.mask.sky)
-		{
+	if (i.angle < 0.0f) {
+		if (i.distance < surface.linearDepth || surface.mask.sky) {
 			vec4 cloudSample = CloudColor2(vec4(i.pos.xyz * 0.5f + vec3(30.0f), 1.0f), sunglow/2, surface.worldLightVector, cloudsAltitude, cloudsThickness, false);
 			 	 cloudSample.a = min(1.0f, cloudSample.a * density);
 
@@ -1088,7 +1082,6 @@ void CloudPlane(inout SurfaceStruct surface)
 #ifdef NEW_WATER_REFLECT
 vec4 	ComputeFakeSkyReflection(in SurfaceStruct surface) {
 	float fresnelPower = 4.0f;
-
 
 	vec3 cameraSpacePosition = convertScreenSpaceToWorldSpace(texcoord.st);
 	vec3 cameraSpaceNormal = surface.normal;
@@ -1142,50 +1135,38 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 #endif
 
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
-
 	float specularity = surface.specularity * surface.specularity * surface.specularity;
 	      specularity = max(0.0f, specularity * 1.15f - 0.15f);
 	surface.specularColor = vec3(1.0f);
-	//surface.specularity = 1.0f;
-	//surface.roughness *= surface.roughness;
 
 	bool defaultItself = false;
 
 	surface.rDepth = 0.0f;
 
-	if (surface.mask.sky)
+	if (surface.mask.sky) {
 		specularity = 0.0f;
+	}
 
-	if (surface.mask.water)
-	{
+	if (surface.mask.water) {
 		specularity = 0.7f;
 		surface.roughness = 0.0f;
 		surface.fresnelPower = 6.0f;
 		surface.baseSpecularity = 0.02f;
 	}
 
-	if (surface.mask.ironBlock)
-	{
+	if (surface.mask.ironBlock) {
 		surface.baseSpecularity = 1.0f;
-		//specularity = 1.0f;
-		//surface.roughness = 0.0f;
 	}
 
-	if (surface.mask.goldBlock)
-	{
-		//surface.specularity = 1.0f;
-		//surface.roughness = 0.4f;
+	if (surface.mask.goldBlock) {
 		surface.baseSpecularity = 1.0f;
 		surface.specularColor = vec3(1.0f, 0.32f, 0.002f);
 		surface.specularColor = mix(surface.specularColor, vec3(1.0f), vec3(0.015f));
 	}
 
-	//surface.roughness = 0.0f;
-
 	specularity *= 1.0f - surface.cloudAlpha;
 
 	if (specularity > 0.00f) {
-
 		vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
 
 		surface.normal += noise3 * 0.00f;
@@ -1193,12 +1174,9 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 		vec4 reflection = ComputeRaytraceReflection(surface);
 #endif
 
-			 //reflection *= ComputeWaterReflection(surface);
 #ifdef OLD_WATER_REFLECT
 		vec4 reflection = ComputeWaterReflection(surface);
 #endif
-		//vec4 reflection = vec4(0.0f);
-
 		float surfaceLightmap = GetLightmapSky(texcoord.st);
 #ifdef NEW_WATER_REFLECT
 		vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
@@ -1208,18 +1186,15 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 		vec4 fakeSkyReflection = ComputeSkyReflection(surface);
 #endif
 
-
 		vec3 noSkyToReflect = vec3(0.0f);
 
-		if (defaultItself)
-		{
+		if (defaultItself){
 			noSkyToReflect = surface.color.rgb;
 		}
 
 		fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
 		reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
 		reflection.a = fakeSkyReflection.a * specularity;
-
 
 		reflection.rgb *= surface.specularColor;
 
@@ -1228,18 +1203,11 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	}
 }
 
-void CalculateSpecularHighlight(inout SurfaceStruct surface)
-{
-	if (!surface.mask.sky && !surface.mask.water)
-	{
-		//surface.specularity = 0.51f;
-		//surface.roughness = 0.2f;
-
+void CalculateSpecularHighlight(inout SurfaceStruct surface) {
+	if (!surface.mask.sky && !surface.mask.water) {
 		vec3 halfVector = normalize(lightVector - normalize(surface.viewSpacePosition.xyz));
 
 		float HdotN = max(0.0f, dot(halfVector, surface.normal.xyz));
-
-		//surface.roughness = sin(FRAME_TIME * 3.1415f) * 0.5f + 0.5f;
 
 		float gloss = pow(1.0f - surface.roughness + 0.01f, 4.5f);
 
@@ -1247,28 +1215,22 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface)
 
 		float spec = pow(HdotN, gloss * 8000.0f + 10.0f);
 
-		//spec *= float(!surface.mask.sky);
-
 		float fresnel = pow(clamp(1.0f + dot(normalize(surface.viewSpacePosition.xyz), surface.normal.xyz), 0.0f, 1.0f), surface.fresnelPower) * (1.0f - surface.baseSpecularity) + surface.baseSpecularity;
-
 
 		spec *= fresnel;
 		spec *= surface.sunlightVisibility;
 
-		//spec *= pow(1.0f - surface.roughness, 1.5f) * 80000.0f;
 		spec *= gloss * 9000.0f + 10.0f;
 		spec *= surface.specularity * surface.specularity * surface.specularity;
 		spec *= 1.0f - rainStrength;
 
 		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * surface.specularColor;
 
-
 		surface.color += specularHighlight / 500.0f;
 	}
 }
 
-void CalculateGlossySpecularReflections(inout SurfaceStruct surface)
-{
+void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 	float specularity = surface.specularity;
 	float roughness = 0.7f;
 	float spread = 0.02f;
@@ -1280,29 +1242,22 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface)
 	surface.fresnelPower = 6.0f;
 	surface.baseSpecularity = 0.0f;
 
-	if (surface.mask.ironBlock)
-	{
+	if (surface.mask.ironBlock) {
 		roughness = 0.9f;
 		//specularity = 1.0f;
 		//surface.baseSpecularity = 1.0f;
 	}
 
-	if (surface.mask.goldBlock)
-	{
+	if (surface.mask.goldBlock) {
 		specularity = 0.0f;
 	}
 
-
-
-	if (specularity > 0.01f)
-	{
+	if (specularity > 0.01f) {
 		float fresnel = 1.0f - clamp(-dot(normalize(surface.viewSpacePosition.xyz), surface.normal.xyz), 0.0f, 1.0f);
 
-		for (int i = 1; i <= 10; i++)
-		{
+		for (int i = 1; i <= 10; i++) {
 			vec2 translation = vec2(surface.normal.x, surface.normal.y) * i * spread;
 				 translation *= vec2(1.0f, viewWidth / viewHeight);
-			//vec2 scaling = (4.0f - vec2(fresnel) * 3.0f);
 
 			float faceFactor = surface.normal.z;
 				  faceFactor *= spread * 13.0f;
@@ -1320,16 +1275,13 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface)
 			reflectionSum.rgb += pow(texture2DLod(gcolor, finalCoord, r).rgb, vec3(2.2f));
 		}
 
-
-
 		reflectionSum.rgb /= 10.0f;
 
 		fresnel *= 0.9;
 		fresnel = pow(fresnel, surface.fresnelPower);
 
 		surface.color = mix(surface.color, reflectionSum.rgb * 1.0f, vec3(specularity) * fresnel * (1.0f - surface.baseSpecularity) + surface.baseSpecularity);
-		}
-	//surface.color.rgb *= vec3(1.0f) + reflectionSum.rgb * 400000.2f;
+	}
 }
 
 vec4 TextureSmooth(in sampler2D tex, in vec2 coord, in int level)
