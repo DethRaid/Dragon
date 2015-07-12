@@ -1399,7 +1399,7 @@ return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 void main() {
 
 	surface.color = pow(texture2DLod(gcolor, texcoord.st, 0).rgb, vec3(2.2f));
-	surface.normal = GetNormals(texcoord.st);
+	/*surface.normal = GetNormals(texcoord.st);
 	surface.depth = GetDepth(texcoord.st);
 	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
 	surface.viewSpacePosition = GetViewSpacePosition(texcoord.st);
@@ -1528,7 +1528,7 @@ if (isEyeInWater > 0.9) {
 
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
-
+*/
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }

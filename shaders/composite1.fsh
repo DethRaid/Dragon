@@ -1848,7 +1848,7 @@ float getnoise(vec2 pos) {
 }
 
 vec3 calculateFresnelSchlick( in vec3 n, in float ndotv ) {
-    vec3 R0 = (vec3( 1.0 ) - n) / (vec3( 1.0 ) + n);
+    vec3 R0 = (n - vec3( 1.0 )) / (n + vec3( 1.0 ));
     R0 = R0 * R0;
     return R0 + (vec3( 1.0 ) - R0) * pow(1.0 - ndotv, 5.0);
 }
@@ -1919,12 +1919,12 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	}
 
   	// Generate the specular color from the metalness
-  	surface.specular.specularColor  = vec3( 0.02 ) + (surface.albedo * surface.specular.metallic);
+  	surface.specular.specularColor = mix( vec3( 0.03 ), surface.albedo, surface.specular.metallic);
 
   	float ndotv = dot( surface.normal, surface.viewVector );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
 	// Subtract the speculr color from the albedo to maintain conservaion of energy
-	surface.albedo -= surface.specular.fresnel;
+	//surface.albedo -= surface.specular.fresnel;
 }
 
 void calculateDirectLighting( inout ShadingStruct shading ) {
@@ -2207,9 +2207,9 @@ void main() {
 				fallof *= 0.65;
 				float sample = step(texture2D(gdepth, textCoord+ deltaTextCoord*noise*grnoise).r,0.001);
 				gr += sample*fallof;
+			}
 		}
 	}
-}
 #endif
 
 #endif
@@ -2232,7 +2232,8 @@ void main() {
 		finalComposite.b = 0.0f;
 	}
 
-	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
+	//finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
+	finalComposite = vec3( surface.specular.fresnel );
 
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
