@@ -1,7 +1,7 @@
 #version 120
 
-/////////////////////////CONFIGURABLE VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////CONFIGURABLE VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////CONFIGURABLE VARIABLES/////////////////////////////////
+/////////////////////////CONFIGURABLE VARIABLES/////////////////////////////////
 #define BANDING_FIX_FACTOR 1.0f
 
 #define SMOOTH_SKY
@@ -14,6 +14,10 @@
 
 //#define OLD_WATER_REFLECT			//old version
 #define NEW_WATER_REFLECT			//Best version to use 95% of bugs gone/ small bug with the sunrise/set when looking down into water
+
+//----------Refletion--------//
+#define NUM_REFLECTION_RAYS		16
+//----End Reflections--------//
 
 //----------GodRays----------//
 #define GODRAYS
@@ -122,7 +126,7 @@ float 	ExpToLinearDepth(in float depth) {
 }
 
 float 	GetDepthLinear(vec2 coord) {
-    return 2.0 * near * far / (far + near - (2.0 * texture2D(gdepthtex, coord).x - 1.0) * (far - near));
+    return 2.0 * near * far / (far + near - (2.0 * GetDepth( coord ) - 1.0) * (far - near));
 }
 
 vec4  	GetViewSpacePosition(in vec2 coord) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
@@ -427,21 +431,10 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 	float stepRefinementAmount = .1;
 	int maxRefinements = 0;
 
-
-	// vec2 dither = vec2(CalculateDitherPattern1() * 2.0f - 1.0f, CalculateDitherPattern2() * 2.0f - 1.0f);
-	// vec3 ditherNormal = vec3(0.0f);
-	// 	 ditherNormal.x = dither.x;
-	// 	 ditherNormal.y = dither.y;
-	// 	 ditherNormal.z = sqrt(1.0f - dither.x * dither.x - dither.y * dither.y);
-	// 	 ditherNormal.z = -1.0f;
-
-
-
     vec2 screenSpacePosition2D = texcoord.st;
     vec3 cameraSpacePosition = convertScreenSpaceToWorldSpace(screenSpacePosition2D);
 
     vec3 cameraSpaceNormal = surface.normal;
-    	 // cameraSpaceNormal += ditherNormal * 0.05f;
 
     vec3 cameraSpaceViewDir = normalize(cameraSpacePosition);
     vec3 cameraSpaceVector = initialStepAmount * normalize(reflect(cameraSpaceViewDir,cameraSpaceNormal));
@@ -453,22 +446,15 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
     int count = 0;
 	vec2 finalSamplePos = vec2(0.0f);
 
-    while(count < far/initialStepAmount*reflectionRange)
-    {
+    while(count < far/initialStepAmount*reflectionRange) {
         if(currentPosition.x < 0 || currentPosition.x > 1 ||
            currentPosition.y < 0 || currentPosition.y > 1 ||
            currentPosition.z < 0 || currentPosition.z > 1) {
-
-		   break;
-
-		   }
+		   	break;
+		}
 
         vec2 samplePos = currentPosition.xy;
         float sampleDepth = convertScreenSpaceToWorldSpace(samplePos).z;
-
-        // if (sampleDepth <= -far) {
-        // 	break;
-        // }
 
         float currentDepth = cameraSpaceVectorPosition.z;
         float diff = sampleDepth - currentDepth;
@@ -478,6 +464,7 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 			break;
 		}
 
+		// TODO: make the step growth factor a parameter
 		cameraSpaceVector *= 2.5f;	//Each step gets bigger
 
         cameraSpaceVectorPosition += cameraSpaceVector;
@@ -497,7 +484,6 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 	}
 
 	color.a *= clamp(1 - pow(distance(vec2(0.5), finalSamplePos)*2.0, 2.0), 0.0, 1.0);
-	// color.a *= 1.0f - float(GetMaterialMask(finalSamplePos, 0, surface.mask.matIDs));
 
     return color;
 }
@@ -1167,16 +1153,24 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	specularity *= 1.0f - surface.cloudAlpha;
 
 	if (specularity > 0.00f) {
-		vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
+		vec4 reflection = vec4( 0.0f );
+		vec3 origNormal = surface.normal;
+		for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
+			vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
 
-		surface.normal += noise3 * 0.00f;
-#ifdef NEW_WATER_REFLECT
-		vec4 reflection = ComputeRaytraceReflection(surface);
-#endif
+			surface.normal = origNormal + (noise3 * surface.roughness);
+			#ifdef NEW_WATER_REFLECT
+			reflection += ComputeRaytraceReflection(surface);
+			#endif
 
-#ifdef OLD_WATER_REFLECT
-		vec4 reflection = ComputeWaterReflection(surface);
-#endif
+			#ifdef OLD_WATER_REFLECT
+			reflection += ComputeWaterReflection(surface);
+			#endif
+		}
+
+		reflection /= NUM_REFLECTION_RAYS;
+		surface.normal = origNormal;
+
 		float surfaceLightmap = GetLightmapSky(texcoord.st);
 #ifdef NEW_WATER_REFLECT
 		vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
@@ -1343,15 +1337,13 @@ return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////MAIN////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 void main() {
 
 	surface.color = pow(texture2DLod(gcolor, texcoord.st, 0).rgb, vec3(2.2f));
-	/*surface.normal = GetNormals(texcoord.st);
+	surface.normal = GetNormals(texcoord.st);
 	surface.depth = GetDepth(texcoord.st);
 	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
 	surface.viewSpacePosition = GetViewSpacePosition(texcoord.st);
@@ -1480,7 +1472,7 @@ if (isEyeInWater > 0.9) {
 
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
-*/
+
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }
