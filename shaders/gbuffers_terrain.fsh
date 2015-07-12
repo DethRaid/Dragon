@@ -190,6 +190,9 @@ float GetModulatedRainSpecular(in vec3 pos) {
 }
 
 vec4 GetTexture(in sampler2D tex, in vec2 coord) {
+    if( coord.x < 0.0f || coord.x > 1.0f || coord.y < 0.0f || coord.y > 1.0f ) {
+        return vec4( 0.0 );
+    }
 	#ifdef PARALLAX
 		vec4 t = vec4(0.0f);
 		if (distance < 10.0f) {
@@ -211,8 +214,10 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector) {
 
 	float parallaxDepth = 1.0f;
 
-	if (materialIDs > 2.5f && materialIDs < 3.5f)
+    // perform a stronger parallax mapping for leaves
+	if (materialIDs > 2.5f && materialIDs < 3.5f) {
 		parallaxDepth = 2.0f;
+    }
 
 	stepSize.xy *= parallaxDepth;
 
@@ -340,6 +345,7 @@ void main() {
 		  mats_1 += 0.1f;
 
 	gl_FragData[0] = albedo;
+    //gl_FragData[0] = vec4( parallaxCoord.st, 0.0, 1.0 );
 
 	//Depth
 	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);

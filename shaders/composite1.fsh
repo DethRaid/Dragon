@@ -1905,7 +1905,7 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	}
 
   	// Generate the specular color from the metalness
-  	surface.specular.specularColor = mix( vec3( 0.92 ), surface.albedo, surface.specular.metallic);
+  	surface.specular.specularColor = vec3( 1.0 ) - mix( vec3( 0.03 ), surface.albedo, surface.specular.metallic);
 
   	float ndotv = max( dot( surface.normal, -normalize( surface.viewVector ) ), 0.0f );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
@@ -2217,7 +2217,7 @@ void main() {
 		finalComposite.b = 0.0f;
 	}
 
-	//finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
+	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
 	//finalComposite = vec3( surface.albedo );
 
 #ifdef NO_GODRAYS

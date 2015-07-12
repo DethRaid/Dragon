@@ -353,31 +353,31 @@ struct SurfaceStruct {
 	MaskStruct 		mask;			//Material ID Masks
 
 	//Properties that are required for lighting calculation
-		vec3 	color;					//Diffuse texture aka "color texture"
-		vec3 	normal;					//Screen-space surface normals
-		float 	depth;					//Scene depth
-		float 	linearDepth;			//Scene depth
+	vec3 	color;					//Diffuse texture aka "color texture"
+	vec3 	normal;					//Screen-space surface normals
+	float 	depth;					//Scene depth
+	float 	linearDepth;			//Scene depth
 
-		float 	rDepth;
-		float  	specularity;
-		vec3 	specularColor;
-		float 	roughness;
-		float   fresnelPower;
-		float 	baseSpecularity;
-		Ray 	viewRay;
+	float 	rDepth;
+	float  	specularity;
+	vec3 	specularColor;
+	float 	roughness;
+	float   fresnelPower;
+	float 	baseSpecularity;
+	Ray 	viewRay;
 
 
-		vec4 	viewSpacePosition;
-		vec4 	worldSpacePosition;
-		vec3 	worldLightVector;
-		vec3  	upVector;
-		vec3 	lightVector;
+	vec4 	viewSpacePosition;
+	vec4 	worldSpacePosition;
+	vec3 	worldLightVector;
+	vec3  	upVector;
+	vec3 	lightVector;
 
-		float 	sunlightVisibility;
+	float 	sunlightVisibility;
 
-		vec4 	reflection;
+	vec4 	reflection;
 
-		float 	cloudAlpha;
+	float 	cloudAlpha;
 } surface;
 
 struct Intersection {
