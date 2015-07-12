@@ -1092,7 +1092,7 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
 		vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
 
-		//surface.normal = origNormal + (noise3 * surface.roughness);
+		surface.normal = origNormal + (noise3 * surface.roughness);
 		#ifdef NEW_WATER_REFLECT
 		reflection += ComputeRaytraceReflection(surface);
 		#endif
@@ -1124,7 +1124,7 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
 	reflection.a = fakeSkyReflection.a;
 
-	reflection.rgb *= surface.fresnel;
+	reflection.rgb *= surface.fresnel * surface.roughness;
 
 	surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
 	surface.reflection = reflection;
@@ -1259,6 +1259,85 @@ float getnoise(vec2 pos) {
 	return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 }
 
+void calculateMoonRays( inout SurfaceStruct surface, in float truepos ) {
+	vec4 tpos = vec4(-sunPosition,1.0)*gbufferProjection;
+	tpos = vec4(tpos.xyz/tpos.w,1.0);
+	vec2 pos1 = tpos.xy/tpos.z;
+	vec2 lightPos = pos1*0.5+0.5;
+	float gr = 0.0;
+
+	if (truepos > 0.05) {
+		vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
+		vec2 textCoord = texcoord.st;
+		deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
+		float illuminationDecay = 1.0;
+		gr = 0.0;
+		float avgdecay = 0.0;
+		float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
+		float disty = abs(texcoord.y-lightPos.y);
+		illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),5.0);
+		float fallof = 1.0;
+		const int nSteps = 9;
+		const float blurScale = 0.002;
+		deltaTextCoord = normalize(deltaTextCoord);
+		int center = (nSteps-1)/2;
+		vec3 blur = vec3(0.0);
+		float tw = 0.0;
+		float sigma = 0.25;
+		float A = 1.0/sqrt(2.0*3.14159265359*sigma);
+		textCoord -= deltaTextCoord*center*blurScale;
+
+		for(int i=0; i < nSteps ; i++) {
+			textCoord += deltaTextCoord*blurScale;
+			float dist = (i-float(center))/center;
+			float weight = A*exp(-(dist*dist)/(2.0*sigma));
+			float sample = texture2D(gcolor, textCoord).a*weight;
+
+			tw += weight;
+			gr += sample;
+		}
+		surface.color.rgb += 5.0f*colorSunlight*Moon_exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay/2.5*truepos*timeMidnight;
+	}
+}
+
+void calculateGodRays( inout SurfaceStruct surface ) {
+	vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
+	tpos = vec4(tpos.xyz/tpos.w,1.0);
+	vec2 pos1 = tpos.xy/tpos.z;
+	vec2 lightPos = pos1*0.5+0.5;
+	float gr = 0.0;
+	vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
+	vec2 textCoord = texcoord.st;
+	deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
+	float illuminationDecay = 1.0;
+	float avgdecay = 0.0;
+	float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
+	float disty = abs(texcoord.y-lightPos.y);
+	illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),7.8);
+	float fallof = 1.0;
+	const int nSteps = 9;
+	const float blurScale = 0.002;
+	deltaTextCoord = normalize(deltaTextCoord);
+	int center = (nSteps-1)/2;
+	vec3 blur = vec3(0.0);
+	float tw = 0.0;
+	float sigma = 0.25;
+	float A = 1.0/sqrt(2.0*3.14159265359*sigma);
+	textCoord -= deltaTextCoord*center*blurScale;
+
+	for(int i=0; i < nSteps ; i++) {
+		textCoord += deltaTextCoord*blurScale;
+		float dist = (i-float(center))/center;
+		float weight = A*exp(-(dist*dist)/(2.0*sigma));
+		float sample = texture2D(gcolor, textCoord).a*weight;
+
+		tw += weight;
+		gr += sample;
+	}
+
+	surface.color.rgb += colorSunlight*exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay*timeNoon*2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////MAIN////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1298,12 +1377,6 @@ void main() {
 		CloudPlane(surface);
 	#endif
 
-	vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
-	tpos = vec4(tpos.xyz/tpos.w,1.0);
-	vec2 pos1 = tpos.xy/tpos.z;
-	vec2 lightPos = pos1*0.5+0.5;
-	float gr = 0.0;
-
 	#ifdef GODRAYS
 
 	#ifdef NO_UNDERWATER_RAYS
@@ -1312,79 +1385,11 @@ void main() {
 
 	float truepos = sign(sunPosition.z); //temporary fix that check if the sun/moon position is correct
 	if (truepos < 0.05) {
-			vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
-			vec2 textCoord = texcoord.st;
-			deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
-			float illuminationDecay = 1.0;
-			gr = 0.0;
-			float avgdecay = 0.0;
-			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
-			float disty = abs(texcoord.y-lightPos.y);
-			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),7.8);
-			float fallof = 1.0;
-			const int nSteps = 9;
-			const float blurScale = 0.002;
-			deltaTextCoord = normalize(deltaTextCoord);
-			int center = (nSteps-1)/2;
-			vec3 blur = vec3(0.0);
-			float tw = 0.0;
-			float sigma = 0.25;
-			float A = 1.0/sqrt(2.0*3.14159265359*sigma);
-			textCoord -= deltaTextCoord*center*blurScale;
-
-			for(int i=0; i < nSteps ; i++) {
-				textCoord += deltaTextCoord*blurScale;
-				float dist = (i-float(center))/center;
-				float weight = A*exp(-(dist*dist)/(2.0*sigma));
-				float sample = texture2D(gcolor, textCoord).a*weight;
-
-				tw += weight;
-				gr += sample;
-			}
-
-		surface.color.rgb += colorSunlight*exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay*timeNoon*2;
-
-
+		calculateGodRays( surface );
 	}
 	#ifdef MOONRAYS
 	else {
-		tpos = vec4(-sunPosition,1.0)*gbufferProjection;
-		tpos = vec4(tpos.xyz/tpos.w,1.0);
-		pos1 = tpos.xy/tpos.z;
-		lightPos = pos1*0.5+0.5;
-
-		if (truepos > 0.05) {
-			vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
-			vec2 textCoord = texcoord.st;
-			deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
-			float illuminationDecay = 1.0;
-			gr = 0.0;
-			float avgdecay = 0.0;
-			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
-			float disty = abs(texcoord.y-lightPos.y);
-			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),5.0);
-			float fallof = 1.0;
-			const int nSteps = 9;
-			const float blurScale = 0.002;
-			deltaTextCoord = normalize(deltaTextCoord);
-			int center = (nSteps-1)/2;
-			vec3 blur = vec3(0.0);
-			float tw = 0.0;
-			float sigma = 0.25;
-			float A = 1.0/sqrt(2.0*3.14159265359*sigma);
-			textCoord -= deltaTextCoord*center*blurScale;
-
-			for(int i=0; i < nSteps ; i++) {
-				textCoord += deltaTextCoord*blurScale;
-				float dist = (i-float(center))/center;
-				float weight = A*exp(-(dist*dist)/(2.0*sigma));
-				float sample = texture2D(gcolor, textCoord).a*weight;
-
-				tw += weight;
-				gr += sample;
-			}
-			surface.color.rgb += 5.0f*colorSunlight*Moon_exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay/2.5*truepos*timeMidnight;
-		}
+		calculateMoonRays( surface, truepos );
 	}
 
 	#endif
@@ -1396,6 +1401,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
+	//surface.color = vec3( surface.roughness );
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }
