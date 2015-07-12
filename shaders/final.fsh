@@ -2257,7 +2257,7 @@ float gen = 1.0-fract((ftime+0.5)*0.5);
 		vec3 color = GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));	//Sample gcolor texture
 
 	#endif
-/*
+
 #ifdef MOTIONBLUR
 	MotionBlur(color);
 #endif
@@ -2266,10 +2266,10 @@ float gen = 1.0-fract((ftime+0.5)*0.5);
 	DepthOfField(color);
 #endif
 
-	//CalculateBloom(bloomData);			//Gather bloom textures
-	//color = mix(color, bloomData.bloom, vec3(0.0095f));
+	CalculateBloom(bloomData);			//Gather bloom textures
+	color = mix(color, bloomData.bloom, vec3(0.0095f));
 
-	//AddRainFogScatter(color, bloomData);
+	AddRainFogScatter(color, bloomData);
 
 	//vec3 highpass = (GetColorTexture(texcoord.st).rgb - bloomData.blur0);
 
@@ -2305,7 +2305,7 @@ float gen = 1.0-fract((ftime+0.5)*0.5);
 #ifdef MOON_GLOW
 	MoonGlow(color);
 #endif
-*/
+
 	gl_FragColor = vec4(color.rgb, 1.0f);
 
 }
