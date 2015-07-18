@@ -21,7 +21,6 @@ uniform sampler2D lightmap;
 uniform sampler2D normals;
 uniform sampler2D specular;
 uniform sampler2D noisetex;
-//uniform float wetness;
 uniform float wetness;
 uniform float frameTimeCounter;
 uniform vec3 sunPosition;
@@ -49,6 +48,9 @@ varying float materialIDs;
 
 varying float distance;
 varying float idCheck;
+
+varying float smoothness_in;
+varying float metalness_in;
 
 const int GL_LINEAR = 9729;
 const int GL_EXP = 2048;
@@ -206,7 +208,6 @@ vec4 GetTexture(in sampler2D tex, in vec2 coord) {
 	#endif
 }
 
-
 vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector) {
 	vec2 parallaxCoord = coord.st;
 	const int maxSteps = 112;
@@ -332,15 +333,6 @@ void main() {
 
 	albedo.rgb = pow(albedo.rgb, vec3(mix(1.0f, 1.25f, darkFactor)));
 
-	float metallicMask = 0.0f;
-
-	if (   abs(materialIDs - 20.0f) < 0.1f
-		|| abs(materialIDs - 21.0f) < 0.1f
-        || abs(materialIDs - 22.0f) < 0.1f
-		|| abs(materialIDs - 23.0f) < 0.1f) {
-		metallicMask = 1.0f;
-	}
-
 	float mats_1 = materialIDs;
 		  mats_1 += 0.1f;
 
@@ -362,4 +354,6 @@ void main() {
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
 	#endif
 #endif
+
+	gl_FragData[3] = vec4( metalness_in, smoothness_in, 0.0f, 1.0f );
 }
