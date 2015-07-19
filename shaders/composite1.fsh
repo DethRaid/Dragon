@@ -1910,7 +1910,7 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	float ndotv = max( dot( surface.normal, -normalize( surface.viewVector ) ), 0.0f );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
 	// Subtract the speculr color from the albedo to maintain conservaion of energy
-	surface.albedo -= surface.specular.fresnel * (1.0 - surface.specular.smoothness);
+	//surface.albedo -= surface.specular.fresnel * surface.specular.smoothness;
 }
 
 void calculateDirectLighting( inout ShadingStruct shading ) {
