@@ -171,7 +171,7 @@ float 	GetSpecularity(in vec2 coord) {
 	return texture2D(composite, coord).r;
 }
 
-float 	GetRoughness(in vec2 coord) {
+float 	GetSmoothness(in vec2 coord) {
 	return texture2D(composite, coord).b;
 }
 
@@ -359,7 +359,7 @@ struct SurfaceStruct {
 	float 	rDepth;
 	float  	specularity;
 	vec3 	specularColor;			// F0
-	float 	roughness;
+	float 	smoothness;
 	vec3    fresnel;
 	float 	baseSpecularity;
 	Ray 	viewRay;
@@ -424,11 +424,28 @@ vec3 calculateFresnelSchlick( in vec3 n, in float ndotv ) {
     return F0 + ((vec3( 1.0 ) - F0) * pow(1.0 - ndotv, 5.0));
 }
 
+// Calculate the LOD of the desired light buffer sample using an isosceles triangle to represent the ray
+float calcualteRaytraceLOD( in SurfaceStruct surface, in float rayLength ) {
+	float maxMipLevel = 10;	// TODO: Calculate this somehow
+
+	float specularPower = pow( 2, 10 * surface.smoothness + 1 );
+	const float xi = 0.244f;
+ 	float exponent = 1.0f / (specularPower + 1.0f);
+	float coneTheta = acos( pow( xi, exponent ) );
+
+	float oppositeLength = 2.0f * tan(coneTheta) * rayLength;
+
+	float a2 = oppositeLength * oppositeLength;
+ 	float fh2 = 4.0f * rayLength * rayLength;
+	float incircleSize = (oppositeLength * (sqrt(a2 + fh2) - oppositeLength)) / (4.0f * rayLength);
+
+	return clamp( log2( incircleSize * max( viewWidth, viewHeight ) ), 0.0f, maxMipLevel );
+}
+
 vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 	float reflectionRange = 2.0f;
-    float initialStepAmount = 1.0 - clamp(1.0f / 100.0, 0.0, 0.99);
-		  initialStepAmount *= 1.0f;
-	float stepRefinementAmount = .1;
+    float initialStepAmount = 0.99f;
+	float stepRefinementAmount = 0.1;
 	int maxRefinements = 0;
 
     vec2 screenSpacePosition2D = texcoord.st;
@@ -438,15 +455,15 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 
     vec3 cameraSpaceViewDir = normalize(cameraSpacePosition);
     vec3 cameraSpaceVector = initialStepAmount * normalize(reflect(cameraSpaceViewDir,cameraSpaceNormal));
-	vec3 oldPosition = cameraSpacePosition;
-    vec3 cameraSpaceVectorPosition = oldPosition + cameraSpaceVector;
+    vec3 cameraSpaceVectorPosition = cameraSpacePosition + cameraSpaceVector;
     vec3 currentPosition = convertCameraSpaceToScreenSpace(cameraSpaceVectorPosition);
+    vec3 startPosition = currentPosition;
     vec4 color = vec4(pow(texture2D(gcolor, screenSpacePosition2D).rgb, vec3(3.0f + 1.2f)), 0.0);
 	int numRefinements = 0;
     int count = 0;
 	vec2 finalSamplePos = vec2(0.0f);
 
-    while(count < far/initialStepAmount*reflectionRange) {
+    while(count < far / initialStepAmount * reflectionRange) {
         if(currentPosition.x < 0 || currentPosition.x > 1 ||
            currentPosition.y < 0 || currentPosition.y > 1 ||
            currentPosition.z < 0 || currentPosition.z > 1) {
@@ -456,10 +473,8 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
         vec2 samplePos = currentPosition.xy;
         float sampleDepth = convertScreenSpaceToWorldSpace(samplePos).z;
 
-        float currentDepth = cameraSpaceVectorPosition.z;
-        float diff = sampleDepth - currentDepth;
-        float error = length(cameraSpaceVector);
-        if(diff >= 0 && diff <= error * 1.00f) {
+        float diff = sampleDepth - cameraSpaceVectorPosition.z;
+        if(diff >= 0 && diff <= length(cameraSpaceVector) * 1.00f) {
 			finalSamplePos = samplePos;
 			break;
 		}
@@ -471,12 +486,16 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 		currentPosition = convertCameraSpaceToScreenSpace(cameraSpaceVectorPosition);
         count++;
     }
+
+    float lod = calcualteRaytraceLOD( surface, length( startPosition - currentPosition ) );
+
 #ifdef GODRAYS
-	color = pow(texture2DLod(gcolor, finalSamplePos, 0), vec4(2.2f)); color.a = 1.0;
+	color = pow(texture2DLod(gcolor, finalSamplePos, lod), vec4(2.2f));
+	color.a = 1.0;
 #endif
 
 #ifdef NO_GODRAYS
-	color = pow(texture2DLod(gcolor, finalSamplePos, 0), vec4(2.2f));
+	color = pow(texture2DLod(gcolor, finalSamplePos, lod), vec4(2.2f));
 #endif
 
 	if (finalSamplePos.x == 0.0f || finalSamplePos.y == 0.0f) {
@@ -594,12 +613,12 @@ float   CalculateSunspot(in SurfaceStruct surface) {
 
 	float sunProximity = abs(1.0f - dot(halfVector2, npos));
 
-	float sizeFactor = 0.959f - surface.roughness * 0.7f;
+	float sizeFactor = 0.959f - surface.smoothness * 0.7f;
 
 	float sunSpot = (clamp(sunProximity, sizeFactor, 0.96f) - sizeFactor) / (0.96f - sizeFactor);
 		  sunSpot = pow(cubicPulse(1.0f, 1.0f, sunSpot), 2.0f);
 
-	float result = sunSpot / (surface.roughness * 20.0f + 0.1f);
+	float result = sunSpot / (surface.smoothness * 20.0f + 0.1f);
 
 		  result *= surface.sunlightVisibility;
 
@@ -706,6 +725,7 @@ vec3 	ComputeReflectedSkyGradient(in SurfaceStruct surface) {
 	return skyColor;
 }
 
+// TODO: Make this function consider roughness
 vec3 	ComputeReflectedSkybox(in SurfaceStruct surface) {
 	float curve = 3.0f;
 	vec3 npos = normalize(surface.worldSpacePosition.xyz);
@@ -875,8 +895,8 @@ vec4 CloudColor2(in vec4 worldPosition, in float sunglow, in vec3 worldLightVect
 	float coverage = 0.478f + rainy * 0.35f;
 #endif
 
-		  float dist = length(worldPosition.xz - cameraPosition.xz);
-		  coverage *= max(0.0f, 1.0f - dist / mix(10000.0f, 3000.0f, rainStrength));
+	float dist = length(worldPosition.xz - cameraPosition.xz);
+	coverage *= max(0.0f, 1.0f - dist / mix(10000.0f, 3000.0f, rainStrength));
 	float density = 0.0f;
 
 	if (isShadowPass) {
@@ -1089,20 +1109,21 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 	vec4 reflection = vec4( 0.0f );
 	vec3 origNormal = surface.normal;
-	for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
-		vec3 noise3 = vec3(noise(0.0f), noise(1.0f), noise(2.0f));
+	//for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
+		//vec3 noise3 = vec3(noise(i), noise(i + 1), noise(i + 2));
 
-		surface.normal = origNormal + (noise3 * surface.roughness);
+		//surface.normal = origNormal + (noise3 * (1.0 - surface.smoothness));
+
 		#ifdef NEW_WATER_REFLECT
-		reflection += ComputeRaytraceReflection(surface);
+		reflection = ComputeRaytraceReflection(surface);
 		#endif
 
 		#ifdef OLD_WATER_REFLECT
-		reflection += ComputeWaterReflection(surface);
+		reflection = ComputeWaterReflection(surface);
 		#endif
-	}
+	//}
 
-	reflection /= NUM_REFLECTION_RAYS;
+	//reflection /= NUM_REFLECTION_RAYS;
 	surface.normal = origNormal;
 
 	float surfaceLightmap = GetLightmapSky(texcoord.st);
@@ -1124,7 +1145,7 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
 	reflection.a = fakeSkyReflection.a;
 
-	reflection.rgb *= surface.fresnel * surface.roughness;
+	reflection.rgb *= surface.fresnel * surface.smoothness;
 
 	surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
 	surface.reflection = reflection;
@@ -1136,7 +1157,7 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 
 		float HdotN = max(0.0f, dot(halfVector, surface.normal.xyz));
 
-		float gloss = pow(1.0f - surface.roughness + 0.01f, 4.5f);
+		float gloss = pow(surface.smoothness + 0.01f, 4.5f);
 
 		HdotN = clamp(HdotN * (1.0f + gloss * 0.01f), 0.0f, 1.0f);
 
@@ -1156,7 +1177,7 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 
 void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 	float specularity = surface.specularity;
-	float roughness = 0.7f;
+	float smoothness = 0.7f;
 	float spread = 0.02f;
 
 	specularity *= 1.0f - float(surface.mask.sky);
@@ -1166,9 +1187,7 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 	surface.baseSpecularity = 0.0f;
 
 	if (surface.mask.ironBlock) {
-		roughness = 0.9f;
-		//specularity = 1.0f;
-		//surface.baseSpecularity = 1.0f;
+		smoothness = 0.9f;
 	}
 
 	if (surface.mask.goldBlock) {
@@ -1176,8 +1195,6 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 	}
 
 	if (specularity > 0.01f) {
-		float fresnel = 1.0f - clamp(-dot(normalize(surface.viewSpacePosition.xyz), surface.normal.xyz), 0.0f, 1.0f);
-
 		for (int i = 1; i <= 10; i++) {
 			vec2 translation = vec2(surface.normal.x, surface.normal.y) * i * spread;
 				 translation *= vec2(1.0f, viewWidth / viewHeight);
@@ -1188,7 +1205,7 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 			vec2 scaling = vec2(1.0f + faceFactor * (i / 10.0f) * 2.0f);
 
 			float r = float(i) + 4.0f;
-				  r *= roughness * 0.8f;
+				  r *= smoothness * 0.8f;
 			int 	ri = int(floor(r));
 			float 	rf = fract(r);
 
@@ -1199,9 +1216,6 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 		}
 
 		reflectionSum.rgb /= 10.0f;
-
-		fresnel *= 0.9;
-		fresnel = pow(fresnel, 5.0);
 
 		surface.color = mix(surface.color, reflectionSum.rgb * 1.0f, vec3(specularity) * surface.fresnel);
 	}
@@ -1358,7 +1372,7 @@ void main() {
 
 	surface.specularity = GetSpecularity(texcoord.st);
 	surface.specularColor = mix( vec3( 0.03 ), surface.color, surface.specularity );
-	surface.roughness = 1.0f - GetRoughness(texcoord.st);
+	surface.smoothness = GetSmoothness(texcoord.st);
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
 	surface.fresnel = calculateFresnelSchlick( vec3( 1.0 ) - surface.specularColor, ndotv );
@@ -1401,7 +1415,6 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
-	//surface.color = vec3( surface.roughness );
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }

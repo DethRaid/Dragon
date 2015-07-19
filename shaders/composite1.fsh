@@ -291,11 +291,11 @@ float 	GetUnderwaterLightmapSky(in vec2 coord) {
 }
 
 float   getMetalness( in vec2 coord ) {
-    return step( 0.25, texture2D( composite, coord ).r );
+    return texture2D( composite, coord ).r;
 }
 
-// Retrieves the roughness of a given fragment
-float 	GetRoughness(in vec2 coord) {
+// Retrieves the smoothness of a given fragment
+float 	GetSmoothness(in vec2 coord) {
 	return texture2D(composite, texcoord.st).g;
 }
 
@@ -548,14 +548,14 @@ struct MCLightmapStruct {		//Lightmaps directly from MC engine
 } mcLightmap;
 
 struct DiffuseAttributesStruct {			//Diffuse surface shading attributes
-	float roughness;			//Roughness of surface. More roughness will use Oren Nayar reflectance.
+	float smoothness;			//Smoothness of surface. More smoothness will use Oren Nayar reflectance.
 	float translucency; 		//How translucent the surface is. Translucency represents how much energy will be transfered through the surface
 	vec3  translucencyColor; 	//Color that will be multiplied with sunlight for backsides of translucent materials.
 };
 
 struct SpecularAttributesStruct {			//Specular surface shading attributes
 	vec3 specularColor;		    //How reflective a surface is
-	float roughness;			//How smooth or rough a specular surface is
+	float smoothness;			//How smooth or rough a specular surface is
 	float metallic;				//from 0 - 1. 0 representing non-metallic, 1 representing fully metallic.
 	vec3 fresnel;
 };
@@ -1892,11 +1892,11 @@ void initializeLightmap( inout MCLightmapStruct mcLightmap ) {
 
 void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	//Initialize default surface shading attributes
-	surface.diffuse.roughness 			= GetRoughness(texcoord.st);
+	surface.diffuse.smoothness 			= GetSmoothness(texcoord.st);
 	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
 	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
 
-	surface.specular.roughness 		    = GetRoughness(texcoord.st);
+	surface.specular.smoothness 		    = GetSmoothness(texcoord.st);
   	// If the surface is more than 50% specular, I assume it's a metal. This is probably wrong. A PBR texture pack could fix this
 	surface.specular.metallic 			= getMetalness( texcoord.st );
   	// For some reason, leaves are considered to be super specular. I need to get rid of that
@@ -1910,7 +1910,7 @@ void initializeDiffuseAndSpecular( inout SurfaceStruct surface ) {
   	float ndotv = max( dot( surface.normal, -normalize( surface.viewVector ) ), 0.0f );
 	surface.specular.fresnel        = calculateFresnelSchlick( surface.specular.specularColor, ndotv );
 	// Subtract the speculr color from the albedo to maintain conservaion of energy
-	surface.albedo -= surface.specular.fresnel * (1.0 - surface.specular.roughness);
+	surface.albedo -= surface.specular.fresnel * (1.0 - surface.specular.smoothness);
 }
 
 void calculateDirectLighting( inout ShadingStruct shading ) {
@@ -2217,8 +2217,7 @@ void main() {
 		finalComposite.b = 0.0f;
 	}
 
-	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
-	//finalComposite = vec3( surface.albedo );
+	//finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
 
 #ifdef NO_GODRAYS
 	gl_FragData[0] = vec4(finalComposite, 1.0f);
@@ -2234,5 +2233,5 @@ void main() {
 		gl_FragData[1] = vec4(surface.mask.matIDs, surface.shadow * surface.cloudShadow * pow(mcLightmap.sky, 0.2f), mcLightmap.sky, 1.0f);
 #endif
 	gl_FragData[2] = vec4(surface.normal.rgb * 0.5f + 0.5f, 1.0f);
-	gl_FragData[3] = vec4(surface.specular.metallic, surface.cloudAlpha, surface.specular.roughness, 1.0f);
+	gl_FragData[3] = vec4(surface.specular.metallic, surface.cloudAlpha, surface.specular.smoothness, 1.0f);
 }

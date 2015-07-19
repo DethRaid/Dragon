@@ -263,6 +263,9 @@ void main() {
 
 	float w = wetness;
 
+	// R: smoothness
+	// G: 
+	// B: Metalness
 	vec4 spec = GetTexture(specular, parallaxCoord.st);
 	vec4 specs = texture2D(specular, parallaxCoord.st);
 
@@ -270,7 +273,6 @@ void main() {
 
 #ifdef OLD_SPECULAR
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-	//wet *= wetAngle;
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f) {
 	} else {
@@ -337,7 +339,6 @@ void main() {
 		  mats_1 += 0.1f;
 
 	gl_FragData[0] = albedo;
-    //gl_FragData[0] = vec4( parallaxCoord.st, 0.0, 1.0 );
 
 	//Depth
 	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);
@@ -348,12 +349,10 @@ void main() {
 #ifdef SPECULARITY
 	//specularity
 	#ifdef NEW_SPECULAR
-	gl_FragData[3] = vec4(spec.r + spec.g, spec.b, 0.0f, 1.0f);
+	gl_FragData[3] = vec4(spec.b, spec.r, 0.0f, 1.0f);
 	#endif
 	#ifdef OLD_SPECULAR
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
 	#endif
 #endif
-
-	gl_FragData[3] = vec4( metalness_in, smoothness_in, 0.0f, 1.0f );
 }
