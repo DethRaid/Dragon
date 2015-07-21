@@ -349,6 +349,8 @@ void main() {
 #ifdef SPECULARITY
 	//specularity
 	#ifdef NEW_SPECULAR
+	// R: metalness
+	// G: smoothness
 	gl_FragData[3] = vec4(spec.b, spec.r, 0.0f, 1.0f);
 	#endif
 	#ifdef OLD_SPECULAR

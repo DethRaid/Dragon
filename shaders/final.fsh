@@ -2130,7 +2130,7 @@ void main() {
 		float ftime = frameTimeCounter*2.0/lifetime;
 		vec2 drop = vec2(0.0,fract(frameTimeCounter/10.0));
 
-float gen = 1.0-fract((ftime+0.5)*0.5);
+		float gen = 1.0-fract((ftime+0.5)*0.5);
 		vec2 pos = (noisepattern(vec2(-0.94386347*floor(ftime*0.5+0.25),floor(ftime*0.5+0.25))))*0.8+0.1 - drop;
 		rainlens += gen_circular_lens(fract(pos),0.04)*gen*rainStrength;
 

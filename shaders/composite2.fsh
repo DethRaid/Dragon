@@ -1415,6 +1415,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
+	//surface.color = surface.fresnel;
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }
