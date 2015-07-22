@@ -30,18 +30,17 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 //#define DOF						// Shader Options in-Game: set HandDepth to 0.2500
 
+#define RAIN_LENS
+
+#define RainFog2						//This is a second layer of fog that more or less masks the rain on the horizon 
+	#define FOG_DENSITY	0.01f			//Default is 0.043f
+
 //#define LENS_FLARE				// Thanks to CatMan from SEUS forums
 	#define BIG_RAINBOW
 
 //#define MOON_GLOW
 
-//#define SHAKING_CAMERA
 
-//#define ANTI_ALIASING //ColorSampleValue = 7.0
-	#define PASS_2 //ColorSampleValue = 14.0
-	//#define PASS_4 //ColorSampleValue = 28.0
-
-	#define ColorSampleValue 14.0
 
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -623,7 +622,7 @@ void 	AddRainFogScatter(inout vec3 color, in BloomDataStruct bloomData)
 
 	float linearDepth = GetDepthLinear(texcoord.st);
 
-	float fogDensity = 0.043f * (rainStrength);
+	float fogDensity = FOG_DENSITY * (rainStrength);
 		  //fogDensity += texture2D(composite, texcoord.st).g * 0.1f;
 	float visibility = 1.0f / (pow(exp(linearDepth * fogDensity), 1.0f));
 	float fogFactor = 1.0f - visibility;
@@ -2093,15 +2092,7 @@ float ld(float depth) {
     return (2.0 * near) / (far + near - depth * (far - near));
 }
 
-#ifdef SHAKING_CAMERA
 
-	vec2 shaking_camera = vec2(0.0015 * sin(frameTimeCounter * 2.0), 0.0015 * cos(frameTimeCounter * 3.0));
-
-#else
-
-	vec2 shaking_camera = vec2(0.0, 0.0);
-
-#endif
 
 float distratio(vec2 pos, vec2 pos2) {
 	float xvect = pos.x*aspectRatio-pos2.x*aspectRatio;
@@ -2130,6 +2121,7 @@ void main() {
 		float ftime = frameTimeCounter*2.0/lifetime;
 		vec2 drop = vec2(0.0,fract(frameTimeCounter/10.0));
 
+#ifdef RAIN_LENS		
 		float gen = 1.0-fract((ftime+0.5)*0.5);
 		vec2 pos = (noisepattern(vec2(-0.94386347*floor(ftime*0.5+0.25),floor(ftime*0.5+0.25))))*0.8+0.1 - drop;
 		rainlens += gen_circular_lens(fract(pos),0.04)*gen*rainStrength;
@@ -2167,96 +2159,18 @@ void main() {
 		rainlens += gen_circular_lens(fract(pos),0.029)*gen*rainStrength*5;
 
 		rainlens *= clamp((eyeBrightness.y-220)/15.0,0.0,1.0);
+#endif
+
 
 	vec2 fake_refract = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter*2.5 + texcoord.y*100.0 + texcoord.x*25.0)) * isEyeInWater;
 	vec2 Fake_Refract_1 = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter + texcoord.y*100.0 + texcoord.x*25.0)) ;
 
-	#ifdef ANTI_ALIASING
+	
 
-		bool antialiasAll = true;
-
-		float border = 1.0;
-
-		//edge detect
-		float d = edepth(texcoord.xy);
-		float dtresh = 1/(far-near)/5000.0;
-		vec4 dc = vec4(d,d,d,d);
-		vec4 sa;
-		vec4 sb;
-		sa.x = edepth(texcoord.xy + vec2(-pw,-ph)*border);
-		sa.y = edepth(texcoord.xy + vec2(pw,-ph)*border);
-		sa.z = edepth(texcoord.xy + vec2(-pw,0.0)*border);
-		sa.w = edepth(texcoord.xy + vec2(0.0,ph)*border);
-
-		//opposite side samples
-		sb.x = edepth(texcoord.xy + vec2(pw,ph)*border);
-		sb.y = edepth(texcoord.xy + vec2(-pw,ph)*border);
-		sb.z = edepth(texcoord.xy + vec2(pw,0.0)*border);
-		sb.w = edepth(texcoord.xy + vec2(0.0,-ph)*border);
-
-		vec4 dd = abs(2.0* dc - sa - sb) - dtresh;
-		dd = vec4(step(dd.x,0.0),step(dd.y,0.0),step(dd.z,0.0),step(dd.w,0.0));
-
-		float e = 1.0 - clamp(dot(dd,vec4(0.5f,0.5f,0.5f,0.5f)),0.0,1.0);
-
-		float depth_diff = clamp(1.0-pow(ld(texture2D(depthtex0, texcoord.st).r)*5.0,2.0),0.0,1.0);
-
-		float AAsample = 0.0;
-
-		if (antialiasAll) {
-			AAsample = 1.0 + (depth_diff);
-		}
-
-		float AAsampleE = e + (depth_diff * e);
-		float sampleOffset = AAsample * 0.0002 + AAsampleE * 0.0003;
-
-
-		vec3 colorSample = vec3(0.0);
-			//First pass
-			 colorSample += GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, sampleOffset) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, sampleOffset) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, -sampleOffset) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, -sampleOffset) + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));;
-			 #ifdef PASS_2
-			 //Second Pass
-			 colorSample += GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));;
-			 #endif
-			 #ifdef PASS_4
-			 //Third Pass
-			 colorSample += GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 //Fourth Pass
-			 colorSample += GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(sampleOffset, sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, 0.0) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(0.0, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			 colorSample += GetColorTexture(texcoord.st + vec2(-sampleOffset, -sampleOffset) + shaking_camera + fake_refract * 0.003+ 0.005 * (rainlens + Fake_Refract_1*0.001));
-			#endif
-
-		vec3 color = colorSample / ColorSampleValue;
-
-
-	#else
-
-		vec3 color = GetColorTexture(texcoord.st + shaking_camera + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));	//Sample gcolor texture
-
-	#endif
+		vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));	//Sample gcolor texture
+			 color += rainlens*vec3(0.25,0.3,0.4)/315999*timeNoon;
+			 color += rainlens*vec3(0.25,0.3,0.4)/535999*timeMidnight/33;
+	
 
 #ifdef MOTIONBLUR
 	MotionBlur(color);
@@ -2269,7 +2183,9 @@ void main() {
 	CalculateBloom(bloomData);			//Gather bloom textures
 	color = mix(color, bloomData.bloom, vec3(0.0095f));
 
+#ifdef RainFog2
 	AddRainFogScatter(color, bloomData);
+#endif
 
 	//vec3 highpass = (GetColorTexture(texcoord.st).rgb - bloomData.blur0);
 
