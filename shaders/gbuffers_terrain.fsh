@@ -261,8 +261,6 @@ void main() {
 
 	float height = GetTexture(normals, parallaxCoord).a;
 
-	float w = wetness;
-
 	// R: smoothness
 	// G: 
 	// B: Metalness
@@ -276,8 +274,8 @@ void main() {
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f) {
 	} else {
-		 specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
-		 specs.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
+		 specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - wetness) * 1.0f);
+		 specs.r += max(0.0f, (wet) - (1.0f - wetness) * 1.0f) * wetness;
 	}
 #endif
 
@@ -289,8 +287,8 @@ void main() {
 		spec.g = 0.0f;
 	} else {
 		wet = clamp(wet * 1.5f - 0.2f, 0.0f, 1.0f);
-		spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
-		spec.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
+		spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - wetness) * 1.0f);
+		spec.r += max(0.0f, (wet) - (1.0f - wetness) * 1.0f) * wetness;
 	}
 #endif
 
@@ -305,7 +303,7 @@ void main() {
 	lightmap.r = pow(lightmap.r, 3.0f);
 
 	float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
-	 	  wetfactor *= w;
+	 	  wetfactor *= wetness;
 
 	 spec.g *= wetfactor;
 
@@ -351,7 +349,7 @@ void main() {
 	#ifdef NEW_SPECULAR
 	// R: metalness
 	// G: smoothness
-	gl_FragData[3] = vec4(spec.b, spec.r, 0.0f, 1.0f);
+	gl_FragData[3] = vec4(spec.b, spec.r + spec.g, 0.0f, 1.0f);
 	#endif
 	#ifdef OLD_SPECULAR
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
