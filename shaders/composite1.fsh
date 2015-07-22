@@ -1,7 +1,54 @@
 #version 120
 
-/////////ADJUSTABLE VARIABLES///////////////////////////////////////////////////////////////////
-/////////ADJUSTABLE VARIABLES///////////////////////////////////////////////////////////////////
+
+/** DethRaid's shadowing Information **/
+
+
+/* //--LIGHT_SIZE--//
+ * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
+ * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
+ * you'd see if the Earth's sun was as big in the sky as Minecraft's
+ */
+ 
+
+ /* //--MIN_PENUMBRA_SIZE--//
+ * Defined the minimum about of shadow blur when PCSS is enabled. A value of
+ * 0.175 allows for reasonably hard shadows with a very minimal amount of
+ * aliasing, a value of 0.45 almost completely removes aliasing but doesn't
+ * allow hard shadows when the distance from the shadow caster to the shadow
+ * receiver is very small
+ */
+ 
+ 
+ /* //--BLOCKER_SEARCH_SAMPLES_HALF--//
+ * The number of samples to use for PCSS's blocker search. A higher value allows
+ * for higher quality shadows at the expense of framerate 
+ */
+ 
+ 
+ /* //--PCF_SIZE_HALF--//
+ * The number of samples to use for shadow blurring. More samples means blurrier
+ * shadows at the expense of framerate. A value of 5 is recommended
+ */
+ 
+ 
+ /* //--USE_RANDOM_ROTATION--//
+ * If set to 1, a random rotation will be applied to the shadow filter to reduce
+ * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
+ * resulting in ugly banding but giving you a few more frames per second.
+ */
+ 
+
+/* //--SHADOW_MODE--//
+ * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
+ * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
+ * shadows with a variable-size blur. PCSS is the most realistic option but also
+ * the slowest, HARD is the fastest at the expense of realism.
+ */
+
+/////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #define SHADOW_MAP_BIAS 0.80f
 
 /////////////////////////CONFIGURABLE VARIABLES////////////////////////////////////////////////////////
@@ -16,53 +63,26 @@
 #define PCSS            2
 #define POISSON         3
 
-/*
- * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
- * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
- * you'd see if the Earth's sun was as big in the sky as Minecraft's
- */
-#define LIGHT_SIZE                  15
 
-/*
- * Defined the minimum about of shadow blur when PCSS is enabled. A value of
- * 0.175 allows for reasonably hard shadows with a very minimal amount of
- * aliasing, a value of 0.45 almost completely removes aliasing but doesn't
- * allow hard shadows when the distance from the shadow caster to the shadow
- * receiver is very small
- */
+#define LIGHT_SIZE                  7		//for shadow res 4096 have set at 7, if shadow res is at 2048 or lower have set at 4
+
 #define MIN_PENUMBRA_SIZE           0.175
 
-/*
- * The number of samples to use for PCSS's blocker search. A higher value allows
- * for higher quality shadows at the expense of framerate
- */
-#define BLOCKER_SEARCH_SAMPLES_HALF 5
+#define BLOCKER_SEARCH_SAMPLES_HALF 4
 
-/*
- * The number of samples to use for shadow blurring. More samples means blurrier
- * shadows at the expense of framerate. A value of 5 is recommended
- */
-#define PCF_SIZE_HALF               5
 
-/*
- * If set to 1, a random rotation will be applied to the shadow filter to reduce
- * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
- * resulting in ugly banding but giving you a few more frames per second.
- */
+#define PCF_SIZE_HALF               4
+
+
 #define USE_RANDOM_ROTATION         1
 
-/*
- * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
- * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
- * shadows with a variable-size blur. PCSS is the most realistic option but also
- * the slowest, HARD is the fastest at the expense of realism.
- */
 #define SHADOW_MODE                 PCSS
 
 const bool 		shadowHardwareFiltering0 = false;
 /* End of Dethraid's CHS variables */
 
 #define RAIN_FOG
+	#define FOG_DENSITY	0.0030f			//default is 0.0018f and is best if using RainFog2 from final
 
 #define ATMOSPHERIC_FOG
 
@@ -84,7 +104,7 @@ const bool 		shadowHardwareFiltering0 = false;
 
 //----------New Cloud Shadows----------//
 //--Only enable one or the other not both--//
-#define CLOUD_SHADOW
+//#define CLOUD_SHADOW
 //----------End CONFIGURABLE Cloud Shadows----------//
 
 #define HELD_LIGHT				//Dynamic Torch Light when in player hand
@@ -1280,7 +1300,7 @@ Intersection 	RayPlaneIntersection(in Ray ray, in Plane plane) {
 void 	CalculateRainFog(inout vec3 color, in SurfaceStruct surface) {
 	vec3 fogColor = colorSkylight * 0.055f;
 
-	float fogDensity = 0.0018f * rainStrength;
+	float fogDensity = FOG_DENSITY * rainStrength;
 		  fogDensity *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 6.0f));
 	float visibility = 1.0f / (pow(exp(distance(surface.screenSpacePosition.xyz, vec3(0.0f)) * fogDensity), 1.0f));
 	float fogFactor = 1.0f - visibility;

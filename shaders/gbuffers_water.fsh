@@ -282,7 +282,7 @@ void main() {
 
 		waterColor = normalize(waterColor);
 
-		tex = vec4(0.2f, 0.65f, 1.3f, 200.0f/255.0f);
+		tex = vec4(0.2f, 0.7f, 0.95f, 200.0f/255.0f);
 		tex.rgb *= 1.0f * waterColor.rgb;
 		tex.rgb *= vec3(lum);
 
