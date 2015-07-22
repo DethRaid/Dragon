@@ -663,7 +663,7 @@ vec3 	ComputeReflectedSkyGradient(in SurfaceStruct surface) {
 	skyColor *= mix(vec3(1.0f), color1, vec3(fade1));
 
 	float fade2 = clamp(skyGradientFactor - 0.11f - fadeSize, 0.0f, 0.2f + fadeSize) / (0.2f + fadeSize);
-	vec3 color2 = vec3(1.7f, 1.0f, 0.8f) / 2.0f;
+	vec3 color2 = vec3(1.7f, 1.0f, 0.8f) * 0.5f;
 		 color2 = mix(color2, vec3(1.0f, 0.15f, 0.5f), vec3(timeSunrise + timeSunset));
 
 
@@ -849,8 +849,8 @@ float GetCoverage(in float coverage, in float density, in float clouds) {
 vec4 CloudColor2(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector, in float altitude, in float thickness, const bool isShadowPass) {
 	float cloudHeight = altitude;
 	float cloudDepth  = thickness;
-	float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
-	float cloudLowerHeight = cloudHeight - (cloudDepth / 2.0f);
+	float cloudUpperHeight = cloudHeight + (cloudDepth * 0.5f);
+	float cloudLowerHeight = cloudHeight - (cloudDepth * 0.5f);
 
 	worldPosition.xz /= 1.0f + max(0.0f, length(worldPosition.xz - cameraPosition.xz) / 9001.0f);
 
@@ -910,7 +910,7 @@ vec4 CloudColor2(in vec4 worldPosition, in float sunglow, in vec3 worldLightVect
 
 
 		float sundiff = Get3DNoise(p1 + worldLightVector.xyz * lightOffset);
-			  sundiff += (2.0f - abs(Get3DNoise(p2 + worldLightVector.xyz * lightOffset / 2.0f) * 2.0f - 0.0f)) * (0.55f);
+			  sundiff += (2.0f - abs(Get3DNoise(p2 + worldLightVector.xyz * lightOffset * 0.5f) * 2.0f - 0.0f)) * (0.55f);
 			  				float largeSundiff = sundiff;
 			  				      largeSundiff = -GetCoverage(coverage, 0.0f, largeSundiff * 1.3f);
 			  sundiff += (3.0f - abs(Get3DNoise(p3 + worldLightVector.xyz * lightOffset / 5.0f) * 3.0f - 0.0f)) * (0.065f);
@@ -1235,8 +1235,8 @@ vec4 TextureSmooth(in sampler2D tex, in vec2 coord, in int level) {
 void SmoothSky(inout SurfaceStruct surface) {
 	const float cloudHeight = 170.0f;
 	const float cloudDepth = 60.0f;
-	const float cloudMaxHeight = cloudHeight + cloudDepth / 2.0f;
-	const float cloudMinHeight = cloudHeight - cloudDepth / 2.0f;
+	const float cloudMaxHeight = cloudHeight + cloudDepth * 0.5f;
+	const float cloudMinHeight = cloudHeight - cloudDepth * 0.5f;
 
 	float cameraHeight = cameraPosition.y;
 	float surfaceHeight = surface.worldSpacePosition.y;

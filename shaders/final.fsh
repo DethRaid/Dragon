@@ -32,7 +32,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define RAIN_LENS
 
-#define RainFog2						//This is a second layer of fog that more or less masks the rain on the horizon 
+#define RainFog2						//This is a second layer of fog that more or less masks the rain on the horizon
 	#define FOG_DENSITY	0.01f			//Default is 0.043f
 
 //#define LENS_FLARE				// Thanks to CatMan from SEUS forums
@@ -1251,7 +1251,7 @@ vec3 sP = sunPosition;
 
 
 
-        color += (tempColor3 / 4.0f);
+        color += (tempColor3 * 0.25f);
         color += (tempColor4 / 1.0f);
     color += (tempColor * 1.0f);
 
@@ -2037,7 +2037,7 @@ void MoonGlow(inout vec3 color)
    tpos = vec4(tpos.xyz / tpos.w, 1.0);
 
     vec2 lPos = tpos.xy / tpos.z;
-    lPos = (lPos + 1.0f) / 2.0f;
+    lPos = (lPos + 1.0f) * 0.5f;
 
     vec2 checkcoord = lPos;
 
@@ -2121,7 +2121,7 @@ void main() {
 		float ftime = frameTimeCounter*2.0/lifetime;
 		vec2 drop = vec2(0.0,fract(frameTimeCounter/10.0));
 
-#ifdef RAIN_LENS		
+#ifdef RAIN_LENS
 		float gen = 1.0-fract((ftime+0.5)*0.5);
 		vec2 pos = (noisepattern(vec2(-0.94386347*floor(ftime*0.5+0.25),floor(ftime*0.5+0.25))))*0.8+0.1 - drop;
 		rainlens += gen_circular_lens(fract(pos),0.04)*gen*rainStrength;
@@ -2165,12 +2165,12 @@ void main() {
 	vec2 fake_refract = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter*2.5 + texcoord.y*100.0 + texcoord.x*25.0)) * isEyeInWater;
 	vec2 Fake_Refract_1 = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter + texcoord.y*100.0 + texcoord.x*25.0)) ;
 
-	
+
 
 		vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));	//Sample gcolor texture
 			 color += rainlens*vec3(0.25,0.3,0.4)/315999*timeNoon;
 			 color += rainlens*vec3(0.25,0.3,0.4)/535999*timeMidnight/33;
-	
+
 
 #ifdef MOTIONBLUR
 	MotionBlur(color);

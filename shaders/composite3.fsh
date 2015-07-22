@@ -51,7 +51,7 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 
 				float weight = 1.0f - distance(vec2(i, j), vec2(2.5f)) / 3.5;
 					  weight = clamp(weight, 0.0f, 1.0f);
-					  weight = 1.0f - cos(weight * 3.1415 / 2.0f);
+					  weight = 1.0f - cos(weight * 3.1415 * 0.5f);
 					  weight = pow(weight, 2.0f);
 				vec2 coord = vec2(i - 2.5, j - 2.5);
 					 coord.x /= viewWidth;

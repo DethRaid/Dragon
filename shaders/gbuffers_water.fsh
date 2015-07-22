@@ -109,10 +109,10 @@ vec4 textureSmooth(in sampler2D tex, in vec2 coord) {
 
 	part.x = part.x * part.x * (3.0f - 2.0f * part.x);
 	part.y = part.y * part.y * (3.0f - 2.0f * part.y);
-#ifdef SMOOTH_WATER	
+#ifdef SMOOTH_WATER
 	 part.x = 1.0f - (cos(part.x * 3.1415f) * 0.5f + 0.5f);
 	 part.y = 1.0f - (cos(part.y * 3.1415f) * 0.5f + 0.5f);
-#endif	
+#endif
 
 	coord = whole + part;
 
@@ -123,7 +123,7 @@ vec4 textureSmooth(in sampler2D tex, in vec2 coord) {
 }
 
 float Parabola(in float x, in float k) {
-	x / 2.0f;
+	x * 0.5f;
 	return pow(4.0f * x * (1.0f - x), k);
 }
 
@@ -149,43 +149,43 @@ float GetWaves(vec3 position, in float scale) {
 
 	p.x += (FRAME_TIME / 20.0f) * speed;
 	p.y -= (FRAME_TIME / 20.0f) * speed;
-	
-#ifdef RAIN_WATER_SPEED	
+
+#ifdef RAIN_WATER_SPEED
 	p.x += (FRAME_TIME / 9.0f) * speed * rainStrength;
 	p.y -= (FRAME_TIME / 9.0f) * speed * rainStrength;
 #endif
-	
+
 	float weight = 1.0f;
 	float weights = weight;
 	float allwaves = 0.0f;
 
-	float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x; 			
-	p /= 2.1f; 		
+	float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x;
+	p /= 2.1f;
 	p.y -= (FRAME_TIME / 50.0f) * speed; p.x -= (FRAME_TIME / 30.0f) * speed;
 		  //wave = wave * wave * (3.0f - 2.0f * wave);
 	allwaves += wave;
 
-	weight = 2.1f;	
+	weight = 2.1f;
 	weights += weight;
-		  wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.4f))  + vec2(0.0f,  -p.x * 2.1f) ).x;	
+		  wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.4f))  + vec2(0.0f,  -p.x * 2.1f) ).x;
 
 		  p /= 1.5f;
 		  p.x += (FRAME_TIME / 20.0f) * speed;
 		  wave *= weight;
 	allwaves += wave;
 
-	weight = 7.25f;	
-	weights += weight;	
-		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  p.x * 1.1f) ).x);		
-		  p /= 1.3f; 	
+	weight = 7.25f;
+	weights += weight;
+		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  p.x * 1.1f) ).x);
+		  p /= 1.3f;
 		  p.x -= (FRAME_TIME / 25.0f) * speed;
 		  wave *= weight;
 	allwaves += wave;
 
-	weight = 9.25f;	
-	weights += weight;	
-		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		
-		  p /= 1.9f; 	
+	weight = 9.25f;
+	weights += weight;
+		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);
+		  p /= 1.9f;
 		  p.x += (FRAME_TIME / 155.0f) * speed;
 		  wave *= weight;
 	allwaves += wave;
@@ -205,7 +205,7 @@ vec3 GetWaterParallaxCoord(in vec3 position, in vec3 viewVector) {
 		vec3 pCoord = vec3(0.0f, 0.0f, 1.0f);
 
 		vec3 step = viewVector * stepSize;
-		float distAngleWeight = ((distance * 0.2f) * (2.1f - viewVector.z)) / 2.0f;
+		float distAngleWeight = ((distance * 0.2f) * (2.1f - viewVector.z)) * 0.5f;
 		distAngleWeight = 1.0f;
 		step *= distAngleWeight;
 
@@ -245,7 +245,7 @@ vec3 GetWavesNormal(vec3 position, in float scale, in mat3 tbnMatrix) {
 
 		 wavesNormal.r *= 43.0f * WAVE_HEIGHT / sampleDistance;
 		 wavesNormal.g *= 43.0f * WAVE_HEIGHT / sampleDistance;
-		 
+
 
 		 wavesNormal.b = sqrt(1.0f - wavesNormal.r * wavesNormal.r - wavesNormal.g * wavesNormal.g);
 		 wavesNormal.rgb = normalize(wavesNormal.rgb);
@@ -255,11 +255,11 @@ vec3 GetWavesNormal(vec3 position, in float scale, in mat3 tbnMatrix) {
 
 void main() {
 	vec4 tex = texture2D(texture, texcoord.st);
-	
+
 	float zero = 1.0f;
 	float transx = 0.0f;
 	float transy = 0.0f;
-	
+
 	float texblock = 0.0625f;
 
 	bool backfacing = false;
@@ -289,9 +289,9 @@ void main() {
 	} else if (iswater > 0.5f && backfacing) {
 		tex = vec4(0.0, 0.0, 0.0f, 30.0f / 255.0f);
 	}
-	
+
 	//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
-		
+
 	//Separate lightmap types
 	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	lightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
