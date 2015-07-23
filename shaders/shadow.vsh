@@ -141,10 +141,10 @@ void main() {
 	//Wheat
 	if (mc_Entity.x == 59.0) {
 		materialIDs = max(materialIDs, 2.0f);
-	}
-
+	}	
+	
 	//Leaves
-	if   ( mc_Entity.x == 18.0
+	if   ( mc_Entity.x == 18.0 
 
 		|| mc_Entity.x == 161.0f
 		|| mc_Entity.x == 1962.0f //Biomes O Plenty: Leaves
@@ -163,25 +163,25 @@ void main() {
 		 ) {
 		materialIDs = max(materialIDs, 3.0f);
 	}
-
-#ifdef WAVING_LEAVES
-//Leaves//
+	
+#ifdef WAVING_LEAVES	
+//Leaves//	
 	const float pi = 3.14159265f;
 float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
 		  lightWeight *= 1.1f;
 		  lightWeight -= 0.1f;
 		  lightWeight = max(0.0f, lightWeight);
-		  lightWeight = pow(lightWeight, 5.0f);
+		  lightWeight = pow(lightWeight, 5.0f); 
 	float tick = frameTimeCounter;
-
-//Leaves//
+	
+//Leaves//		
 	 //large scale movement
     if (materialIDs == 3.0f && texcoord.t < 1.90 && texcoord.t > -1.0) {
 		float speed = 0.05;
 
 
 			  //lightWeight = max(0.0f, 1.0f - (lightWeight * 5.0f));
-
+		
 		float magnitude = (sin((position.y + position.x + tick * pi / ((28.0) * speed))) * 0.15 + 0.15) * 0.30 * lightWeight;
 			  //magnitude *= grassWeight;
 			  magnitude *= lightWeight;
@@ -192,16 +192,16 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 		position.x += sin((tick * pi / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude * (1.0f + rainStrength * 1.0f);
 		position.z += sin((tick * pi / (17.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude * (1.0f + rainStrength * 1.0f);
 		position.y += sin((tick * pi / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/2.0) * (1.0f + rainStrength * 1.0f);
-
+		
 	}
-
+	
 
 	//lower leaf movement
 	if (materialIDs == 3.0f) {
 		float speed = 0.075;
 
 
-
+		
 		float magnitude = (sin((tick * pi / ((28.0) * speed))) * 0.05 + 0.15) * 0.075 * lightWeight;
 			  //magnitude *= 1.0f - grassWeight;
 			  magnitude *= lightWeight;
@@ -212,10 +212,10 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 		position.x += sin((tick * pi / (13.0 * speed)) + (position.x + d0)*0.9 + (position.z + d1)*0.9) * magnitude;
 		position.z += sin((tick * pi / (16.0 * speed)) + (position.z + d2)*0.9 + (position.x + d3)*0.9) * magnitude;
 		position.y += sin((tick * pi / (15.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/1.0);
-	}
-#endif
+	}		
+#endif	
 
-
+	
 	//Ice
 	if (  mc_Entity.x == 79.0f
 	   || mc_Entity.x == 174.0f)
@@ -231,7 +231,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 
 	float grassWeight = mod(texcoord.t * 16.0f, 1.0f / 16.0f);
 
-
+	
 
 		  if (grassWeight < 0.01f) {
 		  	grassWeight = 1.0f;
@@ -263,7 +263,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 
 
 		vec3 p = position.xyz;
-		 	 p.x += sin(p.z * 0.5f) * 1.0f;
+		 	 p.x += sin(p.z / 2.0f) * 1.0f;
 		 	 p.xz += stochLarge.rg * 5.0f;
 
 		float windStrength = mix(0.85f, 1.0f, rainStrength);
@@ -301,10 +301,10 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 		float windStrengthCrossfade = clamp(windStrength * 2.0f - 1.0f, 0.0f, 1.0f);
 		float lightWindFade = clamp(windStrength * 2.0f, 0.2f, 1.0f);
 
-		angleLight.x += sin(frameTimeCounter * lightAxialFrequency 		- p.x * lightAxialWaveLocalization		+ stoch.x * lightAxialRandomization) 	* lightAxialAmplitude 		+ lightAxialOffset;
+		angleLight.x += sin(frameTimeCounter * lightAxialFrequency 		- p.x * lightAxialWaveLocalization		+ stoch.x * lightAxialRandomization) 	* lightAxialAmplitude 		+ lightAxialOffset;	
 		angleLight.y += sin(frameTimeCounter * lightLateralFrequency 	- p.x * lightLateralWaveLocalization 	+ stoch.x * lightLateralRandomization) 	* lightLateralAmplitude  	+ lightLateralOffset;
 
-		angleHeavy.x += sin(frameTimeCounter * heavyAxialFrequency 		- p.x * heavyAxialWaveLocalization		+ stoch.x * heavyAxialRandomization) 	* heavyAxialAmplitude 		+ heavyAxialOffset;
+		angleHeavy.x += sin(frameTimeCounter * heavyAxialFrequency 		- p.x * heavyAxialWaveLocalization		+ stoch.x * heavyAxialRandomization) 	* heavyAxialAmplitude 		+ heavyAxialOffset;	
 		angleHeavy.y += sin(frameTimeCounter * heavyLateralFrequency 	- p.x * heavyLateralWaveLocalization 	+ stoch.x * heavyLateralRandomization) 	* heavyLateralAmplitude  	+ heavyLateralOffset;
 
 		angle = mix(angleLight * lightWindFade, angleHeavy, vec2(windStrengthCrossfade));
@@ -316,8 +316,8 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 		position.y += (cos(((angle.x + angle.y) / 180.0f) * 3.141579f) - 1.0f)  * grassWeight * lightWeight	* 1.0f	;
 	}
 
-
-
+	
+	
 #ifdef WAVING_VINES
     //large scale movement
     if ( mc_Entity.x == ENTITY_VINES ) {
@@ -333,7 +333,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
         //position.z -= 0.05;
         //position.y += sin((worldTime * 3.14159265358979323846264 / (10.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/2.0);
     }
-
+   
     //small scale movement
     if (mc_Entity.x == 106.0 && texcoord.t < 0.20) {
         float speed = 1.1;
@@ -350,7 +350,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
     }
 #endif
 
-    // Transition from
+    // Transition from 
 	//position = gbufferModelViewInverse * position;
 	position.xyz -= cameraPosition.xyz;
 	position = shadowModelView * position;
@@ -363,7 +363,7 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 
 
 	gl_Position = position;
-
+    
 	float dist = sqrt(gl_Position.x * gl_Position.x + gl_Position.y * gl_Position.y);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
@@ -377,5 +377,5 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 	color = gl_Color;
 
 
-
+	
 }
