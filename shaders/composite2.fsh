@@ -16,7 +16,8 @@
 #define NEW_WATER_REFLECT			//Best version to use 95% of bugs gone/ small bug with the sunrise/set when looking down into water
 
 //----------Refletion--------//
-#define NUM_REFLECTION_RAYS		1
+#define NUM_REFLECTION_RAYS		2
+#define MULTIPLE_RAYS			0
 //----End Reflections--------//
 
 //----------GodRays----------//
@@ -488,6 +489,10 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
     }
 
     float lod = calcualteRaytraceLOD( surface, length( startPosition - currentPosition ) );
+
+    #if MULTIPLE_RAYS
+    lod = 0;
+    #endif
 
 #ifdef GODRAYS
 	color = pow(texture2DLod(gcolor, finalSamplePos, lod), vec4(2.2f));
@@ -1099,8 +1104,6 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 #endif
 
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
-	bool defaultItself = false;
-
 	surface.rDepth = 0.0f;
 
 	if (surface.mask.sky) {
@@ -1109,10 +1112,12 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 	vec4 reflection = vec4( 0.0f );
 	vec3 origNormal = surface.normal;
-	//for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
-		//vec3 noise3 = vec3(noise(i), noise(i + 1), noise(i + 2));
+	#if MULTIPLE_RAYS
+	for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
+		vec3 noise3 = vec3(noise(float(i) * 0.1), noise(float(i) + 0.1), noise(float(i) + 0.2));
 
-		//surface.normal = origNormal + (noise3 * (1.0 - surface.smoothness));
+		surface.normal = origNormal + (noise3 * (1.0 - surface.smoothness));
+		#endif
 
 		#ifdef NEW_WATER_REFLECT
 		reflection = ComputeRaytraceReflection(surface);
@@ -1121,9 +1126,13 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 		#ifdef OLD_WATER_REFLECT
 		reflection = ComputeWaterReflection(surface);
 		#endif
-	//}
 
-	//reflection /= NUM_REFLECTION_RAYS;
+	#if MULTIPLE_RAYS
+	}
+
+	reflection /= NUM_REFLECTION_RAYS;
+	#endif
+
 	surface.normal = origNormal;
 
 	float surfaceLightmap = GetLightmapSky(texcoord.st);
@@ -1137,17 +1146,14 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 	vec3 noSkyToReflect = vec3(0.0f);
 
-	if (defaultItself){
-		noSkyToReflect = surface.color.rgb;
-	}
-
 	fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
 	reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
 	reflection.a = fakeSkyReflection.a;
 
-	reflection.rgb *= surface.fresnel * surface.smoothness;
+	reflection.rgb *= surface.fresnel;
 
-	surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
+	surface.color = mix(surface.color, reflection.rgb, vec3( reflection.a ) );
+	surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
 	surface.reflection = reflection;
 }
 
@@ -1270,7 +1276,7 @@ void FixNormals(inout vec3 normal, in vec3 viewPosition) {
 }
 
 float getnoise(vec2 pos) {
-	return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
+	return abs(fract(sin(dot(pos, vec2(18.9898f,28.633f))) * 4378.5453f));
 }
 
 void calculateMoonRays( inout SurfaceStruct surface, in float truepos ) {
@@ -1370,12 +1376,13 @@ void main() {
 	vec4 wlv 					= shadowModelViewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	surface.worldLightVector 	= normalize(wlv.xyz);
 
-	surface.specularity = GetSpecularity(texcoord.st);
-	surface.specularColor = mix( vec3( 0.03 ), surface.color, surface.specularity );
 	surface.smoothness = GetSmoothness(texcoord.st);
 
+	surface.specularity = GetSpecularity(texcoord.st);
+	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
+
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
-	surface.fresnel = calculateFresnelSchlick( vec3( 1.0 ) - surface.specularColor, ndotv );
+	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv );
 	surface.baseSpecularity = 0.02f;
 
 	surface.mask.matIDs = GetMaterialIDs(texcoord.st);
@@ -1415,7 +1422,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
-	//surface.color = surface.fresnel;
+	//surface.color = surface.fresnel / 5000.0;
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 }

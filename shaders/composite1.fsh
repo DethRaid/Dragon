@@ -1938,7 +1938,7 @@ void calculateDirectLighting( inout ShadingStruct shading ) {
 	CalculateNdotL(surface);
 	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
 	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.direct 				= mix( shading.direct, 1.0f, surface.specular.metallic );	// Remove diffuse lighting from metals
+	shading.direct 				= mix( shading.direct, 0.0f, surface.specular.metallic );	// Remove diffuse lighting from metals
 	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
 	shading.direct 				*= shading.sunlightVisibility;
 	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
