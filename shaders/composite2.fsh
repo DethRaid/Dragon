@@ -1379,10 +1379,17 @@ void main() {
 	surface.smoothness = GetSmoothness(texcoord.st);
 
 	surface.specularity = GetSpecularity(texcoord.st);
-	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
+	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity );
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
-	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv );
+    // Multiply the fresnel by the smoothness, so that rougher things hafe less strong reflections
+
+	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv ) * max( 0.01, surface.smoothness );
+
+    // Multiply the fresnel by the specular color when the fragment is a metal
+    // This is a fix because the normal equations give metals a specular color of pure white, which is not desireable
+    surface.fresnel *= mix( vec3( 1.0 ), vec3( 1.0 ) - surface.specularColor, surface.specularity );
+
 	surface.baseSpecularity = 0.02f;
 
 	surface.mask.matIDs = GetMaterialIDs(texcoord.st);
