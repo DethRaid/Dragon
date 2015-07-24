@@ -903,26 +903,22 @@ float 	CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct
 	if (rainStrength >= 0.99f)
 		return 1.0f;
 
-	if (shadingStruct.direct > 0.0f) {
-		float distance = sqrt(  surface.screenSpacePosition.x * surface.screenSpacePosition.x 	//Get surface distance in meters
-							  + surface.screenSpacePosition.y * surface.screenSpacePosition.y
-							  + surface.screenSpacePosition.z * surface.screenSpacePosition.z);
+	float distance = sqrt(  surface.screenSpacePosition.x * surface.screenSpacePosition.x 	//Get surface distance in meters
+						  + surface.screenSpacePosition.y * surface.screenSpacePosition.y
+						  + surface.screenSpacePosition.z * surface.screenSpacePosition.z);
 
-		vec4 worldposition = vec4(0.0f);
-			worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
+	vec4 worldposition = vec4(0.0f);
+		worldposition = gbufferModelViewInverse * surface.screenSpacePosition;		//Transform from screen space to world space
 
-		float CalcShad = calcShadowing( worldposition, surface.normal );
+	float CalcShad = calcShadowing( worldposition, surface.normal );
 
-        float fademult = 0.15f;
-		float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
-		float shading = mix(1.0f, CalcShad, shadowMult);
+    float fademult = 0.15f;
+	float shadowMult = clamp((shadowDistance * 0.85f * fademult) - (distance * fademult), 0.0f, 1.0f);	//Calculate shadowMult to fade shadows out;
+	float shading = mix(1.0f, CalcShad, shadowMult);
 
-		surface.shadow = shading;
+	surface.shadow = shading;
 
-		return shading;
-	} else {
-		return 0.0f;
-	}
+	return shading * step( 0.01, shadingStruct.direct );
 }
 
 float 	CalculateBouncedSunlight(in SurfaceStruct surface) {
@@ -1938,19 +1934,18 @@ void calculateDirectLighting( inout ShadingStruct shading ) {
 	CalculateNdotL(surface);
 	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
 	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.direct 				= mix( shading.direct, 0.0f, surface.specular.metallic );	// Remove diffuse lighting from metals
-	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
+	shading.sunlightVisibility 	= mix( CalculateSunlightVisibility(surface, shading), 1.0, surface.specular.metallic );//Calculate shadows and apply them to direct lighting
 	shading.direct 				*= shading.sunlightVisibility;
 	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
 	shading.waterDirect 		= shading.direct;
 	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
-	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
-	shading.heldLight 	= CalculateHeldLightShading(surface);
+	shading.skylight 			= CalculateSkylight(surface);					//Calculate scattered light from sky
+	shading.heldLight 			= CalculateHeldLightShading(surface);
 
 #ifndef GI
-	shading.bounced 	= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
-	shading.scattered 	= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
-	shading.scatteredUp = CalculateScatteredUpLight(surface);
+	shading.bounced 			= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
+	shading.scattered 			= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
+	shading.scatteredUp 		= CalculateScatteredUpLight(surface);
 #endif
 }
 
@@ -2238,7 +2233,7 @@ void main() {
 		finalComposite.b = 0.0f;
 	}
 
-	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
+	//finalComposite = mix( finalComposite, (vec3( 1.0 ) - surface.specular.specularColor) * 0.1, surface.specular.metallic );
 	//finalComposite = vec3( surface.specular.metallic );
 
 #ifdef NO_GODRAYS
