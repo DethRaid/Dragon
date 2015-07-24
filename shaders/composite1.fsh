@@ -2238,7 +2238,7 @@ void main() {
 		finalComposite.b = 0.0f;
 	}
 
-	finalComposite = mix( finalComposite, surface.specular.specularColor, surface.specular.metallic );
+	finalComposite = mix( finalComposite, (vec3( 1.0 ) - surface.specular.specularColor), surface.specular.metallic );
 	//finalComposite = vec3( surface.specular.metallic );
 
 #ifdef NO_GODRAYS

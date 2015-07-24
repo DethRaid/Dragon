@@ -12,12 +12,23 @@
 //#define STANDARD_CLOUDS			// Enable this if only using 2D clouds
 #define ULTRA_CLOUDS				// Enable this if using 2D and 3D clouds for best effect (IMO)
 
-//#define OLD_WATER_REFLECT			//old version
 #define NEW_WATER_REFLECT			//Best version to use 95% of bugs gone/ small bug with the sunrise/set when looking down into water
+									// If you have issues, disable it to use the old reflection method
 
 //----------Refletion--------//
-#define NUM_REFLECTION_RAYS		2
-#define MULTIPLE_RAYS			0
+#define MAX_RAY_LENGTH          50.0
+#define MAX_DEPTH_DIFFERENCE    0.1 	//How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.35
+#define MAX_REFLECTIVITY        1.0 	//As this value approaches 1, so do all reflections
+#define RAY_DEPTH_BIAS          0.05   	//Serves the same purpose as a shadow bias
+#define RAY_GROWTH              1.0    	//Make this number smaller to get more accurate reflections at the cost of performance
+                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
+                                        //shorter and shorter until you're barely making any progress
+#define NUM_RAYS                1   	//The best setting in the whole shader pack. If you increase this value,
+                                    	//more and more rays will be sent per pixel, resulting in better and better
+                                    	//reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+
+
 //----End Reflections--------//
 
 //----------GodRays----------//
@@ -217,6 +228,12 @@ vec3 convertCameraSpaceToScreenSpace(vec3 cameraSpace) {
     vec3 screenSpace = 0.5 * NDCSpace + 0.5;
 		 screenSpace.z = 0.1f;
     return screenSpace;
+}
+
+vec2 getCoordFromCameraSpace( in vec3 position ) {
+    vec4 viewSpacePosition = gbufferProjection * vec4( position, 1 );
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
 }
 
 float  	CalculateDitherPattern1() {
@@ -441,75 +458,6 @@ float calcualteRaytraceLOD( in SurfaceStruct surface, in float rayLength ) {
 	float incircleSize = (oppositeLength * (sqrt(a2 + fh2) - oppositeLength)) / (4.0f * rayLength);
 
 	return clamp( log2( incircleSize * max( viewWidth, viewHeight ) ), 0.0f, maxMipLevel );
-}
-
-vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
-	float reflectionRange = 2.0f;
-    float initialStepAmount = 0.99f;
-	float stepRefinementAmount = 0.1;
-	int maxRefinements = 0;
-
-    vec2 screenSpacePosition2D = texcoord.st;
-    vec3 cameraSpacePosition = convertScreenSpaceToWorldSpace(screenSpacePosition2D);
-
-    vec3 cameraSpaceNormal = surface.normal;
-
-    vec3 cameraSpaceViewDir = normalize(cameraSpacePosition);
-    vec3 cameraSpaceVector = initialStepAmount * normalize(reflect(cameraSpaceViewDir,cameraSpaceNormal));
-    vec3 cameraSpaceVectorPosition = cameraSpacePosition + cameraSpaceVector;
-    vec3 currentPosition = convertCameraSpaceToScreenSpace(cameraSpaceVectorPosition);
-    vec3 startPosition = currentPosition;
-    vec4 color = vec4(pow(texture2D(gcolor, screenSpacePosition2D).rgb, vec3(3.0f + 1.2f)), 0.0);
-	int numRefinements = 0;
-    int count = 0;
-	vec2 finalSamplePos = vec2(0.0f);
-
-    while(count < far / initialStepAmount * reflectionRange) {
-        if(currentPosition.x < 0 || currentPosition.x > 1 ||
-           currentPosition.y < 0 || currentPosition.y > 1 ||
-           currentPosition.z < 0 || currentPosition.z > 1) {
-		   	break;
-		}
-
-        vec2 samplePos = currentPosition.xy;
-        float sampleDepth = convertScreenSpaceToWorldSpace(samplePos).z;
-
-        float diff = sampleDepth - cameraSpaceVectorPosition.z;
-        if(diff >= 0 && diff <= length(cameraSpaceVector) * 1.00f) {
-			finalSamplePos = samplePos;
-			break;
-		}
-
-		// TODO: make the step growth factor a parameter
-		cameraSpaceVector *= 2.5f;	//Each step gets bigger
-
-        cameraSpaceVectorPosition += cameraSpaceVector;
-		currentPosition = convertCameraSpaceToScreenSpace(cameraSpaceVectorPosition);
-        count++;
-    }
-
-    float lod = calcualteRaytraceLOD( surface, length( startPosition - currentPosition ) );
-
-    #if MULTIPLE_RAYS
-    lod = 0;
-    #endif
-
-#ifdef GODRAYS
-	color = pow(texture2DLod(gcolor, finalSamplePos, lod), vec4(2.2f));
-	color.a = 1.0;
-#endif
-
-#ifdef NO_GODRAYS
-	color = pow(texture2DLod(gcolor, finalSamplePos, lod), vec4(2.2f));
-#endif
-
-	if (finalSamplePos.x == 0.0f || finalSamplePos.y == 0.0f) {
-		color.a = 0.0f;
-	}
-
-	color.a *= clamp(1 - pow(distance(vec2(0.5), finalSamplePos)*2.0, 2.0), 0.0, 1.0);
-
-    return color;
 }
 
 vec4 	ComputeWaterReflection(inout SurfaceStruct surface) {
@@ -1073,9 +1021,7 @@ vec4 	ComputeFakeSkyReflection(in SurfaceStruct surface) {
 
 	return color;
 }
-#endif
-
-#ifdef OLD_WATER_REFLECT
+#else
 vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 	float fresnelPower = 4.0f;
 
@@ -1103,6 +1049,98 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 }
 #endif
 
+//Determines the UV coordinate where the ray hits
+//If the returned value is not in the range [0, 1] then nothing was hit.
+//NOTHING!
+//Note that origin and direction are assumed to be in screen-space coordinates, such that 
+//  -origin.st is the texture coordinate of the ray's origin
+//  -direction.st is of such a length that it moves the equivalent of one texel
+//  -both origin.z and direction.z correspond to values raw from the depth buffer
+vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace( curPos );
+    direction = normalize( direction ) * RAY_STEP_LENGTH;
+    bool forward = true;
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for( int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++ ) {
+        curPos += direction;
+        curCoord = getCoordFromCameraSpace( curPos );
+        if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
+            //If we're here, the ray has gone off-screen so we can't reflect anything
+            return vec2( -1 );
+        }
+        if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
+            return vec2( -1 );
+        }
+        float worldDepth = GetViewSpacePosition( curCoord ).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = length( direction ) + RAY_DEPTH_BIAS;
+        if( forward ) {
+            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
+                //return curCoord;
+                direction = -1 * normalize( direction ) * 0.15;
+                forward = false;
+            } 
+        } else {
+            depthDiff *= -1;
+            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
+                return curCoord;
+            }
+        }
+        direction *= RAY_GROWTH;
+    }
+    //If we're here, we couldn't find anything to reflect within the alloted number of steps
+    return vec2( -1 ); 
+}
+
+vec4 doLightBounce( in SurfaceStruct pixel ) {
+    //Find where the ray hits
+    //get the blur at that point
+    //mix with the color 
+    vec3 rayStart = pixel.viewSpacePosition.xyz;
+    vec2 noiseCoord = vec2( texcoord.s * viewWidth / 64.0, texcoord.t * viewHeight / 64.0 );
+    vec3 retColor = vec3( 0 );
+    vec3 noiseSample = vec3( 0 );
+    vec3 reflectDir = vec3( 0 );
+    vec3 rayDir = vec3( 0 );
+    vec2 hitUV = vec2( 0 );
+
+    #ifdef NEW_WATER_REFLECT
+	vec4 skyColor = ComputeFakeSkyReflection(surface);
+	#else
+	vec4 skyColor = ComputeSkyReflection(surface);
+	#endif
+    
+    //trace the number of rays defined previously
+    for( int i = 0; i < NUM_RAYS; i++ ) {
+        noiseSample = texture2D( noisetex, noiseCoord * (i + 1) ).rgb * 2.0 - 1.0;
+        reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal );
+        reflectDir *= sign( dot( pixel.normal, reflectDir ) );
+        rayDir = reflect( normalize( rayStart ), reflectDir );
+    
+        hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
+        if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
+            retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
+        } else {
+            retColor += /*mix( pixel.color,*/ skyColor.rgb/*, float( pixel.mask.water ) )*/;
+        }
+    }
+    
+    vec4 color;
+    color.rgb = pow( retColor / NUM_RAYS, vec3( 2.0 ) );
+
+    #ifdef GODRAYS
+	color.a = 1.0;
+	#endif
+
+	//color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), finalSamplePos ) * 2.0, 2.0 ), 0.0, 1.0 );
+
+    return color;
+}
+
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	surface.rDepth = 0.0f;
 
@@ -1120,10 +1158,8 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 		#endif
 
 		#ifdef NEW_WATER_REFLECT
-		reflection = ComputeRaytraceReflection(surface);
-		#endif
-
-		#ifdef OLD_WATER_REFLECT
+		reflection = doLightBounce( surface );
+		#else
 		reflection = ComputeWaterReflection(surface);
 		#endif
 
@@ -1136,11 +1172,10 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	surface.normal = origNormal;
 
 	float surfaceLightmap = GetLightmapSky(texcoord.st);
+
 	#ifdef NEW_WATER_REFLECT
 	vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
-	#endif
-
-	#ifdef OLD_WATER_REFLECT
+	#else
 	vec4 fakeSkyReflection = ComputeSkyReflection(surface);
 	#endif
 
@@ -1379,7 +1414,7 @@ void main() {
 	surface.smoothness = GetSmoothness(texcoord.st);
 
 	surface.specularity = GetSpecularity(texcoord.st);
-	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
+	surface.specularColor = mix( vec3( 0.97 ), vec3( 1.0 ) - surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
 	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv );
