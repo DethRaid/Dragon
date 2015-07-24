@@ -22,6 +22,7 @@ const bool gnormalMipmapEnabled = true;
 
 uniform sampler2D gnormal;
 uniform sampler2D gcolor;
+uniform sampler2D gdepth;
 
 uniform float aspectRatio;
 uniform float viewWidth;
@@ -32,6 +33,10 @@ varying vec4 texcoord;
 
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+float getMetalness( in vec2 coord ) {
+	return texture2D( gdepth, coord ).r;
+}
 
 vec3 CalculateBloom(in int LOD, in vec2 offset) {
 
@@ -66,7 +71,9 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 
 				if (weight > 0.0f)
 				{
-					bloom += pow(clamp(texture2D(gnormal, finalCoord, 0).rgb, vec3(0.0f), vec3(1.0f)), vec3(2.2f)) * weight;
+					vec3 texSample = texture2D(gnormal, finalCoord, 0).rgb;
+					texSample = mix( texSample, texSample * 0.05, getMetalness( finalCoord ) );
+					bloom += pow(clamp(texSample, vec3(0.0f), vec3(1.0f)), vec3(2.2f)) * weight;
 					allWeights += 1.0f * weight;
 				}
 			}
@@ -92,11 +99,11 @@ void main() {
 
 
 	vec3 bloom  = CalculateBloom(2, vec2(0.0f)				+ vec2(0.000f, 0.000f)	);
-		 //bloom = CalculateBloom(3, vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	);
-		 //bloom += CalculateBloom(4, vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	);
-		 //bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
-		 //bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
-		 //bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
+		 bloom = CalculateBloom(3, vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	);
+		 bloom += CalculateBloom(4, vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	);
+		 bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
+		 bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
+		 bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
 		 //bloom += CalculateBloom(8, vec2(0.28f, 0.25f)		+ vec2(0.125f, 0.025f)	);
 		 bloom = pow(bloom, vec3(1.0f / (1.0f + 1.2f)));
 

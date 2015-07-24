@@ -1124,7 +1124,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
         hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
             retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
-            retColor = mix( retColor, retColor, GetSpecularity( hitUV ) );
+            //retColor = mix( retColor, retColor * 0.05, GetSpecularity( hitUV ) );
         } else {
             retColor += skyColor.rgb;
         }
@@ -1403,19 +1403,20 @@ void main() {
 	surface.normal = GetNormals(texcoord.st);
 	surface.depth = GetDepth(texcoord.st);
 	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
-	surface.viewSpacePosition = GetViewSpacePosition(texcoord.st);
-	surface.worldSpacePosition = gbufferModelViewInverse * surface.viewSpacePosition;
+	surface.viewSpacePosition 	= GetViewSpacePosition(texcoord.st);
+	surface.worldSpacePosition 	= gbufferModelViewInverse * surface.viewSpacePosition;
 	FixNormals(surface.normal, surface.viewSpacePosition.xyz);
-	surface.lightVector = lightVector;
-	surface.sunlightVisibility = GetSunlightVisibility(texcoord.st);
-	surface.upVector 	= upVector;
+	surface.lightVector 		= lightVector;
+	surface.sunlightVisibility 	= GetSunlightVisibility(texcoord.st);
+	surface.upVector 			= upVector;
 	vec4 wlv 					= shadowModelViewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	surface.worldLightVector 	= normalize(wlv.xyz);
 
 	surface.smoothness = GetSmoothness(texcoord.st);
 
 	surface.specularity = GetSpecularity(texcoord.st);
-	surface.specularColor = mix( vec3( 0.97 ), vec3( 1.0 ) - (surface.color * 20.0), surface.specularity ) * max( 0.01, surface.smoothness );
+
+	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
 	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv );
@@ -1461,4 +1462,5 @@ void main() {
 	//surface.color = surface.fresnel / 5000.0;
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
+	gl_FragData[1] = vec4( surface.specularity, 0.0, 0.0, 1.0 );
 }
