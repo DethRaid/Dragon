@@ -1,19 +1,5 @@
 #version 120
 
-/*
- _______ _________ _______  _______  _ 
-(  ____ \\__   __/(  ___  )(  ____ )( )
-| (    \/   ) (   | (   ) || (    )|| |
-| (_____    | |   | |   | || (____)|| |
-(_____  )   | |   | |   | ||  _____)| |
-      ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _ 
-\_______)   )_(   (_______)|/       (_)
-
-Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
-
-*/
-
 /////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -23,11 +9,8 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define GI_QUALITY 1.0f				// sets the quality for GI and shadows 2.0f is default, Higher means lower fps
 
-
-
-
-/////////INTERNAL VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////INTERNAL VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////INTERNAL VARIABLES////////////////////////////////////////////////////
+/////////INTERNAL VARIABLES////////////////////////////////////////////////////
 //Do not change the name of these variables or their type. The Shaders Mod reads these lines and determines values to send to the inner-workings
 //of the shaders mod. The shaders mod only reads these lines and doesn't actually know the real value assigned to these variables in GLSL.
 //Some of these variables are critical for proper operation. Change at your own risk.
@@ -101,7 +84,7 @@ varying vec3 colorTorchlight;
 varying vec3 colorWaterMurk;
 varying vec3 colorWaterBlue;
 varying vec3 colorSkyTint;
-																																																																																																																									#define K1J5 )
+
 uniform float near;
 uniform float far;
 uniform float viewWidth;
@@ -116,7 +99,7 @@ uniform vec3 cameraPosition;
 
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define RW32 vec3
+
 
 vec3  	GetNormals(in vec2 coord) {				//Function that retrieves the screen space surface normals. Used for lighting calculations
 	return texture2DLod(gnormal, coord.st, 0).rgb * 2.0f - 1.0f;
@@ -130,17 +113,17 @@ vec4  	GetScreenSpacePosition(in vec2 coord) {	//Function that calculates the sc
 	float depth = GetDepth(coord);
 	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * depth - 1.0f, 1.0f);
 		 fragposition /= fragposition.w;
-#define UBWG texture2DLod
+
 	return fragposition;
 }
 
 vec3 	CalculateNoisePattern1(vec2 offset, float size) {
 	vec2 coord = texcoord.st;
-																																																																																																																																																									#define U73B shadowcolor1
+
 	coord *= vec2(viewWidth, viewHeight);
 	coord = mod(coord + offset, vec2(size));
 	coord /= noiseTextureResolution;
-																																																																																																																		#define U38J (
+
 	return texture2D(noisetex, coord).xyz;
 }
 
@@ -151,9 +134,9 @@ vec2 DistortShadowSpace(in vec2 pos)
 	float dist = sqrt(signedPos.x * signedPos.x + signedPos.y * signedPos.y);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 	signedPos.xy /= distortFactor;
-#define I636 float
+
 	pos = signedPos * 0.5f + 0.5f;
-																																																																																																																																																																																	#define U008 shadowtex1
+
 	return pos;
 }
 
@@ -161,21 +144,21 @@ vec3 Contrast(in vec3 color, in float contrast)
 {
 	float colorLength = length(color);
 	vec3 nColor = color / colorLength;
-#define IP89 if
+
 	colorLength = pow(colorLength, contrast);
-#define JJ8B shadowcolor
+
 	return nColor * colorLength;
 }
 
 float 	GetMaterialIDs(in vec2 coord) {			//Function that retrieves the texture that has all material IDs stored in it 																
 	return texture2D(gdepth, coord).r;
-}																																																																									
+}
 
 bool 	GetSkyMask(in vec2 coord)
 {
 	float matID = GetMaterialIDs(coord);
 	matID = floor(matID * 255.0f);
-#define OIU3 int
+
 	if (matID < 1.0f || matID > 254.0f)
 	{
 		return true;
@@ -244,113 +227,7 @@ float GetAO(in vec4 screenSpacePosition, in vec3 normal, in vec2 coord, in vec3 
 	return ao;
 }
 
-vec4 f( in int f, in vec2 d, in float v, in float /*z*/ quality, vec3  s ) { 
-    float x = pow( 2.f, float( f ) ), y = .002f;
-    if( texcoord.x - d.x + y < 1.f / x + y * 2.f 
-            && texcoord.y - d.y + y < 1.f / x + y * 2.f
-            && texcoord.x - d.x + y > 0.f 
-            && texcoord.y - d.y + y > 0.f ) {
-        vec2 i = (texcoord.xy - d.xy) * x; 
-        vec3 /*t*/ normal = GetNormals( i.xy );
-
-        // Perform normalmapping
-        vec4 normal_CameraSpace = gbufferModelViewInverse * vec4( normal.xyz, 0.f ) ;
-        normal_CameraSpace = shadowModelView * normal_CameraSpace;
-        normal_CameraSpace.xyz = normalize( normal_CameraSpace.xyz ); 
-        vec3 /*a*/ normal_ShadowSpace = normal_CameraSpace.xyz; 
-
-        vec4 /*S*/pos_ScreenSpace = GetScreenSpacePosition( i.xy ); // renamed from S
-        vec3 r = normalize( S.xyz ); 
-        float /*e*/  = sqrt( pos_ScreenSpace.x * pos_ScreenSpace.x + pos_ScreenSpace.y * pos_ScreenSpace.y + pos_ScreenSpace.z * pos_ScreenSpace.z );
-        float p = texture2D( gdepth, i ).x * 255.f;
-        vec4 o = shadowModelView * vec4( 0.f, 1., 0., 0. );
-
-        vec4 /*n*/ pos_ShadowSpace = gbufferModelViewInverse * pos_ScreenSpace;   // renamed from n
-        pos_ShadowSpace = shadowModelView * pos_ShadowSpace; 
-        float shadowDistance = -pos_ShadowSpace.z;  // renamed from c
-        pos_ShadowSpace = shadowProjection * pos_ShadowSpace;
-        pos_ShadowSpace /= pos_ShadowSpace.w; 
-        
-        // SE's un-distorting shadow map thing. I think he wanted to get higher resolution closer to the camera
-        float w = sqrt( pos_ShadowSpace.x * pos_ShadowSpace.x + pos_ShadowSpace.y * pos_ShadowSpace.y ), l = 1.f - SHADOW_MAP_BIAS + w * SHADOW_MAP_BIAS;
-        
-        vec4 shadowCoord = pos_ShadowSpace * .5f + .5f;  // transform from [-1, 1] to [0, 1] 
-        
-        float b = 0.f, h = 0.f; 
-        vec3 g = vec3( 0.f );
-        float D = 0.; 
-        
-        if( e < shadowDistance 
-                && shadowDistance > 0.f
-                && shadowCoord.x < 1.f
-                && shadowCoord.x > 0.f
-                && shadowCoord.y < 1.f 
-                && shadowCord.y > 0.f ) { 
-            float M=.15f;
-            b = clamp( shadowDistance * .85f * M - e * M, 0.f, 1.f ); 
-            float u = v; 
-            int G = 0; 
-            float A = 2.f * u / 2048;
-            vec2 V = s.xy - .5f; 
-            float /*P*/ blurStep = 1.f / quality;
-
-            // These for loops look like the start of a 5x5 blur
-            // It's 5x5 texels, but not 5x5 samples. The number of samples varies with the quality level
-            for( float I = -2.f; I <= 2.f; I += blurStep ) {
-                for( float O = -2.f; O <= 2.f; O += blurStep ) {
-                    vec2 /*L*/ offset = (vec2( I, O ) + V * blurStep) * A;
-                    vec2 /*W*/ shadowCoordUndistorted = shadowCoord.xy + offset;
-                    vec2 /*H*/ shadowCoordDistorted = DistortShadowSpace( shadowCoordUndistorted ); 
-                    float B = texture2DLOD( shadowtex1, H, 2 ).x; 
-                    vec3 q = vec3( shadowCoordUndistorted.x, shadowCoordUndistorted.y, B );
-                    vec3 k = normalize( q.xyz - n.xyz );
-                    vec3 N = texture2DLOD( shadowcolor1, shadowCoordDistorted, 5 ) .xyz * 2.f - 1.f;
-                    N.x = -N.x; 
-                    N.y = -N.y; 
-                    float j = max( 0.f, dot( a.xyz, k * vec3( 1., 1., -1. ) ) ); 
-                    if( abs( p - 3.f ) < .1f 
-                            || abs( p - 2.f ) < .1f 
-                            || abs( p - 11.f ) < .1f ) {
-                        j = 1.f; 
-                    }
-                    if( j > 0. ) {
-                        float Y = dot( k, N ), X = Y;
-                        if( length( N ) < 0.5f ) {
-                            N.xyz = vec3( 0.f, 0.f, 1.f );
-                            Y = abs( Y ) * 0.25f;
-                        } 
-                        Y = max( Y, 0.f ); 
-                        float U = length( q.xyz - shadowCoord.xyz - vec3( 0.f, 0.f, 0.f ) ); 
-                        if( U < .005f ) {
-                            U = 1e+07f; // U = infinity?
-                        }
-                        const float T = 2.f; 
-                        float R = 1.f / (pow( U * (13600.f / u), T ) + .0001f * P);
-                        R = max( 0.f, R - 9e-05f ); 
-                        if( X < 0.f ) {
-                            R = max( R * 30.f - .13f, 0.f ), R *=.04f;
-                        }
-                        // This line looks like moving from gamma space to a linear space
-                        vec3 /*Q*/ shadowColorLinear = pow( texture2DLOD( shadowcolor, shadowCoordDistorted, 5 ).xyz, vec3( 2.2f ) ) ;
-                        g += shadowColorLinear * Y * R * j;
-                    }
-                    G += 1;
-                }
-            }
-            g /= G;
-        } 
-        g = mix( vec3( 0.f ), g, vec3( b ) ); 
-        float R = 1.f;
-        if( !GetSkyMask( i.xy ) ) {
-            R *= GetAO( pos_ScreenSpace, t.xyz, i.xy, s.xyz );
-        }
-        return vec4( g.xyz * 1150.f, R );
-    } else {
-        return vec4 ( 0.f );
-    }
-}
-=======
-vec4 f( in int f, in vec2 d, in float v, in float /*z*/ quality, vec3  s ) { 
+vec4 calculateGI( in int f, in vec2 d, in float v, in float /*z*/ quality, vec3  s ) { 
     float x = pow( 2.f, float( f ) ), y = .002f;
     if( texcoord.x - d.x + y < 1.f / x + y * 2.f 
             && texcoord.y - d.y + y < 1.f / x + y * 2.f
@@ -465,8 +342,6 @@ vec4 f( in int f, in vec2 d, in float v, in float /*z*/ quality, vec3  s ) {
 
 vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult)
 {
-	
-
 	float linDepth = depth;
 
 	float expDepth = (far * (linDepth - near)) / (linDepth * (far - near));
@@ -564,13 +439,9 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 
 		vec3 p = worldPosition.xyz / 150.0f;
 
-			
-
 		float t = frameTimeCounter * 5.0f;
 			 
 		p.x -= t * 0.02f;
-
-		
 
 		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
 		float noise  = 	Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));	p *= 2.0f;	p.x -= t * 0.097f;	vec3 p2 = p;
@@ -580,7 +451,6 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 			  noise += (1.0 - abs(Get3DNoise(p) * 2.0 - 1.0)) * 0.015f;												p *= 2.5f;
 			  
 			  noise /= 1.875f;
-
 
 
 		const float lightOffset = 0.3f;
@@ -763,7 +633,7 @@ void main() {
 	vec3 normal = GetNormals(texcoord.st);
 
 	vec4 light = vec4(0.0);
-		 light = f(1, 		vec2(0.0f			), 16.0f,  GI_QUALITY, noisePattern);
+		 light = calculateGI( 1, 		vec2(0.0f			), 16.0f,  GI_QUALITY, noisePattern);
 
 	if (light.r >= 1.0f)
 	{
