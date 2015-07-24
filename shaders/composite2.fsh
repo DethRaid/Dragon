@@ -1124,8 +1124,9 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
         hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
             retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
+            retColor = mix( retColor, retColor, GetSpecularity( hitUV ) );
         } else {
-            retColor += /*mix( pixel.color,*/ skyColor.rgb/*, float( pixel.mask.water ) )*/;
+            retColor += skyColor.rgb;
         }
     }
     
@@ -1136,7 +1137,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 	color.a = 1.0;
 	#endif
 
-	//color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), finalSamplePos ) * 2.0, 2.0 ), 0.0, 1.0 );
+	color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
 
     return color;
 }
@@ -1414,7 +1415,7 @@ void main() {
 	surface.smoothness = GetSmoothness(texcoord.st);
 
 	surface.specularity = GetSpecularity(texcoord.st);
-	surface.specularColor = mix( vec3( 0.97 ), vec3( 1.0 ) - surface.color, surface.specularity ) * max( 0.01, surface.smoothness );
+	surface.specularColor = mix( vec3( 0.97 ), vec3( 1.0 ) - (surface.color * 20.0), surface.specularity ) * max( 0.01, surface.smoothness );
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
 	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv );
