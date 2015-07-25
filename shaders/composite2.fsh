@@ -16,11 +16,11 @@
 									// If you have issues, disable it to use the old reflection method
 
 //----------Refletion--------//
-#define MAX_RAY_LENGTH          50.0
-#define MAX_DEPTH_DIFFERENCE    0.1 	//How much of a step between the hit pixel and anything else is allowed?
+#define MAX_RAY_LENGTH          75.0
+#define MAX_DEPTH_DIFFERENCE    0.25 	//How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.35
 #define MAX_REFLECTIVITY        1.0 	//As this value approaches 1, so do all reflections
-#define RAY_DEPTH_BIAS          0.05   	//Serves the same purpose as a shadow bias
+#define RAY_DEPTH_BIAS          1.0   	//Serves the same purpose as a shadow bias
 #define RAY_GROWTH              1.0    	//Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
@@ -558,20 +558,21 @@ float   CalculateAntiSunglow(in SurfaceStruct surface) {
 }
 
 float   CalculateSunspot(in SurfaceStruct surface) {
+	float roughness = surface.smoothness;
 
 	float curve = 1.0f;
 
-	vec3 npos = normalize(surface.viewSpacePosition.xyz);
-	vec3 halfVector2 = normalize(-surface.lightVector + npos);
+	vec3 viewVector = normalize(surface.viewSpacePosition.xyz);
+	vec3 halfVector2 = normalize(-surface.lightVector + viewVector);
 
-	float sunProximity = abs(1.0f - dot(halfVector2, npos));
+	float sunProximity = abs(1.0f - dot(halfVector2, viewVector));
 
-	float sizeFactor = 0.959f - surface.smoothness * 0.7f;
+	float sizeFactor = 0.959f - roughness * 0.7f;
 
 	float sunSpot = (clamp(sunProximity, sizeFactor, 0.96f) - sizeFactor) / (0.96f - sizeFactor);
 		  sunSpot = pow(cubicPulse(1.0f, 1.0f, sunSpot), 2.0f);
 
-	float result = sunSpot / (surface.smoothness * 20.0f + 0.1f);
+	float result = sunSpot / (roughness * 20.0f + 0.1f);
 
 		  result *= surface.sunlightVisibility;
 
@@ -678,7 +679,6 @@ vec3 	ComputeReflectedSkyGradient(in SurfaceStruct surface) {
 	return skyColor;
 }
 
-// TODO: Make this function consider roughness
 vec3 	ComputeReflectedSkybox(in SurfaceStruct surface) {
 	float curve = 3.0f;
 	vec3 npos = normalize(surface.worldSpacePosition.xyz);
@@ -1124,7 +1124,6 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
         hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
             retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
-            //retColor = mix( retColor, retColor * 0.05, GetSpecularity( hitUV ) );
         } else {
             retColor += skyColor.rgb;
         }
@@ -1150,27 +1149,12 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	}
 
 	vec4 reflection = vec4( 0.0f );
-	vec3 origNormal = surface.normal;
-	#if MULTIPLE_RAYS
-	for( int i = 0; i < NUM_REFLECTION_RAYS; i++ ) {
-		vec3 noise3 = vec3(noise(float(i) * 0.1), noise(float(i) + 0.1), noise(float(i) + 0.2));
 
-		surface.normal = origNormal + (noise3 * (1.0 - surface.smoothness));
-		#endif
-
-		#ifdef NEW_WATER_REFLECT
-		reflection = doLightBounce( surface );
-		#else
-		reflection = ComputeWaterReflection(surface);
-		#endif
-
-	#if MULTIPLE_RAYS
-	}
-
-	reflection /= NUM_REFLECTION_RAYS;
+	#ifdef NEW_WATER_REFLECT
+	reflection = doLightBounce( surface );
+	#else
+	reflection = ComputeWaterReflection(surface);
 	#endif
-
-	surface.normal = origNormal;
 
 	float surfaceLightmap = GetLightmapSky(texcoord.st);
 
@@ -1416,12 +1400,11 @@ void main() {
 
 	surface.specularity = GetSpecularity(texcoord.st);
 
-	surface.specularColor = mix( vec3( 0.97 ), surface.color, surface.specularity );
+	surface.specularColor = mix( vec3( 0.97 ), vec3( 1.0 ) - (surface.color * 500), surface.specularity );
 
 	float ndotv = max( dot( surface.normal, -normalize( surface.viewSpacePosition.xyz ) ), 0.0f );
 
     // Multiply the fresnel by the smoothness, so that rougher things hafe less strong reflections
-
 	surface.fresnel = calculateFresnelSchlick( surface.specularColor, ndotv ) * max( 0.01, surface.smoothness );
 
     // Multiply the fresnel by the specular color when the fragment is a metal
