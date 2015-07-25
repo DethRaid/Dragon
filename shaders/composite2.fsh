@@ -16,7 +16,7 @@
 									// If you have issues, disable it to use the old reflection method
 
 //----------Refletion--------//
-#define MAX_RAY_LENGTH          75.0
+#define MAX_RAY_LENGTH          35.0
 #define MAX_DEPTH_DIFFERENCE    0.25 	//How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.35
 #define MAX_REFLECTIVITY        1.0 	//As this value approaches 1, so do all reflections
@@ -24,7 +24,7 @@
 #define RAY_GROWTH              1.0    	//Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                1   	//The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                2   	//The best setting in the whole shader pack. If you increase this value,
                                     	//more and more rays will be sent per pixel, resulting in better and better
                                     	//reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
