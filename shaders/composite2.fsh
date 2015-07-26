@@ -1185,14 +1185,14 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 
 		float gloss = pow(surface.smoothness + 0.01f, 4.5f);
 
-		HdotN = clamp(HdotN * (1.0f + gloss * 0.01f), 0.0f, 1.0f);
+		HdotN = clamp(HdotN, 0.0f, 1.0f);
 
 		float spec = pow(HdotN, gloss * 8000.0f + 10.0f);
 
 		spec *= surface.sunlightVisibility;
-
+		spec *= surface.smoothness + 0.01f;
 		spec *= gloss * 9000.0f + 10.0f;
-		spec *= surface.specularity * surface.specularity * surface.specularity;
+		//spec *= surface.specularity * surface.specularity * surface.specularity;
 		spec *= 1.0f - rainStrength;
 
 		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * surface.fresnel;
@@ -1212,10 +1212,6 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 
 	surface.baseSpecularity = 0.0f;
 
-	if (surface.mask.ironBlock) {
-		smoothness = 0.9f;
-	}
-
 	if (surface.mask.goldBlock) {
 		specularity = 0.0f;
 	}
@@ -1231,7 +1227,7 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 			vec2 scaling = vec2(1.0f + faceFactor * (i / 10.0f) * 2.0f);
 
 			float r = float(i) + 4.0f;
-				  r *= smoothness * 0.8f;
+				  r *= (1.0 - surface.smoothness) * 0.8f;
 			int 	ri = int(floor(r));
 			float 	rf = fract(r);
 
@@ -1450,7 +1446,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
-	//surface.color = surface.fresnel / 5000.0;
+	//surface.color = vec3( surface.smoothness / 5000.0 );
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 	gl_FragData[1] = vec4( surface.specularity, 0.0, 0.0, 1.0 );
