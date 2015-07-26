@@ -944,12 +944,12 @@ void ReflectedCloudPlane(inout vec3 color, inout SurfaceStruct surface) {
 		vec4 cloudSample = CloudColor2(vec4(i.pos.xyz * 0.5f + vec3(30.0f), 1.0f), sunglow, surface.worldLightVector, cloudsAltitude, cloudsThickness, false);
 		 	 cloudSample.a = min(1.0f, cloudSample.a * density);
 
-		color.rgb = mix(color.rgb, cloudSample.rgb * 0.18f, cloudSample.a);
+		color.rgb = mix(color.rgb, cloudSample.rgb * 0.18f, cloudSample.a * surface.sunlightVisibility);
 
 		cloudSample = CloudColor2(vec4(i.pos.xyz * 0.65f + vec3(10.0f) + vec3(i.pos.z * 0.5f, 0.0f, 0.0f), 1.0f), sunglow, surface.worldLightVector, cloudsAltitude, cloudsThickness, false);
 		cloudSample.a = min(1.0f, cloudSample.a * density);
 
-		color.rgb = mix(color.rgb, cloudSample.rgb * 0.18f, cloudSample.a);
+		color.rgb = mix(color.rgb, cloudSample.rgb * 0.18f, cloudSample.a * surface.sunlightVisibility);
 	}
 }
 
