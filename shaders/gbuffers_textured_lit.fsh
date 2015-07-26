@@ -103,6 +103,6 @@ if (texture2D(texture, texcoord.st).a == 0.0f){
 	gl_FragData[2] = frag2;
 		
 	//specularity
-	gl_FragData[3] = vec4(spec.r + spec.b + spec.g * wetness * wetfactor, 0.0f, 0.0f, 1.0f);	
+	gl_FragData[3] = vec4(0.0f, spec.r + spec.b + spec.g * wetness * wetfactor, 0.0f, 1.0f);	
 
 }
