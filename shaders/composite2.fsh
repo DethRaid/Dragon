@@ -1056,7 +1056,9 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
+//
+// Returns a vec3 with the hit UV coordinate in the st, and the ray distance in the z
+vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
     direction = normalize( direction ) * RAY_STEP_LENGTH;
@@ -1069,10 +1071,10 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         curCoord = getCoordFromCameraSpace( curPos );
         if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec2( -1 );
+            return vec3( -1 );
         }
         if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
-            return vec2( -1 );
+            return vec3( -1 );
         }
         float worldDepth = GetViewSpacePosition( curCoord ).z;
         float rayDepth = curPos.z;
@@ -1087,13 +1089,13 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         } else {
             depthDiff *= -1;
             if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                return curCoord;
+                return vec3( curCoord, length( curPos - origin );
             }
         }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec2( -1 ); 
+    return vec3( -1 ); 
 }
 
 vec4 doLightBounce( in SurfaceStruct pixel ) {
@@ -1106,7 +1108,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
     vec3 noiseSample = vec3( 0 );
     vec3 reflectDir = vec3( 0 );
     vec3 rayDir = vec3( 0 );
-    vec2 hitUV = vec2( 0 );
+    vec3 hitUV = vec3( 0 );
 
     #ifdef NEW_WATER_REFLECT
 	vec4 skyColor = ComputeFakeSkyReflection(surface);
@@ -1136,6 +1138,10 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 	color.a = 1.0;
 	#endif
 
+    // Make reflection rays observe inverse square light falloff
+    color.a *= 1.0 / pow( hitUV.z, 2.0 );
+
+    // Fade out reflections near the edges of the screen
 	color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
 
     return color;
