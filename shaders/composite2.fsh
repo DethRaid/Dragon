@@ -1132,7 +1132,8 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
     }
     
     vec4 color;
-    color.rgb = pow( retColor / NUM_RAYS, vec3( 2.0 ) );
+    // Changed to accomidate dotmodded (used to be pow( 2 )
+    color.rgb = pow( retColor / NUM_RAYS, vec3( 4.0 ) );
 
     #ifdef GODRAYS
 	color.a = 1.0;
