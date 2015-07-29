@@ -1052,7 +1052,7 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 //Determines the UV coordinate where the ray hits
 //If the returned value is not in the range [0, 1] then nothing was hit.
 //NOTHING!
-//Note that origin and direction are assumed to be in screen-space coordinates, such that 
+//Note that origin and direction are assumed to be in screen-space coordinates, such that
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
@@ -1085,23 +1085,23 @@ vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
                 //return curCoord;
                 direction = -1 * normalize( direction ) * 0.15;
                 forward = false;
-            } 
+            }
         } else {
             depthDiff *= -1;
             if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                return vec3( curCoord, length( curPos - origin );
+                return vec3( curCoord, length( curPos - origin ));
             }
         }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec3( -1 ); 
+    return vec3( -1 );
 }
 
 vec4 doLightBounce( in SurfaceStruct pixel ) {
     //Find where the ray hits
     //get the blur at that point
-    //mix with the color 
+    //mix with the color
     vec3 rayStart = pixel.viewSpacePosition.xyz;
     vec2 noiseCoord = vec2( texcoord.s * viewWidth / 64.0, texcoord.t * viewHeight / 64.0 );
     vec3 retColor = vec3( 0 );
@@ -1115,14 +1115,14 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 	#else
 	vec4 skyColor = ComputeSkyReflection(surface);
 	#endif
-    
+
     //trace the number of rays defined previously
     for( int i = 0; i < NUM_RAYS; i++ ) {
         noiseSample = texture2D( noisetex, noiseCoord * (i + 1) ).rgb * 2.0 - 1.0;
         reflectDir = normalize( noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal );
         reflectDir *= sign( dot( pixel.normal, reflectDir ) );
         rayDir = reflect( normalize( rayStart ), reflectDir );
-    
+
         hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
             retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
@@ -1130,7 +1130,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
             retColor += skyColor.rgb;
         }
     }
-    
+
     vec4 color;
     // Changed to accomidate dotmodded (used to be pow( 2 )
     color.rgb = pow( retColor / NUM_RAYS, vec3( 4.0 ) );
@@ -1143,7 +1143,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
     color.a *= 1.0 / pow( hitUV.z, 2.0 );
 
     // Fade out reflections near the edges of the screen
-	color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
+	color.a *= clamp( 1 - pow( distance( vec3( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
 
     return color;
 }
