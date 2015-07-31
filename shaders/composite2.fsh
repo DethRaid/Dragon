@@ -1060,7 +1060,6 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
     direction = normalize( direction ) * RAY_STEP_LENGTH;
-    bool forward = true;
 
     //The basic idea here is the the ray goes forward until it's behind something,
     //then slowly moves forward until it's in front of something.
@@ -1078,17 +1077,8 @@ vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = length( direction ) + RAY_DEPTH_BIAS;
-        if( forward ) {
-            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                //return curCoord;
-                direction = -1 * normalize( direction ) * 0.15;
-                forward = false;
-            } 
-        } else {
-            depthDiff *= -1;
-            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                return curCoord;
-            }
+        if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
+            return curCoord;
         }
         direction *= RAY_GROWTH;
     }
@@ -1172,8 +1162,9 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 	reflection.rgb *= surface.fresnel;
 
-	surface.color = mix(surface.color, reflection.rgb, vec3( reflection.a ) );
+	surface.color = mix( surface.color, reflection.rgb, vec3( reflection.a ) );
 	surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
+	//surface.color = vec3( reflection.rgb );
 	surface.reflection = reflection;
 }
 
