@@ -1058,7 +1058,7 @@ vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
 //
 // Returns a vec3 with the hit UV coordinate in the st, and the ray distance in the z
-vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
+vec2 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace( curPos );
     direction = normalize( direction ) * RAY_STEP_LENGTH;
@@ -1070,36 +1070,22 @@ vec3 castRay( in vec3 origin, in vec3 direction, in float maxDist ) {
         curCoord = getCoordFromCameraSpace( curPos );
         if( curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1 ) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec3( -1 );
+            return vec2( -1 );
         }
         if( length( curPos - origin ) > MAX_RAY_LENGTH ) {
-            return vec3( -1 );
+            return vec2( -1 );
         }
         float worldDepth = GetViewSpacePosition( curCoord ).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = length( direction ) + RAY_DEPTH_BIAS;
-<<<<<<< HEAD
         if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
             return curCoord;
-=======
-        if( forward ) {
-            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                //return curCoord;
-                direction = -1 * normalize( direction ) * 0.15;
-                forward = false;
-            }
-        } else {
-            depthDiff *= -1;
-            if( depthDiff > 0 && depthDiff < maxDepthDiff ) {
-                return vec3( curCoord, length( curPos - origin ));
-            }
->>>>>>> 90d4365ec820c9455ebf79e6bb561e5d12d3e2cc
         }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec3( -1 );
+    return vec2( -1 );
 }
 
 vec4 doLightBounce( in SurfaceStruct pixel ) {
@@ -1112,7 +1098,7 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
     vec3 noiseSample = vec3( 0 );
     vec3 reflectDir = vec3( 0 );
     vec3 rayDir = vec3( 0 );
-    vec3 hitUV = vec3( 0 );
+    vec2 hitUV = vec2( 0 );
 
     #ifdef NEW_WATER_REFLECT
 	vec4 skyColor = ComputeFakeSkyReflection(surface);
@@ -1137,17 +1123,16 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 
     vec4 color;
     // Changed to accomidate dotmodded (used to be pow( 2 )
-    color.rgb = pow( retColor / NUM_RAYS, vec3( 4.0 ) );
+    color.rgb = pow( retColor / NUM_RAYS, vec3( 2.0 ) );
 
     #ifdef GODRAYS
 	color.a = 1.0;
 	#endif
 
     // Make reflection rays observe inverse square light falloff
-    color.a *= 1.0 / pow( hitUV.z, 2.0 );
 
     // Fade out reflections near the edges of the screen
-	color.a *= clamp( 1 - pow( distance( vec3( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
+	color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
 
     return color;
 }
@@ -1155,38 +1140,36 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 	surface.rDepth = 0.0f;
 
-	if (surface.mask.sky) {
-		surface.fresnel = vec3( 0.0f );
+	if( !surface.mask.sky ) {
+		vec4 reflection = vec4( 0.0f );
+
+		#ifdef NEW_WATER_REFLECT
+		reflection = doLightBounce( surface );
+		#else
+		reflection = ComputeWaterReflection(surface);
+		#endif
+
+		float surfaceLightmap = GetLightmapSky(texcoord.st);
+
+		#ifdef NEW_WATER_REFLECT
+		vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
+		#else
+		vec4 fakeSkyReflection = ComputeSkyReflection(surface);
+		#endif
+
+		vec3 noSkyToReflect = vec3(0.0f);
+
+		fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
+		reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
+		reflection.a = fakeSkyReflection.a;
+
+		reflection.rgb *= surface.fresnel;
+
+		surface.color = mix( surface.color, reflection.rgb, vec3( reflection.a ) );
+		surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
+		//surface.color = vec3( reflection.rgb );
+		surface.reflection = reflection;
 	}
-
-	vec4 reflection = vec4( 0.0f );
-
-	#ifdef NEW_WATER_REFLECT
-	reflection = doLightBounce( surface );
-	#else
-	reflection = ComputeWaterReflection(surface);
-	#endif
-
-	float surfaceLightmap = GetLightmapSky(texcoord.st);
-
-	#ifdef NEW_WATER_REFLECT
-	vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
-	#else
-	vec4 fakeSkyReflection = ComputeSkyReflection(surface);
-	#endif
-
-	vec3 noSkyToReflect = vec3(0.0f);
-
-	fakeSkyReflection.rgb = mix(noSkyToReflect, fakeSkyReflection.rgb, clamp(surfaceLightmap * 16 - 5, 0.0f, 1.0f));
-	reflection.rgb = mix(reflection.rgb, fakeSkyReflection.rgb, pow(vec3(1.0f - reflection.a), vec3(10.1f)));
-	reflection.a = fakeSkyReflection.a;
-
-	reflection.rgb *= surface.fresnel;
-
-	surface.color = mix( surface.color, reflection.rgb, vec3( reflection.a ) );
-	surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
-	//surface.color = vec3( reflection.rgb );
-	surface.reflection = reflection;
 }
 
 void CalculateSpecularHighlight(inout SurfaceStruct surface) {
