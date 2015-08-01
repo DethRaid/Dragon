@@ -24,7 +24,7 @@
 #define RAY_GROWTH              1.0    	//Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   	//The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                1   	//The best setting in the whole shader pack. If you increase this value,
                                     	//more and more rays will be sent per pixel, resulting in better and better
                                     	//reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -401,8 +401,6 @@ struct Intersection {
 	float distance;
 	float angle;
 };
-
-
 
 /////////////////////////STRUCT FUNCTIONS///////////////////////////////////////
 /////////////////////////STRUCT FUNCTIONS///////////////////////////////////////
@@ -1094,17 +1092,11 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
     //mix with the color
     vec3 rayStart = pixel.viewSpacePosition.xyz;
     vec2 noiseCoord = vec2( texcoord.s * viewWidth / 64.0, texcoord.t * viewHeight / 64.0 );
-    vec3 retColor = vec3( 0 );
+    vec4 retColor = vec4( 0 );
     vec3 noiseSample = vec3( 0 );
     vec3 reflectDir = vec3( 0 );
     vec3 rayDir = vec3( 0 );
     vec2 hitUV = vec2( 0 );
-
-    #ifdef NEW_WATER_REFLECT
-	vec4 skyColor = ComputeFakeSkyReflection(surface);
-	#else
-	vec4 skyColor = ComputeSkyReflection(surface);
-	#endif
 
     //trace the number of rays defined previously
     for( int i = 0; i < NUM_RAYS; i++ ) {
@@ -1115,26 +1107,22 @@ vec4 doLightBounce( in SurfaceStruct pixel ) {
 
         hitUV = castRay( rayStart, rayDir, MAX_RAY_LENGTH );
         if( hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1 ) {
-            retColor += vec3( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY );
+            retColor += vec4( texture2D( gcolor, hitUV.st ).rgb * MAX_REFLECTIVITY, 1.0f );
         } else {
-            retColor += skyColor.rgb;
+            retColor += vec4( 0.0 );
         }
     }
 
-    vec4 color;
-    // Changed to accomidate dotmodded (used to be pow( 2 )
-    color.rgb = pow( retColor / NUM_RAYS, vec3( 2.0 ) );
+    retColor.rgb = pow( retColor.rgb / NUM_RAYS, vec3( 2.0 ) );
 
     #ifdef GODRAYS
-	color.a = 1.0;
+	//retColor.a = 1.0;
 	#endif
 
-    // Make reflection rays observe inverse square light falloff
-
     // Fade out reflections near the edges of the screen
-	color.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
+	retColor.a *= clamp( 1 - pow( distance( vec2( 0.5 ), hitUV ) * 2.0, 2.0 ), 0.0, 1.0 );
 
-    return color;
+    return retColor;
 }
 
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
@@ -1167,7 +1155,7 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 		surface.color = mix( surface.color, reflection.rgb, vec3( reflection.a ) );
 		surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
-		//surface.color = vec3( reflection.rgb );
+		// surface.color = vec3( reflection.rgb );
 		surface.reflection = reflection;
 	}
 }
@@ -1441,7 +1429,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
-	//surface.color = vec3( surface.smoothness / 5000.0 );
+	//surface.color = vec3( surface.fresnel / 5000.0 );
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 	gl_FragData[1] = vec4( surface.specularity, 0.0, 0.0, 1.0 );

@@ -3,14 +3,12 @@
 
 /** DethRaid's shadowing Information **/
 
-
 /* //--LIGHT_SIZE--//
  * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
  * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
  * you'd see if the Earth's sun was as big in the sky as Minecraft's
  */
  
-
  /* //--MIN_PENUMBRA_SIZE--//
  * Defined the minimum about of shadow blur when PCSS is enabled. A value of
  * 0.175 allows for reasonably hard shadows with a very minimal amount of
@@ -19,25 +17,21 @@
  * receiver is very small
  */
  
- 
  /* //--BLOCKER_SEARCH_SAMPLES_HALF--//
  * The number of samples to use for PCSS's blocker search. A higher value allows
  * for higher quality shadows at the expense of framerate 
  */
- 
  
  /* //--PCF_SIZE_HALF--//
  * The number of samples to use for shadow blurring. More samples means blurrier
  * shadows at the expense of framerate. A value of 5 is recommended
  */
  
- 
  /* //--USE_RANDOM_ROTATION--//
  * If set to 1, a random rotation will be applied to the shadow filter to reduce
  * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
  * resulting in ugly banding but giving you a few more frames per second.
  */
- 
 
 /* //--SHADOW_MODE--//
  * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
@@ -1947,6 +1941,11 @@ void calculateDirectLighting( inout ShadingStruct shading ) {
 	shading.scattered 			= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
 	shading.scatteredUp 		= CalculateScatteredUpLight(surface);
 #endif
+
+	// Remove shading from metals, since they should have no diffuse lighting
+	shading.direct 				= mix( shading.direct, 1.0f, surface.specular.metallic );	// Remove shading from metals
+	shading.skylight 			= mix( shading.skylight, 1.0f, surface.specular.metallic );	// Remove shading from metals
+	shading.heldLight 			= mix( shading.heldLight, 1.0f, surface.specular.metallic );	// Remove shading from metals
 }
 
 void calculateSkyLighting( inout LightmapStruct lightmap ) {

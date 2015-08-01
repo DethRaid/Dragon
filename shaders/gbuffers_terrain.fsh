@@ -349,7 +349,7 @@ void main() {
 	#ifdef NEW_SPECULAR
 	// R: metalness
 	// G: smoothness
-	gl_FragData[3] = vec4(spec.b, spec.r + spec.g, 0.0f, 1.0f);
+	gl_FragData[3] = vec4(spec.b, spec.r + wetfactor, 0.0f, 1.0f);
 	#endif
 	#ifdef OLD_SPECULAR
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
