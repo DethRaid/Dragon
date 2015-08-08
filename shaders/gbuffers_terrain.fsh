@@ -24,7 +24,11 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define PARALLAX
 
 #define SPECULARITY
-
+	#define SPEC_BRIGHTNESS		0.7f	// default is 1.0f - lower this number to increase the specular brightness for New specular
+		//---for Resource pack Faithful recommended 1.0f, for Ovos Rustic and Chromahills recommended 0.7f---//
+	
+	
+	
 //#define OLD_SPECULAR					// Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
 #define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
 
@@ -37,7 +41,6 @@ uniform sampler2D lightmap;
 uniform sampler2D normals;
 uniform sampler2D specular;
 uniform sampler2D noisetex;
-//uniform float wetness;
 uniform float wetness;
 uniform float frameTimeCounter;
 uniform vec3 sunPosition;
@@ -203,11 +206,8 @@ vec3 CalculateRainBump(in vec3 pos)
 
 float GetModulatedRainSpecular(in vec3 pos)
 {
-	//pos.y += frameTimeCounter * 3.0f;
 	pos.xz *= 1.0f;
 	pos.y *= 0.2f;
-
-	// pos.y += Get3DNoise(pos.xyz * vec3(1.0f, 0.0f, 1.0f)).x * 2.0f;
 
 	vec3 p = pos;
 
@@ -215,7 +215,7 @@ float GetModulatedRainSpecular(in vec3 pos)
 		  n += Get3DNoise(p / 2.0f).x * 2.0f;
 		  n += Get3DNoise(p / 4.0f).x * 4.0f;
 
-		  n /= 7.0f;
+		  n /= 6.0f;
 
 	return n;
 }
@@ -256,17 +256,15 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 
 	float heightmap = GetTexture(normals, coord.st).a;
 
-	//if (viewVector.z < 0.0f)
-	//{
+	
 		vec3 pCoord = vec3(0.0f, 0.0f, 1.0f);
 
-		//make "pop out"
-		//pCoord.st += (viewVector.xy * stepSize.xy) / (viewVector.z * stepSize.z);
+		
 
 		if (heightmap < 1.0f)
 		{
 			vec3 step = viewVector * stepSize;
-			float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) / 16.0;
+			float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) * 0.070f;
 				 step *= distAngleWeight;
 				 step *= 2.0f;
 
@@ -274,10 +272,8 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 
 			for (int i = 0; sampleHeight < pCoord.z && i < 240; ++i)
 			{
-				//if (heightmap < pCoord.z)
 				pCoord.xy = mix(pCoord.xy, pCoord.xy + step.xy, clamp((pCoord.z - sampleHeight) / (stepSize.z * 1.0 * distAngleWeight / (-viewVector.z + 0.05)), 0.0, 1.0));
 				pCoord.z += step.z;
-				//pCoord += step;
 				sampleHeight = GetTexture(normals, OffsetCoord(coord.st, pCoord.st, 0)).a;
 
 			}
@@ -286,9 +282,6 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 			parallaxCoord.xy = OffsetCoord(coord.st, pCoord.st, 0);
 		}
 
-	//}
-
-	//parallaxCoord.xy = OffsetCoord(coord.st, viewVector.xy * (1.0f - heightmap) * 0.0025f, 0);
 
 	return parallaxCoord;
 }
@@ -297,12 +290,7 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 void main() {	
 
 	vec4 modelView = (gl_ModelViewMatrix * vertexPos);
-		 // modelView.x *= aspectRatio;
-		 // modelView.z *= 1.4f;
-		 // modelView = gl_ProjectionMatrix * modelView;
-		 // modelView.xyz /= modelView.w;
-
-		 // modelView.z = -modelView.z;
+		
 
 	vec3 viewVector = normalize(tbnMatrix * modelView.xyz);
 		 viewVector.x /= 2.0f;
@@ -329,7 +317,6 @@ void main() {
 
 #ifdef OLD_SPECULAR	
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-	//wet *= wetAngle;
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
 	{
@@ -344,7 +331,6 @@ void main() {
 	
 #ifdef NEW_SPECULAR	
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-	wet *= wetAngle;
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
 	{
@@ -352,15 +338,11 @@ void main() {
 	}
 	else
 	{
-		wet = clamp(wet * 1.5f - 0.2f, 0.0f, 1.0f);
-		 spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
+		 spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (SPEC_BRIGHTNESS - w) * 1.0f);
 		 spec.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
-		 // spec.g += wet;
-		 // spec.b += wet;
 	}
 #endif
 
-	//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
 	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	
 	//Separate lightmap types
@@ -369,35 +351,15 @@ void main() {
 
 	lightmap.b = pow(lightmap.b, 1.0f);
 	lightmap.r = pow(lightmap.r, 3.0f);
-	// vec4 clr = color;
-	// 	 clr.rgb = clr.rgb / normalize(clr.rbg);
-	// 	 clr.rgb *= 0.5f;
-	// 	 clr.rgb = vec3(max(color.r, max(color.g, color.b)));
-
-	// float ao = (color.r + color.g + color.b) / 3.0f;
-
-	// float colorDiff = abs(color.r - color.g);
-	// 	  colorDiff += abs(color.r - color.b);
-	// 	  colorDiff += abs(color.g - color.b);
-
-	// if (colorDiff > 0.001f) {
-	// 	ao = 1.0f;
-	// }
-
-	// ao = pow(ao, 13.0f);
-
-	 // lightmap.b *= ao;
-
-	 // lightmap.r *= ao * 0.5f + 0.5f;
+	
 
 	 float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
 	 	   wetfactor *= w;
 
-	 //spec.g += 0.9f;
 	 spec.g *= wetfactor;
 	 
 #ifdef OLD_SPECULAR
-	 specs.g *= wetfactor;
+	 specs.g *= wetfactor/1.5;
 #endif
 
 
@@ -416,7 +378,6 @@ void main() {
 				  
 			bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
 
-			//bump += CalculateRainBump(worldPosition.xyz);
 			
 			frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
 			
@@ -428,23 +389,13 @@ void main() {
 	//Diffuse
 	vec4 albedo = GetTexture(texture, parallaxCoord.st) * color;
 
-		//sunlightVisibility *= clamp(dot(frag2.rgb * 2.0f - 1.0f, normalize(sunPosition.xyz)), 0.0f, 1.0f);
-
-		//albedo.rgb *= sunlightVisibility * 0.8f + 0.2f;
-
-		 //albedo.rgb *= texture2D(normals, parallaxCoord.st, int(mipLevel), false).a;
-
-		// vec3 noise = Get3DNoise(worldPosition.xyz);
-
-		// albedo.rgb = noise.rgb;
+		
 
 	vec3 upVector = normalize(upPosition);
 
 	float darkFactor = clamp(spec.g, 0.0f, 0.2f) / 0.2f;
 
-	//albedo.rgb *= mix(1.0f, 0.9f, darkFactor);
 	albedo.rgb = pow(albedo.rgb, vec3(mix(1.0f, 1.25f, darkFactor)));
-	//albedo.rgb = vec3(1.0f);
 
 
 
@@ -463,11 +414,7 @@ void main() {
 	float mats_1 = materialIDs;
 		  mats_1 += 0.1f;
 
-	// if (abs(materialIDs - 60.0f) < 0.1f)
-	// {
-	// 	mats_1 = 0.0f;
-	// 	albedo.rgb = gl_Fog.color.rgb * 1.0f;
-	// }
+
 
 	gl_FragData[0] = albedo;
 
