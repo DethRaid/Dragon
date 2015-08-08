@@ -49,14 +49,17 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 		for (int i = 0; i < 6; i++) {
 			for (int j = 0; j < 6; j++) {
 
-				float weight = 1.0f - distance(vec2(i, j), vec2(2.5f)) * 0.72;
+				float weight = 1.0f - distance(vec2(i, j), vec2(2.5f)) / 3.5;
 					  weight = clamp(weight, 0.0f, 1.0f);
-					  weight = 1.0f - cos(weight * 3.1415 * 0.5f);
+					  weight = 1.0f - cos(weight * 3.1415 / 2.0f);
 					  weight = pow(weight, 2.0f);
 				vec2 coord = vec2(i - 2.5, j - 2.5);
 					 coord.x /= viewWidth;
 					 coord.y /= viewHeight;
-					
+					 //coord *= 0.0f;
+
+					 //coord.x -= 0.5f / viewWidth;
+					 //coord.y -= 0.5f / viewHeight;
 
 				vec2 finalCoord = (texcoord.st + coord.st - offset.st) * scale;
 
@@ -88,16 +91,18 @@ void main() {
 	
 	
 	vec3 bloom  = CalculateBloom(2, vec2(0.0f)				+ vec2(0.000f, 0.000f)	);
-		 bloom += CalculateBloom(3, vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	);
-		 bloom += CalculateBloom(4, vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	);
-		 bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
-		 bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
-		 bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
+		 //bloom += CalculateBloom(3, vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	);
+		 //bloom += CalculateBloom(4, vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	);
+		 //bloom += CalculateBloom(5, vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	);
+		 //bloom += CalculateBloom(6, vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	);
+		 //bloom += CalculateBloom(7, vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	);
 		 //bloom += CalculateBloom(8, vec2(0.28f, 0.25f)		+ vec2(0.125f, 0.025f)	);
 		 bloom = pow(bloom, vec3(1.0f / (1.0f + 1.2f)));
 
 	
+	//gl_FragData[0] = vec4(color.rgb, 0.0f);
 	gl_FragData[0] = vec4(bloom.rgb, 1.0f);
+	//gl_FragData[1] = texture2D(gnormal, texcoord.st);
 	
 
 }

@@ -20,14 +20,6 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define SMOOTH_SKY
 
-
-#define VOLUMETRIC_MOON_LIGHT
-
-//---Volumetric light strength--//
-#define SUNRISEnSET		1.7		//default is 3.0
-#define NOON			0.4		//default is 0.2 for least amount of haze at the cost of effect
-#define NIGHT			1.5		//default is 0.2 for least amount of haze at the cost of effect, for best 
-
 //#define CLOUD_PLANE			//Original 2D clouds, not the best anymore (IMO)
 
 // One or the other has to be enabled but not both
@@ -61,7 +53,6 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 const bool gcolorMipmapEnabled = true;
 const bool compositeMipmapEnabled = true;
-const bool gaux3MipmapEnabled = true;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
@@ -70,7 +61,6 @@ uniform sampler2D gnormal;
 uniform sampler2D composite;
 uniform sampler2D noisetex;
 //uniform sampler2D gaux1;
-uniform sampler2D gaux3;
 
 varying float SdotU;
 varying float MdotU;
@@ -107,7 +97,6 @@ varying vec3 upVector;
 uniform vec3 sunPosition;
 uniform vec3 moonPosition;
 
-varying float timeSunriseSunset;
 
 varying float timeSunrise;
 varying float timeNoon;
@@ -1456,38 +1445,6 @@ return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 
 }
 
-vec3 GetCrepuscularRays(in SurfaceStruct surface)
-{
-        float rawRays = texture2DLod(gaux3, texcoord.st, 2.5).r;
-        vec3 raysSun = vec3(rawRays);
-        vec3 raysSuns = vec3(rawRays);
-        vec3 raysNight = vec3(rawRays);
-        vec3 raysAtmosphere = vec3(rawRays);
- 
-        float sunglow = 1.0 - CalculateSunglow(surface);
-        sunglow = 1.0 / (pow(sunglow, 3.0) * 9.0 + 0.001);
- 
-        raysSun.rgb *= sunglow * timeNoon;
-        raysSun.rgb *= colorSunlight * timeNoon;
- 
-        raysSuns.rgb *= sunglow * timeSunriseSunset;
-        raysSuns.rgb *= colorSunlight * timeSunriseSunset;
- 
-        raysNight.rgb *= colorSunlight * timeMidnight;
- 
-        raysAtmosphere *= colorSkylight;
- 
-        vec3 rays = raysSuns.rgb * SUNRISEnSET + raysAtmosphere.rgb * 0.5 * 0.0;
-                 rays += raysSun.rgb * NOON + raysAtmosphere.rgb * 0.5 * 0.0;
-#ifdef VOLUMETRIC_MOON_LIGHT				 
-                 rays += raysNight.rgb * NIGHT + raysAtmosphere.rgb * 0.5 * 0.0;
-#endif                 
- 
-        DoNightEye(rays);
- 
-        return rays * 0.0001;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////
@@ -1526,109 +1483,26 @@ void main() {
 		CloudPlane(surface);
 	#endif	
 	
-vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
-	tpos = vec4(tpos.xyz/tpos.w,1.0);
-	vec2 pos1 = tpos.xy/tpos.z;
-	vec2 lightPos = pos1*0.5+0.5;
-	float gr = 0.0;
+	#ifdef GODRAYS
 	
-#ifdef GODRAYS
-
-#ifdef NO_UNDERWATER_RAYS
-if (isEyeInWater > 0.9) {
+	#ifdef NO_UNDERWATER_RAYS
+	if (isEyeInWater < 0.9) {
+	#endif
 	
-	} else {
-#endif
-	
-	float truepos = sign(sunPosition.z); //temporary fix that check if the sun/moon position is correct
-	if (truepos < 0.05) {
-			vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
-			vec2 textCoord = texcoord.st;
-			deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
-			float illuminationDecay = 1.0;
-			gr = 0.0;
-			float avgdecay = 0.0;
-			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
-			float disty = abs(texcoord.y-lightPos.y);
-			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),7.8);
-			float fallof = 1.0;
-			const int nSteps = 9;
-			const float blurScale = 0.002;
-			deltaTextCoord = normalize(deltaTextCoord);
-			int center = (nSteps-1)/2;
-			vec3 blur = vec3(0.0);
-			float tw = 0.0;
-			float sigma = 0.25;
-			float A = 1.0/sqrt(2.0*3.14159265359*sigma);
-			textCoord -= deltaTextCoord*center*blurScale;
-			
-			for(int i=0; i < nSteps ; i++) {
-				textCoord += deltaTextCoord*blurScale;
-				float dist = (i-float(center))/center;
-				float weight = A*exp(-(dist*dist)/(2.0*sigma));
-				float sample = texture2D(gcolor, textCoord).a*weight;
-				
-				tw += weight;
-				gr += sample;
-			}
-			
-		//surface.color.rgb += colorSunlight*exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay*timeNoon*2;
+	float vlSample = texture2DLod( gcolor, texcoord.st, 1 ).a;
+	//vec3 lightColor = mix( colorSunlight, colorMoonlight, )
+	surface.color = surface.color * 0.9 + mix( surface.color, colorSunlight * 0.00025, vlSample ) * 0.1;
 
-
+	#ifdef NO_UNDERWATER_RAYS
 	}
-#ifdef MOONRAYS	
-	else {
-	tpos = vec4(-sunPosition,1.0)*gbufferProjection;
-	tpos = vec4(tpos.xyz/tpos.w,1.0);
-	pos1 = tpos.xy/tpos.z;
-	lightPos = pos1*0.5+0.5;
-	
-		if (truepos > 0.05) {
-			vec2 deltaTextCoord = vec2( texcoord.st - lightPos.xy );
-			vec2 textCoord = texcoord.st;
-			deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * grdensity;
-			float illuminationDecay = 1.0;
-			gr = 0.0;
-			float avgdecay = 0.0;
-			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
-			float disty = abs(texcoord.y-lightPos.y);
-			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),5.0);
-			float fallof = 1.0;
-			const int nSteps = 9;
-			const float blurScale = 0.002;
-			deltaTextCoord = normalize(deltaTextCoord);
-			int center = (nSteps-1)/2;
-			vec3 blur = vec3(0.0);
-			float tw = 0.0;
-			float sigma = 0.25;
-			float A = 1.0/sqrt(2.0*3.14159265359*sigma);
-			textCoord -= deltaTextCoord*center*blurScale;
-			
-			for(int i=0; i < nSteps ; i++) {
-				textCoord += deltaTextCoord*blurScale;
-				float dist = (i-float(center))/center;
-				float weight = A*exp(-(dist*dist)/(2.0*sigma));
-				float sample = texture2D(gcolor, textCoord).a*weight;
-				
-				tw += weight;
-				gr += sample;
-			}
-		surface.color.rgb += 5.0f*colorSunlight*Moon_exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay/2.5*truepos*timeMidnight;
-	}
-}
-
-#endif
-#ifdef NO_UNDERWATER_RAYS
-}
-#endif
-#endif	
+	#endif
+	#endif
 	
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 	//CalculateGlossySpecularReflections(surface);
 
-	surface.color += GetCrepuscularRays(surface);
-	
+
 	// surface.color = surface.normal * 0.0001f;
 
 	//surface.color = vec3(fwidth(surface.depth)) * 0.01f;
@@ -1639,6 +1513,4 @@ if (isEyeInWater > 0.9) {
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 	//gl_FragData[1] = vec4(texture2D(composite, texcoord.st).r, cloudAlpha, texture2D(composite, texcoord.st).b, 1.0f);
-	
-
 }

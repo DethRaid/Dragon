@@ -97,6 +97,13 @@ vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
 }
 
 
+
+
+// 	vec4 result = mix(texCenter, texRight, vec4(f.x));
+// 	return result;
+// }
+
+
 vec4 TextureSmooth(in sampler2D tex, in vec2 coord)
 {
 	int level = 0;
@@ -105,7 +112,9 @@ vec4 TextureSmooth(in sampler2D tex, in vec2 coord)
 	vec2 i = floor(coord);
 	vec2 f = fract(coord);
 	f = f * f * (3.0f - 2.0f * f);
+	//f = 1.0f - (cos(f * 3.1415f) * 0.5f + 0.5f);
 
+	//i -= vec2(0.5f);
 
 	vec2 icoordCenter 		= i / res;
 	vec2 icoordRight 		= (i + vec2(1.0f, 0.0f)) / res;
@@ -153,6 +162,11 @@ void main() {
 	worldPosition = viewpos.xyz + cameraPosition.xyz;
 
 	
+	//Entity checker
+	// if (mc_Entity.x == 1920.0f)
+	// {
+	// 	texcoord.st = vec2(0.2f);
+	// }
 	
 	//Gather materials
 	materialIDs = 1.0f;
@@ -277,6 +291,11 @@ float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.
 	  lightWeight = max(0.0f, lightWeight);
 	  lightWeight = pow(lightWeight, 5.0f);
 	  
+	  // if (texcoord.t < 0.65f) {
+	  // 	grassWeight = 1.0f;
+	  // } else {
+	  // 	grassWeight = 0.0f;
+	  // }	 
 
 	  if (grassWeight < 0.01f) {
 	  	grassWeight = 1.0f;
@@ -319,6 +338,7 @@ position.xyz += cameraPosition.xyz;
 		float windStrengthRandom = stochLargeMoving.x;
 			  windStrengthRandom = pow(windStrengthRandom, mix(2.0f, 1.0f, rainStrength));
 			  windStrength *= mix(windStrengthRandom, 0.5f, rainStrength * 0.25f);
+			  //windStrength = 1.0f;
 
 		//heavy wind
 		float heavyAxialFrequency 			= 8.0f;
@@ -416,6 +436,7 @@ position.xyz += cameraPosition.xyz;
 			  //lightWeight = max(0.0f, 1.0f - (lightWeight * 5.0f));
 		
 		float magnitude = (sin((position.y + position.x + tick * pi / ((28.0) * speed))) * 0.15 + 0.15) * 0.30 * lightWeight;
+			  //magnitude *= grassWeight;
 			  magnitude *= lightWeight;
 		float d0 = sin(tick * pi / (112.0 * speed)) * 3.0 - 1.5;
 		float d1 = sin(tick * pi / (142.0 * speed)) * 3.0 - 1.5;
@@ -435,6 +456,7 @@ position.xyz += cameraPosition.xyz;
 
 		
 		float magnitude = (sin((tick * pi / ((28.0) * speed))) * 0.05 + 0.15) * 0.075 * lightWeight;
+			  //magnitude *= 1.0f - grassWeight;
 			  magnitude *= lightWeight;
 		float d0 = sin(tick * pi / (122.0 * speed)) * 3.0 - 1.5;
 		float d1 = sin(tick * pi / (142.0 * speed)) * 3.0 - 1.5;
@@ -459,7 +481,10 @@ position.xyz += cameraPosition.xyz;
         float d2 = sin(worldTime * 3.14159265358979323846264 / (192.0 * speed)) * 3.0 - 1.5;
         float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 - 1.5;
         position.x += sin((worldTime * 3.14159265358979323846264 / (16.0 * speed)) + (position.x + d0)*0.5 + (position.z + d1)*0.5 + (position.y)) * magnitude;
+        //position.x -= 0.05;
         position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*0.5 + (position.x + d3)*0.5 + (position.y)) * magnitude;
+        //position.z -= 0.05;
+        //position.y += sin((worldTime * 3.14159265358979323846264 / (10.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/2.0);
     }
    
     //small scale movement
@@ -471,7 +496,9 @@ position.xyz += cameraPosition.xyz;
         float d2 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
         float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
         position.x += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude;
+        //position.x -= 0.05;
         position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude;
+        //position.z -= 0.05;
         position.y += sin((worldTime * 3.14159265358979323846264 / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/4.0);
     }
     #endif
@@ -486,6 +513,7 @@ position.xyz += cameraPosition.xyz;
         float d2 = sin(worldTime * 3.14159265358979323846264 / (132.0 * speed)) * 3.0 - 1.5;
         float d3 = sin(worldTime * 3.14159265358979323846264 / (132.0 * speed)) * 3.0 - 1.5;
         position.x += sin((worldTime * 3.14159265358979323846264 / (13.0 * speed)) + (position.x + d0)*0.9 + (position.z + d1)*0.9) * magnitude;
+        //position.z += sin((worldTime * 3.14159265358979323846264 / (16.0 * speed)) + (position.z + d2)*0.9 + (position.x + d3)*0.9) * magnitude;
         position.y += sin((worldTime * 3.14159265358979323846264 / (15.0 * speed)) + (position.z + d2) + (position.x + d3)) * magnitude;
         position.y -= 0.04;
     }
@@ -498,6 +526,7 @@ position.xyz += cameraPosition.xyz;
         float d2 = sin(worldTime * 3.14159265358979323846264 / (132.0 * speed)) * 3.0 - 1.5;
         float d3 = sin(worldTime * 3.14159265358979323846264 / (132.0 * speed)) * 3.0 - 1.5;
         position.x += sin((worldTime * 3.14159265358979323846264 / (13.0 * speed)) + (position.x + d0)*0.9 + (position.z + d1)*0.9) * magnitude;
+        //position.z += sin((worldTime * 3.14159265358979323846264 / (16.0 * speed)) + (position.z + d2)*0.9 + (position.x + d3)*0.9) * magnitude;
         position.y += sin((worldTime * 3.14159265358979323846264 / (15.0 * speed)) + (position.z + d2) + (position.x + d3)) * magnitude;
         position.y -= 0.04;
     }
@@ -518,7 +547,20 @@ position.xyz += cameraPosition.xyz;
 
 	color = gl_Color;
 
+	// float colorDiff = abs(color.r - color.g);
+	// 	  colorDiff += abs(color.r - color.b);
+	// 	  colorDiff += abs(color.g - color.b);
 
+	// if (colorDiff < 0.001f && mc_Entity.x != -1.0f && mc_Entity.x != 63 && mc_Entity.x != 68 && mc_Entity.x != 323) {
+
+	// 	float lum = color.r + color.g + color.b;
+	// 		  lum /= 3.0f;
+
+	// 	if (lum < 0.92f) {
+	// 		color.rgb = vec3(1.0f);
+	// 	}
+
+	// }	
 	
 	gl_FogFragCoord = gl_Position.z;
 	
@@ -532,31 +574,37 @@ float texFix = -1.0f;
 	texFix = 1.0f;
 	#endif
 
-	
+	//if(distance < 80.0f){	
 		if (gl_Normal.x > 0.5) {
+			//  1.0,  0.0,  0.0
 			tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  texFix));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
 			if (abs(materialIDs - 32.0f) < 0.1f)								//Optifine glowstone fix
 				color *= 1.75f;
 		} else if (gl_Normal.x < -0.5) {
+			// -1.0,  0.0,  0.0
 			tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
 			if (abs(materialIDs - 32.0f) < 0.1f)								//Optifine glowstone fix
 				color *= 1.75f;
 		} else if (gl_Normal.y > 0.5) {
+			//  0.0,  1.0,  0.0
 			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
 		} else if (gl_Normal.y < -0.5) {
+			//  0.0, -1.0,  0.0
 			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
 		} else if (gl_Normal.z > 0.5) {
+			//  0.0,  0.0,  1.0
 			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
 		} else if (gl_Normal.z < -0.5) {
+			//  0.0,  0.0, -1.0
 			tangent  = normalize(gl_NormalMatrix * vec3( texFix,  0.0,  0.0));
 			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
 		}
-	
+	//}
 
 	
 	tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
