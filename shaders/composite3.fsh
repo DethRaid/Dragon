@@ -49,17 +49,14 @@ vec3 CalculateBloom(in int LOD, in vec2 offset) {
 		for (int i = 0; i < 6; i++) {
 			for (int j = 0; j < 6; j++) {
 
-				float weight = 1.0f - distance(vec2(i, j), vec2(2.5f)) / 3.5;
+				float weight = 1.0f - distance(vec2(i, j), vec2(2.5f)) * 0.72;
 					  weight = clamp(weight, 0.0f, 1.0f);
-					  weight = 1.0f - cos(weight * 3.1415 / 2.0f);
+					  weight = 1.0f - cos(weight * 3.1415 * 0.5f);
 					  weight = pow(weight, 2.0f);
 				vec2 coord = vec2(i - 2.5, j - 2.5);
 					 coord.x /= viewWidth;
 					 coord.y /= viewHeight;
-					 //coord *= 0.0f;
-
-					 //coord.x -= 0.5f / viewWidth;
-					 //coord.y -= 0.5f / viewHeight;
+					
 
 				vec2 finalCoord = (texcoord.st + coord.st - offset.st) * scale;
 
@@ -100,9 +97,7 @@ void main() {
 		 bloom = pow(bloom, vec3(1.0f / (1.0f + 1.2f)));
 
 	
-	//gl_FragData[0] = vec4(color.rgb, 0.0f);
 	gl_FragData[0] = vec4(bloom.rgb, 1.0f);
-	//gl_FragData[1] = texture2D(gnormal, texcoord.st);
 	
 
 }
