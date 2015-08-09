@@ -556,7 +556,7 @@ float   CalculateAntiSunglow(in SurfaceStruct surface) {
 }
 
 float   CalculateSunspot(in SurfaceStruct surface) {
-	float roughness = surface.smoothness;
+	float roughness = 1.0 - surface.smoothness;
 
 	float curve = 1.0f;
 
@@ -1155,7 +1155,7 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 		surface.color = mix( surface.color, reflection.rgb, vec3( reflection.a ) );
 		surface.color = mix( surface.color, reflection.rgb, vec3( surface.specularity ) );
-		// surface.color = vec3( reflection.rgb );
+		//surface.color = vec3( fakeSkyReflection.rgb );
 		surface.reflection = reflection;
 	}
 }
@@ -1429,7 +1429,7 @@ void main() {
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 
-	//surface.color = vec3( surface.fresnel / 5000.0 );
+	//surface.color = vec3( surface.normal / 5000.0 );
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
 	gl_FragData[1] = vec4( surface.specularity, 0.0, 0.0, 1.0 );
