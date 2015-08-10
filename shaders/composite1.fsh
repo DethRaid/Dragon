@@ -107,6 +107,7 @@ const bool 		shadowHardwareFiltering0 = false;
 
 
 #define VOLUMETRIC_LIGHT
+#define NUM_VL_SAMPLES 			64
 
 //----------2D GodRays----------//
 //#define GODRAYS
@@ -2321,58 +2322,63 @@ float shadowBilinear( in sampler2D shadow, in vec3 coord, in int lod ) {
 }
 
 float CrepuscularRays(in SurfaceStruct surface) {
-	float rayDepth = 0.02f;
-	float increment = 4.0f;
+	float rays = 0.0;
 
-	const float rayLimit = 30.0f;
-	float dither = CalculateDitherPattern2();
-
-	float lightAccumulation = 0.0f;
-	float ambientFogAccumulation = 0.0f;
-
-	float numSteps = rayLimit / increment;
-
-	int count = 0;
-
-	while (rayDepth < rayLimit) {
-		if(surface.linearDepth < rayDepth + dither * increment) {
-			break;
+	for( int i = 0; i < NUM_VL_SAMPLES; i++ ) {
+		float rayDepth = 0.02f;
+		float increment = 4.0f;
+	
+		const float rayLimit = 30.0f;
+		float dither = CalculateDitherPattern2() + (float( i ) * 0.333);
+	
+		float lightAccumulation = 0.0f;
+		float ambientFogAccumulation = 0.0f;
+	
+		float numSteps = rayLimit / increment;
+	
+		int count = 0;
+	
+		while (rayDepth < rayLimit) {
+			if(surface.linearDepth < rayDepth + dither * increment) {
+				break;
+			}
+	
+			vec4 rayPosition = GetScreenSpacePosition(texcoord.st, LinearToExponentialDepth(rayDepth + dither * increment));
+			rayPosition = gbufferModelViewInverse * rayPosition;
+	
+			rayPosition = shadowModelView * rayPosition;
+			rayPosition = shadowProjection * rayPosition;
+			rayPosition /= rayPosition.w;
+	
+			float dist = sqrt(dot(rayPosition.xy, rayPosition.xy));
+			float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+			rayPosition.xy *= 1.0f / distortFactor;
+			rayPosition = rayPosition * 0.5f + 0.5f;
+	
+			float shadowSample = shadowBilinear( shadow, vec3(rayPosition.st, rayPosition.z + 0.0018f), 2 );
+	
+			lightAccumulation += shadowSample * increment;
+	
+			ambientFogAccumulation *= 1.0f;
+			rayDepth += increment;
+	
+			count++;
+			increment *= 1.5;
 		}
-
-		vec4 rayPosition = GetScreenSpacePosition(texcoord.st, LinearToExponentialDepth(rayDepth + dither * increment));
-		rayPosition = gbufferModelViewInverse * rayPosition;
-
-		rayPosition = shadowModelView * rayPosition;
-		rayPosition = shadowProjection * rayPosition;
-		rayPosition /= rayPosition.w;
-
-		float dist = sqrt(dot(rayPosition.xy, rayPosition.xy));
-		float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-		rayPosition.xy *= 1.0f / distortFactor;
-		rayPosition = rayPosition * 0.5f + 0.5f;
-
-		float shadowSample = shadowBilinear( shadow, vec3(rayPosition.st, rayPosition.z + 0.0018f), 2 );
-
-		lightAccumulation += shadowSample * increment;
-
-		ambientFogAccumulation *= 1.0f;
-		rayDepth += increment;
-
-		count++;
-		increment *= 1.5;
+	
+		lightAccumulation /= numSteps;
+		ambientFogAccumulation /= numSteps;
+	
+		float sunglow = CalculateSunglow(surface);
+		float antiSunglow = CalculateAntiSunglow(surface);
+	
+		float anisoHighlight = pow(1.0f / (pow((1.0f - sunglow) * 3.0f, 2.0f) + 0.0001f) * 1.5f, 1.5f) + 0.5;
+					anisoHighlight *= sunglow + 0.0f;
+					anisoHighlight += antiSunglow * 0.05f;
+		rays += lightAccumulation;
 	}
 
-	lightAccumulation /= numSteps;
-	ambientFogAccumulation /= numSteps;
-
-	float sunglow = CalculateSunglow(surface);
-	float antiSunglow = CalculateAntiSunglow(surface);
-
-	float anisoHighlight = pow(1.0f / (pow((1.0f - sunglow) * 3.0f, 2.0f) + 0.0001f) * 1.5f, 1.5f) + 0.5;
-				anisoHighlight *= sunglow + 0.0f;
-				anisoHighlight += antiSunglow * 0.05f;
-
-	float rays = lightAccumulation;
+	rays /= NUM_VL_SAMPLES;
 
 	float depth = GetDepthLinear(texcoord.st);
 

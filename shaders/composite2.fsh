@@ -1519,6 +1519,32 @@ vec3 GetCrepuscularRays(in SurfaceStruct surface)
     return rays * 0.0001;
 }
 
+float getCrepuscularRays() {
+	//float edgeAmount = sobelEdgeDetect( texcoord.st, gdepthtex, 0, viewWidth, viewHeight );
+    return texture2DLod(gaux3, texcoord.st, 2.5 ).r;
+}
+
+vec3 getCrepuscularRaysColor() {
+	float sunglow = 1.0 - CalculateSunglow(surface);
+    sunglow = 1.0 / (pow(sunglow, 3.0) * 9.0 + 0.001);
+
+	vec3 sunColorNoon = 	sunglow * colorSunlight * timeNoon;
+	vec3 sunColorDusk = 	sunglow * colorSunlight * timeSunriseSunset;
+	vec3 sunColorNight = 			  colorSunlight * timeMidnight;
+	vec3 atmosphereColor = colorSkylight * 0.0;
+
+	vec3 color = sunColorDusk * SUNRISEnSET + atmosphereColor;
+	color += sunColorNoon * NOON + atmosphereColor;
+
+	#ifdef VOLUMETRIC_MOON_LIGHT
+	color += sunColorNight * NIGHT + atmosphereColor;
+	#endif
+
+	DoNightEye( color );
+
+	return color * 0.001;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////
@@ -1658,7 +1684,7 @@ if (isEyeInWater > 0.9) {
 	CalculateSpecularHighlight(surface);
 	//CalculateGlossySpecularReflections(surface);
 
-	surface.color += GetCrepuscularRays(surface);
+	surface.color = surface.color * 0.9 + mix( surface.color, getCrepuscularRaysColor(), getCrepuscularRays() ) * 0.1;
 
 	// surface.color = surface.normal * 0.0001f;
 
