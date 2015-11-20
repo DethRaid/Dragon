@@ -1,13 +1,13 @@
 #version 120
 
 /*
- _______ _________ _______  _______  _ 
+ _______ _________ _______  _______  _
 (  ____ \\__   __/(  ___  )(  ____ )( )
 | (    \/   ) (   | (   ) || (    )|| |
 | (_____    | |   | |   | || (____)|| |
 (_____  )   | |   | |   | ||  _____)| |
       ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _ 
+/\____) |   | |   | (___) || )       _
 \_______)   )_(   (_______)|/       (_)
 
 Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
@@ -22,15 +22,16 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define TILE_RESOLUTION 128
 
 #define PARALLAX
+	//#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
 
 #define SPECULARITY
-	#define SPEC_BRIGHTNESS		0.7f	// default is 1.0f - lower this number to increase the specular brightness for New specular
+	#define SPEC_BRIGHTNESS		0.6f	// default is 1.0f - lower this number to increase the specular brightness for New specular
 		//---for Resource pack Faithful recommended 1.0f, for Ovos Rustic and Chromahills recommended 0.7f---//
-	
-	
-	
-//#define OLD_SPECULAR					// Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
-#define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
+
+	#define SPEC_BRIGHTNESS_OLD		1.75f	//default is 1.0f if not using a supported texture pack - higher this number lowers the specular best for supported texture packs
+
+#define OLD_SPECULAR					// Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
+//#define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
 
 ///////////////////////////////////////////////////END OF ADJUSTABLE VARIABLES///////////////////////////////////////////////////
 
@@ -45,6 +46,10 @@ uniform float wetness;
 uniform float frameTimeCounter;
 uniform vec3 sunPosition;
 uniform vec3 upPosition;
+
+uniform int   isEyeInWater;
+
+uniform float rainStrength;
 
 uniform float near;
 uniform float far;
@@ -186,7 +191,7 @@ vec3 Get3DNoiseNormal(in vec3 pos)
 vec3 CalculateRainBump(in vec3 pos)
 {
 
-	
+
 
 	pos.y += frameTimeCounter * 3.0f;
 	pos.xz *= 1.0f;
@@ -253,28 +258,42 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 
 	stepSize.xy *= parallaxDepth;
 
-
+#ifdef LQ_POM
 	float heightmap = GetTexture(normals, coord.st).a;
+#else
+	float heightmap = texture2D(normals, coord.st).a;
+#endif
 
-	
 		vec3 pCoord = vec3(0.0f, 0.0f, 1.0f);
 
-		
+		//make "pop out"
+		//pCoord.st += (viewVector.xy * stepSize.xy) / (viewVector.z * stepSize.z);
 
 		if (heightmap < 1.0f)
 		{
 			vec3 step = viewVector * stepSize;
+	#ifdef LQ_POM
 			float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) * 0.070f;
+	#else
+			float distAngleWeight = ((distance * 0.6f) * (2.1f - viewVector.z)) / 16.0;
+	#endif
 				 step *= distAngleWeight;
+			#ifdef LQ_POM
 				 step *= 2.0f;
+			#endif
 
 			float sampleHeight = heightmap;
 
 			for (int i = 0; sampleHeight < pCoord.z && i < 240; ++i)
 			{
+				//if (heightmap < pCoord.z)
 				pCoord.xy = mix(pCoord.xy, pCoord.xy + step.xy, clamp((pCoord.z - sampleHeight) / (stepSize.z * 1.0 * distAngleWeight / (-viewVector.z + 0.05)), 0.0, 1.0));
 				pCoord.z += step.z;
+			#ifdef LQ_POM
 				sampleHeight = GetTexture(normals, OffsetCoord(coord.st, pCoord.st, 0)).a;
+			#else
+				sampleHeight = texture2D(normals, OffsetCoord(coord.st, pCoord.st, 0)).a;
+			#endif
 
 			}
 
@@ -287,10 +306,10 @@ vec2 CalculateParallaxCoord(in vec2 coord, in vec3 viewVector)
 }
 
 
-void main() {	
+void main() {
 
 	vec4 modelView = (gl_ModelViewMatrix * vertexPos);
-		
+
 
 	vec3 viewVector = normalize(tbnMatrix * modelView.xyz);
 		 viewVector.x /= 2.0f;
@@ -309,13 +328,13 @@ void main() {
 	float w = wetness;
 
 
-		
+
 	vec4 spec = GetTexture(specular, parallaxCoord.st);
 	vec4 specs = texture2D(specular, parallaxCoord.st);
 
 	float wet = GetModulatedRainSpecular(worldPosition.xyz);
 
-#ifdef OLD_SPECULAR	
+#ifdef OLD_SPECULAR
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
@@ -324,12 +343,12 @@ void main() {
 	}
 	else
 	{
-		 specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (1.0f - w) * 1.0f);
+		 specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (SPEC_BRIGHTNESS_OLD - w) * 1.0f);
 		 specs.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
 	}
-#endif	
-	
-#ifdef NEW_SPECULAR	
+#endif
+
+#ifdef NEW_SPECULAR
 	float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
 
 	if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f)
@@ -343,53 +362,67 @@ void main() {
 	}
 #endif
 
-	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	
+	vec4 mclightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	vec4 mclightmaps = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
 	//Separate lightmap types
-	lightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
-	lightmap.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+	mclightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
 
-	lightmap.b = pow(lightmap.b, 1.0f);
-	lightmap.r = pow(lightmap.r, 3.0f);
-	
+	if (isEyeInWater > 0.9 || rainStrength > 0.9) {
 
-	 float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
+		mclightmap.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+		mclightmaps.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+
+	} else {
+
+		mclightmap.b = texture2D(lightmap, vec2(0.0/16., lmcoord.t)).r*2.85 * pow(1-rainStrength, -0.27f);
+
+	}
+
+	mclightmaps.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+
+
+	mclightmap.b = pow(mclightmap.b, 1.0f);
+	mclightmap.r = pow(mclightmap.r, 3.0f);
+
+
+	 float wetfactor = clamp(mclightmaps.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
 	 	   wetfactor *= w;
 
 	 spec.g *= wetfactor;
-	 
+
 #ifdef OLD_SPECULAR
-	 specs.g *= wetfactor/1.5;
+	 specs.g *= wetfactor;
 #endif
 
 
 
-	
-	
-	
+
+
+
 	vec4 frag2;
-	
+
 	if (distance < bump_distance) {
-	
+
 			vec3 bump = GetTexture(normals, parallaxCoord.st).rgb * 2.0f - 1.0f;
-			
+
 			float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
-	              bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.97f);
-				  
+	              bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.75f);
+
 			bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
 
-			
+
 			frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
-			
+
 	} else {
-	
-			frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);					
+
+			frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);
 	}
 
 	//Diffuse
 	vec4 albedo = GetTexture(texture, parallaxCoord.st) * color;
 
-		
+
 
 	vec3 upVector = normalize(upPosition);
 
@@ -400,16 +433,16 @@ void main() {
 
 
 		float metallicMask = 0.0f;
-		
+
 		if (   abs(materialIDs - 20.0f) < 0.1f
 			|| abs(materialIDs - 21.0f) < 0.1f
 			|| abs(materialIDs - 22.0f) < 0.1f
 			|| abs(materialIDs - 23.0f) < 0.1f) {
 			metallicMask = 1.0f;
 		}
-		
 
-		
+
+
 
 	float mats_1 = materialIDs;
 		  mats_1 += 0.1f;
@@ -418,13 +451,13 @@ void main() {
 
 	gl_FragData[0] = albedo;
 
-	//Depth  
-	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);
+	//Depth
+	gl_FragData[1] = vec4(mats_1/255.0f, mclightmap.r, mclightmap.b, 1.0f);
 
 	//normal
 	gl_FragData[2] = frag2;
-		
-#ifdef SPECULARITY	
+
+#ifdef SPECULARITY
 	//specularity
 	#ifdef NEW_SPECULAR
 	gl_FragData[3] = vec4(spec.r + spec.g, spec.b, 0.0f, 1.0f);
@@ -432,6 +465,6 @@ void main() {
 	#ifdef OLD_SPECULAR
 	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
 	#endif
-#endif	
+#endif
 
 }

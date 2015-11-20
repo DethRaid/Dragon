@@ -1,5 +1,8 @@
 #version 120
 
+//#define OLD_LIGHTING_FIX		//In newest versions of the shaders mod/optifine, old lighting isn't removed properly. If OldLighting is On and this is enabled, you'll get proper results in any shaders mod/minecraft version.
+
+
 varying vec4 color;
 varying vec4 texcoord;
 varying vec4 lmcoord;
@@ -39,7 +42,7 @@ varying vec4 vertexPos;
 varying vec3 vertexViewVector;
 
 //If you're using 1.7.2, it has a texture glitch where certain sides of blocks are mirrored. Enable the following to compensate and keep lighting correct
-#define TEXTURE_FIX
+//#define TEXTURE_FIX
 
 #define WAVING_GRASS
 #define WAVING_WHEAT
@@ -450,7 +453,7 @@ position.xyz += cameraPosition.xyz;
 #ifdef WAVING_VINES
     //large scale movement
     if ( mc_Entity.x == ENTITY_VINES ) {
-        float speed = 3.0;
+        float speed = 1.0;
         float magnitude = (sin(((position.y + position.x)/2.0 + worldTime * 3.14159265358979323846264 / ((88.0)))) * 0.05 + 0.15) * 0.26;
 			  magnitude *= vineweight;
 			  magnitude *= lightWeight;
@@ -526,6 +529,29 @@ position.xyz += cameraPosition.xyz;
 	normal = normalize(gl_NormalMatrix * gl_Normal);
 	worldNormal = gl_Normal;
 
+	#ifdef OLD_LIGHTING_FIX
+	if (worldNormal.x > 0.85)
+	{
+		color.rgb *= 1.0 / 0.6;
+	}
+	if (worldNormal.x < -0.85)
+	{
+		color.rgb *= 1.0 / 0.6;
+	}
+	if (worldNormal.z > 0.85)
+	{
+		color.rgb *= 1.0 / 0.8;
+	}
+	if (worldNormal.z < -0.85)
+	{
+		color.rgb *= 1.0 / 0.8;
+	}
+	if (worldNormal.y < -0.85)
+	{
+		color.rgb *= 1.0 / 0.5;
+	}
+	#endif
+	
 float texFix = -1.0f;
 
 	#ifdef TEXTURE_FIX

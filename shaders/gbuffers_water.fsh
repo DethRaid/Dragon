@@ -3,8 +3,10 @@
 
 #define PARALLAX_WATER
 
-#define WAVE_HEIGHT 0.62f
+#define WAVE_HEIGHT 0.56f
 #define WAVE_HEIGHT_RAIN 1.7f
+
+#define transparency 100.0f				//set to 200.0f if Water_DepthFog is disabled
 
 uniform sampler2D texture;
 uniform sampler2D specular;
@@ -115,10 +117,10 @@ vec4 textureSmooth(in sampler2D tex, in vec2 coord)
 
 	part.x = part.x * part.x * (3.0f - 2.0f * part.x);
 	part.y = part.y * part.y * (3.0f - 2.0f * part.y);
-#ifdef SMOOTH_WATER	
+#ifdef SMOOTH_WATER
 	 part.x = 1.0f - (cos(part.x * 3.1415f) * 0.5f + 0.5f);
 	 part.y = 1.0f - (cos(part.y * 3.1415f) * 0.5f + 0.5f);
-#endif	
+#endif
 
 	coord = whole + part;
 
@@ -158,12 +160,12 @@ float GetWaves(vec3 position, in float scale) {
 
 	p.x += (FRAME_TIME / 20.0f) * speed;
 	p.y -= (FRAME_TIME / 20.0f) * speed;
-	
-#ifdef RAIN_WATER_SPEED	
+
+#ifdef RAIN_WATER_SPEED
 	p.x += (FRAME_TIME / 9.0f) * speed * rainStrength;
 	p.y -= (FRAME_TIME / 9.0f) * speed * rainStrength;
 #endif
-	
+
 	float weight = 1.0f;
 	float weights = weight;
 
@@ -174,27 +176,27 @@ float GetWaves(vec3 position, in float scale) {
 	float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x; 			p /= 2.1f; 	/*p *= pow(2.0f, 1.0f);*/ 	p.y -= (FRAME_TIME / 50.0f) * speed; p.x -= (FRAME_TIME / 30.0f) * speed;
 	allwaves += wave;
 
-	weight = 2.1f;	
+	weight = 2.1f;
 	weights += weight;
 		  wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.4f))  + vec2(0.0f,  -p.x * 2.1f) ).x;	p /= 1.5f;/*p *= pow(2.0f, 2.0f);*/ 	p.x += (FRAME_TIME / 20.0f) * speed;
 		  wave *= weight;
 	allwaves += wave;
 
-	weight = 7.25f;	
-	weights += weight;	
+	weight = 7.25f;
+	weights += weight;
 		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  p.x * 1.1f) ).x);		p /= 1.3f; 	p.x -= (FRAME_TIME / 25.0f) * speed;
-		  
+
 		  wave *= weight;
 	allwaves += wave;
 
-	weight = 9.25f;	
-	weights += weight;	
+	weight = 9.25f;
+	weights += weight;
 		  wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		p /= 1.9f; 	p.x += (FRAME_TIME / 155.0f) * speed;
-		  
+
 		  wave *= weight;
 	allwaves += wave;
 
-	
+
 
 	allwaves /= weights;
 
@@ -262,7 +264,7 @@ vec3 GetWavesNormal(vec3 position, in float scale, in mat3 tbnMatrix) {
 
 		 wavesNormal.r *= 43.0f * WAVE_HEIGHT / sampleDistance;
 		 wavesNormal.g *= 43.0f * WAVE_HEIGHT / sampleDistance;
-		 
+
 
 		 wavesNormal.b = sqrt(1.0f - wavesNormal.r * wavesNormal.r - wavesNormal.g * wavesNormal.g);
 		 wavesNormal.rgb = normalize(wavesNormal.rgb);
@@ -276,11 +278,11 @@ void main() {
 
 	vec4 tex = texture2D(texture, texcoord.st);
 		 //tex.a = 0.85f;
-	
+
 	float zero = 1.0f;
 	float transx = 0.0f;
 	float transy = 0.0f;
-	
+
 	float texblock = 0.0625f;
 
 	bool backfacing = false;
@@ -291,7 +293,7 @@ void main() {
 		backfacing = false;
 	}
 
-	
+
 	if (iswater > 0.5f && !backfacing) {
 		vec4 albedo = texture2D(texture, texcoord.st).rgba;
 		float lum = albedo.r + albedo.g + albedo.b;
@@ -304,17 +306,17 @@ void main() {
 
 		waterColor = normalize(waterColor);
 
-		tex = vec4(0.2f, 0.7f, 0.95f, 200.0f/255.0f);
+		tex = vec4(0.2f, 0.7f, 0.95f, transparency/255.0f);
 		tex.rgb *= 1.0f * waterColor.rgb;
 		tex.rgb *= vec3(lum);
 
-		
+
 
 	} else if (iswater > 0.5f && backfacing) {
 		tex = vec4(0.0, 0.0, 0.0f, 30.0f / 255.0f);
 	}
-	
-		
+
+
 	//Separate lightmap types
 	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	lightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
@@ -322,10 +324,10 @@ void main() {
 
 	lightmap.b = pow(lightmap.b, 1.0f);
 	lightmap.r = pow(lightmap.r, 3.0f);
-	
 
-	
-	
+
+
+
 
 
 
@@ -335,11 +337,12 @@ void main() {
 		if (iswater > 0.5f && lightmap.b >= i / 16.0f && lightmap.b < (i + 1) / 16.0f)
 			matID = 35.0f + i;
 	}
-	for (int i = 0; i < 16; i++) {
-		if (isice > 0.5f && lightmap.b >= i / 16.0f && lightmap.b < (i + 1) / 16.0f)
-			matID = 35.0f + i;
+
+	if (isice > 0.5)
+	{
+		matID = 4;
 	}
-	
+
 
 	matID += 0.1f;
 
@@ -349,7 +352,7 @@ void main() {
 
 
 
-		
+
 
 	mat3 tbnMatrix = mat3 (tangent.x, binormal.x, normal.x,
 							tangent.y, binormal.y, normal.y,
@@ -376,6 +379,6 @@ void main() {
 
 	gl_FragData[3] = vec4(spec.r, spec.b, 0.0f, 1.0);
 
-	
-	
+
+
 }

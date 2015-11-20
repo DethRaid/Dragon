@@ -1,13 +1,13 @@
 #version 120
 
 /*
- _______ _________ _______  _______  _ 
+ _______ _________ _______  _______  _
 (  ____ \\__   __/(  ___  )(  ____ )( )
 | (    \/   ) (   | (   ) || (    )|| |
 | (_____    | |   | |   | || (____)|| |
 (_____  )   | |   | |   | ||  _____)| |
       ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _ 
+/\____) |   | |   | (___) || )       _
 \_______)   )_(   (_______)|/       (_)
 
 Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
@@ -21,7 +21,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 //#define ENABLE_SOFT_SHADOWS
 
-#define GI_QUALITY 2.0f				// sets the quality for GI and shadows 2.0f is default, Higher means lower fps
+#define GI_QUALITY 4.0f				// sets the quality for GI and shadows 2.0f is default, Higher means lower fps
 
 
 
@@ -66,7 +66,7 @@ const int 		noiseTextureResolution  = 64;
 
 //END OF INTERNAL VARIABLES//
 
-/* DRAWBUFFERS:45 */
+/* DRAWBUFFERS:46 */
 
 uniform sampler2D gnormal;
 uniform sampler2D gdepthtex;
@@ -167,9 +167,9 @@ vec3 Contrast(in vec3 color, in float contrast)
 	return nColor * colorLength;
 }
 
-float 	GetMaterialIDs(in vec2 coord) {			//Function that retrieves the texture that has all material IDs stored in it 																
+float 	GetMaterialIDs(in vec2 coord) {			//Function that retrieves the texture that has all material IDs stored in it
 	return texture2D(gdepth, coord).r;
-}																																																																									
+}
 
 bool 	GetSkyMask(in vec2 coord)
 {
@@ -196,9 +196,9 @@ float GetAO(in vec4 screenSpacePosition, in vec3 normal, in vec2 coord, in vec3 
 	mat3 tbn = mat3(tangent, bitangent, normal);
 
 	float aoRadius   = 0.25f * -screenSpacePosition.z;
-		  
+
 	float zThickness = 0.25f * -screenSpacePosition.z;
-		  
+
 
 	vec3 	samplePosition 		= vec3(0.0f);
 	float 	intersect 			= 0.0f;
@@ -213,7 +213,7 @@ float GetAO(in vec4 screenSpacePosition, in vec3 normal, in vec2 coord, in vec3 
 
 	for (int i = 0; i < 4; i++)
 	{
-		vec3 kernel = vec3(texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).r * 2.0f - 1.0f, 
+		vec3 kernel = vec3(texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).r * 2.0f - 1.0f,
 					     texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).g * 2.0f - 1.0f,
 					     texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).b * 1.0f);
 			 kernel = normalize(kernel);
@@ -231,7 +231,7 @@ float GetAO(in vec4 screenSpacePosition, in vec3 normal, in vec2 coord, in vec3 
 
 			//If point is behind geometry, buildup AO
 			if (sampleDepth >= samplePosition.z && sampleDepth - samplePosition.z < zThickness)
-			{	
+			{
 				ao += 1.0f;
 			} else {
 
@@ -251,7 +251,7 @@ vec4 f U38J in  OIU3  f,in vec2 d,in  I636  v,in  I636  z, RW32  s K1J5 { I636  
 
 vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult)
 {
-	
+
 
 	float linDepth = depth;
 
@@ -286,13 +286,13 @@ float  	CalculateDitherPattern1() {
 }
 
 void 	DoNightEye(inout vec3 color) {			//Desaturates any color input at night, simulating the rods in the human eye
-	
+
 	float amount = 0.8f; 						//How much will the new desaturated and tinted image be mixed with the original image
 	vec3 rodColor = vec3(0.2f, 0.4f, 1.0f); 	//Cyan color that humans percieve when viewing extremely low light levels via rod cells in the eye
 	float colorDesat = dot(color, vec3(1.0f)); 	//Desaturated color
-	
+
 	color = mix(color, vec3(colorDesat) * rodColor, timeMidnight * amount);
-		
+
 }
 
 
@@ -331,7 +331,7 @@ float GetCoverage(in float coverage, in float density, in float clouds)
 	clouds = clamp(clouds - (1.0f - coverage), 0.0f, 1.0f -density) / (1.0f - density);
 		clouds = max(0.0f, clouds * 1.1f - 0.1f);
 	 clouds = clouds = clouds * clouds * (3.0f - 2.0f * clouds);
-	 
+
 	return clouds;
 }
 
@@ -350,13 +350,13 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 
 		vec3 p = worldPosition.xyz / 150.0f;
 
-			
+
 
 		float t = frameTimeCounter * 5.0f;
-			 
+
 		p.x -= t * 0.02f;
 
-		
+
 
 		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
 		float noise  = 	Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));	p *= 2.0f;	p.x -= t * 0.097f;	vec3 p2 = p;
@@ -364,7 +364,7 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 			  noise += (1.0 - abs(Get3DNoise(p) * 3.0f - 1.5f) - 0.2) * 0.065f;					p *= 2.5f;	p.xz -= t * 0.165f;	vec3 p4 = p;
 			  noise += (1.0 - abs(Get3DNoise(p) * 3.0f - 1.5f)) * 0.032f;						p *= 2.5f;	p.xz -= t * 0.165f;
 			  noise += (1.0 - abs(Get3DNoise(p) * 2.0 - 1.0)) * 0.015f;												p *= 2.5f;
-			  
+
 			  noise /= 1.875f;
 
 
@@ -381,9 +381,9 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 
 
 		float cloudAltitudeWeight2 = 1.0f - clamp(distance(worldPosition.y + worldLightVector.y * lightOffset * 150.0f, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-			  cloudAltitudeWeight2 = (-cos(cloudAltitudeWeight2 * 3.1415f)) * 0.5 + 0.5;		
+			  cloudAltitudeWeight2 = (-cos(cloudAltitudeWeight2 * 3.1415f)) * 0.5 + 0.5;
 			  cloudAltitudeWeight2 = pow(cloudAltitudeWeight2, mix(0.33f, 0.8f, rainStrength));
-			
+
 
 		noise *= cloudAltitudeWeight;
 
@@ -403,10 +403,10 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 			return vec4(0.0f, 0.0f, 0.0f, 0.0f);
 		}
 
-		
+
 	float sundiff = Get3DNoise(p1 + worldLightVector.xyz * lightOffset);
 		  sundiff += (1.0 - abs(Get3DNoise(p2 + worldLightVector.xyz * lightOffset * 0.5f) * 1.0f - 0.5f) - 0.1) * 0.55f;
-		 
+
 		  sundiff *= 0.955f;
 		  sundiff *= cloudAltitudeWeight2;
 	float preCoverage = sundiff;
@@ -421,7 +421,7 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 		  firstOrder *= anisoBackFactor * 0.99 + 0.01;
 		  secondOrder *= anisoBackFactor * 0.8 + 0.2;
 	float directLightFalloff = mix(firstOrder, secondOrder, 0.2f);
-	
+
 	vec3 colorDirect = colorSunlight * 2.515f;
 		 DoNightEye(colorDirect);
 		 colorDirect *= 1.0f + pow(sunglow, 4.0f) * 2400.0f * pow(firstOrder, 1.1f) * (1.0f - rainStrength);
@@ -440,15 +440,15 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
 
 		directLightFalloff *= 1.0f - rainStrength * 0.6f;
 
-		
+
 
 		vec3 color = mix(colorAmbient, colorDirect, vec3(min(1.0f, directLightFalloff)));
 			 color += colorBounced;
-		    
+
 
 		color *= 1.0f;
 
-		
+
 		vec4 result = vec4(color.rgb, noise);
 
 		return result;
@@ -459,7 +459,7 @@ void 	CalculateClouds2 (inout vec4 color, vec4 screenSpacePosition, vec4 worldSp
 {
 	if (texcoord.s < 0.25f && texcoord.t < 0.25f)
 	{
-		
+
 		vec2 coord = texcoord.st * 4.0f;
 
 
@@ -479,10 +479,10 @@ void 	CalculateClouds2 (inout vec4 color, vec4 screenSpacePosition, vec4 worldSp
 		float startingRayDepth = far - 5.0f;
 
 		float rayDepth = startingRayDepth;
-			 
+
 		float rayIncrement = far / 10.0f;
 
-			 
+
 		int i = 0;
 
 		vec3 cloudColor = colorSunlight;
@@ -507,20 +507,20 @@ void 	CalculateClouds2 (inout vec4 color, vec4 screenSpacePosition, vec4 worldSp
 		{
 
 			float inormalized = i / numStepsF;
-				 
+
 			vec4 rayPosition = vec4(0.0);
 			     rayPosition.xyz = mix(startPosition.xyz, cameraPosition.xyz, inormalized);
 
 			float rayDistance = length((rayPosition.xyz - cameraPosition.xyz) / cloudDistanceMult);
 
-			
+
 			vec4 proximity =  CloudColor(rayPosition, sunglow, worldLightVector);
 				 proximity.a *= cloudDensity;
 
 				 if (!isSky)
 				 proximity.a *= clamp((surfaceDistance - (rayDistance * cloudDistanceMult)) / rayIncrement, 0.0f, 1.0f);
 
-			
+
 			color.rgb = mix(color.rgb, proximity.rgb, vec3(min(1.0f, proximity.a * cloudDensity)));
 
 			color.a += proximity.a;
@@ -530,10 +530,133 @@ void 	CalculateClouds2 (inout vec4 color, vec4 screenSpacePosition, vec4 worldSp
 
 		}
 
-		
+
 	}
 }
 
+vec4 textureSmooth(in sampler2D tex, in vec2 coord)
+{
+	vec2 res = vec2(64.0f, 64.0f);
+
+	coord *= res;
+	coord += 0.5f;
+
+	vec2 whole = floor(coord);
+	vec2 part  = fract(coord);
+
+	part.x = part.x * part.x * (3.0f - 2.0f * part.x);
+	part.y = part.y * part.y * (3.0f - 2.0f * part.y);
+	// part.x = 1.0f - (cos(part.x * 3.1415f) * 0.5f + 0.5f);
+	// part.y = 1.0f - (cos(part.y * 3.1415f) * 0.5f + 0.5f);
+
+	coord = whole + part;
+
+	coord -= 0.5f;
+	coord /= res;
+
+	return texture2D(tex, coord);
+}
+
+float AlmostIdentity(in float x, in float m, in float n)
+{
+	if (x > m) return x;
+
+	float a = 2.0f * n - m;
+	float b = 2.0f * m - 3.0f * n;
+	float t = x / m;
+
+	return (a * t + b) * t * t + n;
+}
+
+
+float GetWaves(vec3 position) {
+	float speed = 0.6f;
+
+  vec2 p = position.xz / 20.0f;
+
+  p.xy -= position.y / 20.0f;
+
+  p.x = -p.x;
+
+  p.x += (frameTimeCounter / 40.0f) * speed;
+  p.y -= (frameTimeCounter / 40.0f) * speed;
+
+  float weight = 1.0f;
+  float weights = weight;
+
+  float allwaves = 0.0f;
+
+  float wave = 0.0;
+	//wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x;
+	p /= 2.1f; 	/*p *= pow(2.0f, 1.0f);*/ 	p.y -= (frameTimeCounter / 20.0f) * speed; p.x -= (frameTimeCounter / 30.0f) * speed;
+  //allwaves += wave;
+
+  weight = 4.1f;
+  weights += weight;
+      wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.4f))  + vec2(0.0f,  -p.x * 2.1f) ).x;
+			p /= 1.5f;/*p *= pow(2.0f, 2.0f);*/ 	p.x += (frameTimeCounter / 20.0f) * speed;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 17.25f;
+  weights += weight;
+      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  p.x * 1.1f) ).x);		p /= 1.5f; 	p.x -= (frameTimeCounter / 55.0f) * speed;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 15.25f;
+  weights += weight;
+      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		p /= 1.9f; 	p.x += (frameTimeCounter / 155.0f) * speed;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 29.25f;
+  weights += weight;
+      wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.8f))  + vec2(0.0f,  -p.x * 1.7f) ).x * 2.0f - 1.0f);		p /= 2.0f; 	p.x += (frameTimeCounter / 155.0f) * speed;
+      wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 15.25f;
+  weights += weight;
+      wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.8f))  + vec2(0.0f,  p.x * 1.7f) ).x * 2.0f - 1.0f);
+      wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
+      wave *= weight;
+  allwaves += wave;
+
+  allwaves /= weights;
+
+  return allwaves;
+}
+
+
+vec3 GetWavesNormal(vec3 position) {
+
+	float WAVE_HEIGHT = 1.5;
+
+	const float sampleDistance = 3.0f;
+
+	position -= vec3(0.005f, 0.0f, 0.005f) * sampleDistance;
+
+	float wavesCenter = GetWaves(position);
+	float wavesLeft = GetWaves(position + vec3(0.01f * sampleDistance, 0.0f, 0.0f));
+	float wavesUp   = GetWaves(position + vec3(0.0f, 0.0f, 0.01f * sampleDistance));
+
+	vec3 wavesNormal;
+		 wavesNormal.r = wavesCenter - wavesLeft;
+		 wavesNormal.g = wavesCenter - wavesUp;
+
+		 wavesNormal.r *= 30.0f * WAVE_HEIGHT / sampleDistance;
+		 wavesNormal.g *= 30.0f * WAVE_HEIGHT / sampleDistance;
+
+		//  wavesNormal.b = sqrt(1.0f - wavesNormal.r * wavesNormal.r - wavesNormal.g * wavesNormal.g);
+		 wavesNormal.b = 1.0;
+		 wavesNormal.rgb = normalize(wavesNormal.rgb);
+
+
+
+	return wavesNormal.rgb;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -548,7 +671,7 @@ void main() {
 	vec4 worldLightVector = shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
 	vec3 normal = GetNormals(texcoord.st);
 
-	vec4 light = vec4(0.0);
+	vec4 light = vec4(0.0, 0.0, 0.0, 1.0);
 		 light = f(1, 		vec2(0.0f			), 16.0f,  GI_QUALITY, noisePattern);
 
 	if (light.r >= 1.0f)
@@ -577,7 +700,8 @@ void main() {
 	clouds.rgb = colorSkylight * 0.03;
 	// CalculateClouds2(clouds, screenSpacePosition, worldSpacePosition, worldLightVector.xyz);
 	clouds.rgb = pow(clouds.rgb, vec3(1.0 / 2.2));
-	
+
 	gl_FragData[0] = vec4(pow(light.rgb, vec3(1.0 / 2.2)), light.a);
-	gl_FragData[1] = clouds;
+	gl_FragData[1] = vec4(GetWavesNormal(vec3(texcoord.s * 50.0, 1.0, texcoord.t * 50.0)) * 0.5 + 0.5, light.a);
+	//gl_FragData[1] = clouds;
 }

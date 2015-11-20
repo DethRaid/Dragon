@@ -5,7 +5,7 @@
 
 #define SKY_DESATURATION 0.0f
 
-#define NIGHT_LIGHT 0.00015f			// increase for brighter nights 0.00015 is default, best is 0.15 for brighter night
+#define NIGHT_LIGHT 0.3			// increase for brighter nights 0.00015 is default, best is 0.15 for brighter night
 
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +63,9 @@ void main() {
 	timeSkyDark = ((clamp(timefract, 12000.0, 16000.0) - 12000.0) / 4000.0) - ((clamp(timefract, 22000.0, 24000.0) - 22000.0) / 2000.0);
 	timeSkyDark = pow(timeSkyDark, 3.0f);
 	
-	timeSunrise  = pow(timeSunrise, timePow);
+	timeSunrise  = pow(timeSunrise, 1.0f);
 	timeNoon     = pow(timeNoon, 1.0f/timePow);
-	timeSunset   = pow(timeSunset, timePow);
+	timeSunset   = pow(timeSunset, 1.0f);
 	timeMidnight = pow(timeMidnight, 1.0f/timePow);
 	
 	const float rayleigh = 0.1f;
@@ -84,9 +84,9 @@ void main() {
 	 sunrise_sun *= 0.45f;
 	
 	vec3 sunrise_amb;
-	 sunrise_amb.r = 0.70 * timeSunrise;
-	 sunrise_amb.g = 0.25 * timeSunrise;
-	 sunrise_amb.b = 0.80 * timeSunrise;	
+	 sunrise_amb.r = 0.85 * timeSunrise;
+	 sunrise_amb.g = 0.40 * timeSunrise;
+	 sunrise_amb.b = 0.95 * timeSunrise;	
 	 sunrise_amb = mix(sunrise_amb, vec3(1.0f), 0.2f);
 	 
 	
@@ -190,7 +190,7 @@ void main() {
 	//Make ambient light darker when not day time
 	colorSkylight = mix(colorSkylight, colorSkylight * 0.5f, timeSunrise);
 	colorSkylight = mix(colorSkylight, colorSkylight * 1.0f, timeNoon);
-	colorSkylight = mix(colorSkylight, colorSkylight * 0.5f, timeSunset);
+	colorSkylight = mix(colorSkylight, colorSkylight * 1.5f, timeSunset);
 	colorSkylight = mix(colorSkylight, colorSkylight * 0.0010f, timeMidnight);
 
 	// colorSkylight = vec3(0.0f, 0.0f, 1.0f);
@@ -199,8 +199,8 @@ void main() {
 	//Make sunlight darker when not day time
 	colorSunlight = mix(colorSunlight, colorSunlight * 1.0f, timeSunrise);
 	colorSunlight = mix(colorSunlight, colorSunlight * 1.0f, timeNoon);
-	colorSunlight = mix(colorSunlight, colorSunlight * 1.0f, timeSunset);
-	colorSunlight = mix(colorSunlight, colorSunlight * 0.065f, timeMidnight);
+	colorSunlight = mix(colorSunlight, colorSunlight * 2.0f, timeSunset);
+	colorSunlight = mix(colorSunlight, colorSunlight * NIGHT_LIGHT, timeMidnight);
 	
 	//Make reflected light darker when not day time
 	colorBouncedSunlight = mix(colorBouncedSunlight, colorBouncedSunlight * 0.5f, timeSunrise);
@@ -212,7 +212,7 @@ void main() {
 	colorScatteredSunlight = mix(colorScatteredSunlight, colorScatteredSunlight * 0.5f, timeSunrise);
 	colorScatteredSunlight = mix(colorScatteredSunlight, colorScatteredSunlight * 1.0f, timeNoon);
 	colorScatteredSunlight = mix(colorScatteredSunlight, colorScatteredSunlight * 0.5f, timeSunset);
-	colorScatteredSunlight = mix(colorScatteredSunlight, colorScatteredSunlight * NIGHT_LIGHT, timeMidnight);
+	colorScatteredSunlight = mix(colorScatteredSunlight, colorScatteredSunlight * 0.00015f, timeMidnight);
 	
 
 

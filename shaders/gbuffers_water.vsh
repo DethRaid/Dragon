@@ -41,7 +41,7 @@ void main() {
 		 vertexPos = gl_Vertex;
 		 
 	if (mc_Entity.x == 95 || mc_Entity.x == 160) {
-		isice = 1.0f;
+		isice = 0.5f;
 	}
 
 	if (mc_Entity.x == 1971.0f)
