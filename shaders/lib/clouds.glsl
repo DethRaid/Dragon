@@ -32,11 +32,22 @@
 
  //#define CLOUD_SHADOW
 
-#ifdef VOLUMETRIC_CLOUDS
+// Optifine check for elif
+ #ifdef VOLUMETRIC_CLOUDS
+ float doNothing;
+ #endif
+ #ifdef VOLUMETRIC_CLOUDS2
+ float doNothing1;
+ #endif
+ #ifdef VOLUMETRIC_CLOUDS3
+ float doNothing2;
+ #endif
+
+#if defined VOLUMETRIC_CLOUDS
     #include "clouds/clouds1.glsl"
-#elif VOLUMETRIC_CLOUDS2
+#elif defined VOLUMETRIC_CLOUDS2
     #include "clouds/clouds2.glsl"
-#elif VOLUMETRIC_CLOUDS3
+#elif defined VOLUMETRIC_CLOUDS3
     #include "clouds/clouds3.glsl"
 #endif
 
