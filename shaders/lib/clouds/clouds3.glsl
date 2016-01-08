@@ -1,3 +1,5 @@
+#ifndef CLOUDS_CLOUDS_3
+#define CLOUDS_CLOUDS_3
 
 vec4 CloudColor3(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
     float cloudHeight = 190.0f;
@@ -178,3 +180,5 @@ void    CalculateClouds3 (inout vec3 color, inout SurfaceStruct surface)
     //color.rgb = vec3(noise) * 0.2f;
         //color.rgb = cloudSum.rgb;
 }
+
+#enfid

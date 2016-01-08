@@ -6,6 +6,9 @@
     - GetCloudSpacePosition
  */
 
+#ifndef CLOUDS_BASE
+#define CLOUDS_BASE
+
 /*
  * Look, a self-contained function with no external dependencies. How amazing!
  */
@@ -18,7 +21,9 @@ float GetCoverage(in float coverage, in float density, in float clouds) {
 }
 
 /*
- * Calculates the color of clouds.
+ * Calculates the noise value for the clouds
+ *
+ * Relies on the frameTimeCounter uniform
  *
  * Relies on two global parameters - initial_p_multiplier and initial_t_multiplier. I can't exmplain exactly how they work,
  * but their values control the clouds algorithms a good bit.
@@ -31,6 +36,26 @@ float GetCoverage(in float coverage, in float density, in float clouds) {
  *
  * To any future code maintainers - I'm sorry.
  */
+float generate_noise(in vec3 worldPosition) {
+    vec3 p = worldPosition / 150.0f;
+
+    float t = frameTimeCounter / 2.0f;
+    p.x -= t * 0.02f;
+
+    p += (Get3DNoise(p * 1.0f + vec3(0.0f, t * 0.01f, 0.0f)) * 2.0f - 1.0f) * 0.3f;
+
+    float noise = Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));   p *= initial_p_multiplier;  p.x -= t * initial_t_multiplier;
+          noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;               p *= 3.0f;  p.xz -= t * 0.05f;
+          noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.075f;              p *= 2.0f;  p.xz -= t * 0.05f;
+          noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;               p *= 2.0f;
+          noise /= 1.2f;
+
+    return noise;
+}
+
+/*
+ * Calculates the color of clouds.
+ */
 vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
     float cloudHeight = 230.0f;
     float cloudDepth  = 150.0f;
@@ -41,18 +66,7 @@ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVecto
         return vec4(0.0f);
 
     } else {
-        vec3 p = worldPosition.xyz / 150.0f;
-
-        float t = frameTimeCounter / 2.0f;
-        p.x -= t * 0.02f;
-
-        p += (Get3DNoise(p * 1.0f + vec3(0.0f, t * 0.01f, 0.0f)) * 2.0f - 1.0f) * 0.3f;
-
-        float noise = Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));   p *= initial_p_multiplier;  p.x -= t * initial_t_multiplier;
-              noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;               p *= 3.0f;  p.xz -= t * 0.05f;
-              noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.075f;              p *= 2.0f;  p.xz -= t * 0.05f;
-              noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;               p *= 2.0f;
-              noise /= 1.2f;
+        float boise = generate_noise(worldPosition.xyz);
 
         const float lightOffset = 0.33f;
 
@@ -147,3 +161,4 @@ void    CalculateClouds(inout vec3 color, inout SurfaceStruct surface) {
         i++;
     }
 }
+#endif

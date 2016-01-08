@@ -1,3 +1,6 @@
+#ifndef CLOUDS_GLSL
+#define CLOUDS_GLSL
+
 /*
  * Includes all the code to make 3D SEUS clouds work
  *
@@ -269,3 +272,5 @@ float CloudShadow(in SurfaceStruct surface)
 
     return cloudShadow;
 }
+
+#endif
