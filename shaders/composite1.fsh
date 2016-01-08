@@ -1,6 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
+ #include "/lib/clouds.glsl"
+
 /*
  _______ _________ _______  _______  _
 (  ____ \\__   __/(  ___  )(  ____ )( )
@@ -14,9 +16,6 @@
 Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
 
 */
-
- #include "/lib/clouds.glsl"
-
 
 /////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,27 +52,6 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define FRAME_TIME frameTimeCounter
 
 #define WaterCaustics
-
-
-//----------3D clouds----------//
-//#define VOLUMETRIC_CLOUDS				//Original 3D Clouds from 1.0 and 1.1, bad dither pattern ripple, ONLY ENABLE ONE VOLUMETRIC CLOUDS
-#define VOLUMETRIC_CLOUDS2				//latest 3D clouds, Reduced dither pattern ripple, ONLY ENABLE ONE VOLUMETRIC CLOUDS
-//#define VOLUMETRIC_CLOUDS3
-#define SOFT_FLUFFY_CLOUDS				// dissable to fully remove dither Pattern ripple, adds a little pixel noise on cloud edge
-#define CLOUD_DISPERSE 10.0f          // increase this for thicker clouds and so that they don't fizzle away when you fly close to them, 10 is default Dont Go Over 30 will lag and maybe crash
-#define Vol_Cloud_Coverage 0.45f		// Vol_Cloud_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.45 0.50 0.60 0.70]
-#define Vol_Cloud_Coverage3 0.48		// Vol_Cloud_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.48 0.50 0.60 0.70]
-
-//----------New 2D clouds----------//
-//#define CLOUD_PLANE					// OLD 2D clouds, do not enable
-#define CLOUD_COVERAGE 0.41f + rainy * 0.55f;			//to increase the 2Dclouds:" 0.59f + rainy * 0.35f " is Default when not using 3DClouds," 0.5f + rainy * 0.35f " is best for when using 2D and 3D clouds
-#define CLOUD_SPEED 1.0f				//1 is default, use 2 if using new clouds in composite2
-#define CLOUD_BRIGHTNESS 2 			//2 is default, use 2.5 if using new clouds
-
-//----------End CONFIGURABLE 2D Clouds----------//
-
-//#define CLOUD_SHADOW
-
 
 #define VOLUMETRIC_LIGHT			//True GodRays, not 2D ScreenSpace
 
