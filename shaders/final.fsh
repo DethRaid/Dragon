@@ -19,33 +19,32 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define SATURATION_BOOST 0.2f 			//How saturated the final image should be. 0 is unchanged saturation. Higher values create more saturated image
 
-//Define one of these, not more, not less.
-	//#define TONEMAP_NATURAL
-	#define TONEMAP_FILMIC
+#define Color_desaturation  0.0		// Color_desaturation. 0.0 = full color. 1.0 = Black & White [0.0 0.25 0.50 0.75 1.0]
 
-//#define LOCAL_OPERATOR					//Use local operator when tone mapping. Local operators increase image sharpness and local contrast but can cause haloing
+//Define one of these, not more, not less.
+
 
 
 //#define MOTIONBLUR
 
-//#define DOF						// Shader Options in-Game: set HandDepth to 0.2500
+
+//#define LENS_FLARE				// Thanks to CatMan from SEUS forums
+	#define BIG_RAINBOW			//Adds a bigger Rainbow to the lens flare
+
+//#define MOON_GLOW		//Moon lens flare
 
 #define RAIN_LENS
 
-#define RainFog2						//This is a second layer of fog that more or less masks the rain on the horizon 
-	#define FOG_DENSITY	0.01f			//Default is 0.043f
+#define RainFog2						//This is a second layer of fog that more or less masks the rain on the horizon
+	#define FOG_DENSITY2	0.010			//Default is 0.043	[0.010 0.020 0.030 0.040]
 
-//#define LENS_FLARE				// Thanks to CatMan from SEUS forums
-	#define BIG_RAINBOW
-
-//#define MOON_GLOW
-
-
+#define New_GlowStone					//disable to return GlowStones to Continuum Default
 
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 uniform sampler2D depthtex0;
+uniform sampler2D depthtex1;
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
 uniform sampler2D gdepthtex;
@@ -54,7 +53,6 @@ uniform sampler2D composite;
 uniform sampler2D noisetex;
 uniform sampler2D gaux1;
 uniform sampler2D gaux2;
-uniform sampler2D gaux4;
 
 varying vec4 texcoord;
 varying vec3 lightVector;
@@ -93,6 +91,7 @@ uniform ivec2 eyeBrightness;
 uniform ivec2 eyeBrightnessSmooth;
 uniform int   fogMode;
 
+varying float timeSunriseSunset;
 varying float timeSunrise;
 varying float timeNoon;
 varying float timeSunset;
@@ -192,6 +191,21 @@ bool 	GetMaterialMask(in vec2 coord, in int ID) {
 	}
 }
 
+bool 	GetMaterialMask(in vec2 coord, in int ID, float matID) {
+	matID = floor(matID * 255.0f);
+
+	//Catch last part of sky
+	if (matID > 254.0f) {
+		matID = 0.0f;
+	}
+
+	if (matID == ID) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
 bool  	GetWaterMask(in vec2 coord) {					//Function that returns "true" if a pixel is water, and "false" if a pixel is not water.
 	float matID = floor(GetMaterialIDs(coord) * 255.0f);
 
@@ -210,7 +224,9 @@ float Luminance(in vec3 color)
 /*
 void 	DepthOfField(inout vec3 color)
 {
+if (isEyeInWater > 0.9) {
 
+	} else {
 	float cursorDepth = centerDepthSmooth;
 
 	bool isHand = GetMaterialMask(texcoord.st, 5);
@@ -281,6 +297,7 @@ void 	DepthOfField(inout vec3 color)
 
 	color = col/41;
 
+}
 }
 */
 
@@ -364,21 +381,12 @@ void CalculateExposure(inout vec3 color) {
 	float exposureMin = 0.07f;
 	float exposure = pow(eyeBrightnessSmooth.y / 240.0f, 6.0f) * exposureMax + exposureMin;
 
-	//exposure = 1.0f;
 
 	color.rgb /= vec3(exposure);
 }
 
 void TonemapVorontsov(inout vec3 color) {
-	//color = pow(color, vec3(2.2f)); 			//Put gcolor back into linear space
 	color.rgb *= 75000.0f;
-
-	//Natural
-	//Properties
-		// float tonemapContrast 		= 0.95f;
-		// float tonemapSaturation 	= 1.2f + SATURATION_BOOST;
-		// float tonemapDecay			= 210.0f;
-		// float tonemapCurve			= 100.0f;
 
 	//Filmic
 		float tonemapContrast 		= 1.1f;
@@ -405,7 +413,6 @@ void TonemapVorontsov(inout vec3 color) {
 }
 
 void TonemapReinhard(inout vec3 color) {
-	//color.rgb = pow(color.rgb, vec3(2.2f));			//Put color into linear space
 
 	color.rgb *= 100000.0f;
 	color.rgb = color.rgb / (1.0f + color.rgb);
@@ -416,7 +423,6 @@ void TonemapReinhard(inout vec3 color) {
 
 
 void TonemapReinhardLum(inout vec3 color) {
-	//color.rgb = pow(color.rgb, vec3(2.2f));			//Put color into linear space
 
 	color.rgb *= 100000.0f;
 
@@ -429,8 +435,6 @@ void TonemapReinhardLum(inout vec3 color) {
 	float factor = lumTonemap / lum;
 
 	color.rgb *= factor;
-
-	//color.rgb = color.rgb / (color.rgb + 1.0f);
 
 	color.rgb = pow(color.rgb, vec3(1.0f / 2.2f)); //Put color into gamma space for correct display
 	color.rgb *= 1.1f;
@@ -492,11 +496,6 @@ void ColorGrading(inout vec3 color)
 
 		 c.b *= 0.7f;
 
-	// //cool
-
-	// 	c.r *= 1.0f;
-	// 	c.g *= 1.2f;
-	// 	c.b *= 1.5f;
 
 	color.rgb = c.rgb;
 }
@@ -518,12 +517,48 @@ struct BloomDataStruct
 } bloomData;
 
 
+struct MaskStruct {
 
+	float matIDs;
+
+	bool sky;
+	bool land;
+	bool grass;
+	bool leaves;
+	bool ice;
+	bool hand;
+	bool translucent;
+	bool glow;
+	bool sunspot;
+	bool goldBlock;
+	bool ironBlock;
+	bool diamondBlock;
+	bool emeraldBlock;
+	bool sand;
+	bool sandstone;
+	bool stone;
+	bool cobblestone;
+	bool wool;
+	bool clouds;
+
+	bool torch;
+	bool lava;
+	bool glowstone;
+	bool fire;
+
+	bool water;
+
+	bool volumeCloud;
+
+} mask;
 
 
 /////////////////////////STRUCT FUNCTIONS//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////STRUCT FUNCTIONS//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void 	CalculateMasks(inout MaskStruct mask) {
+mask.glowstone 		= GetMaterialMask(texcoord.st, 32, mask.matIDs);
+}
 void 	CalculateBloom(inout BloomDataStruct bloomData) {		//Retrieve previously calculated bloom textures
 
 	//constants for bloom bloomSlant
@@ -560,10 +595,6 @@ void 	CalculateBloom(inout BloomDataStruct bloomData) {		//Retrieve previously c
 
 void TonemapReinhard07(inout vec3 color, in BloomDataStruct bloomData)
 {
-	//Per-channel
-	// vec3 n = vec3(0.9f);
-	// vec3 g = vec3(0.00001f);
-	// color.rgb = pow(color.rgb, n) / (pow(color.rgb, n) + pow(g, n));
 
 	//Luminance
 	float n = 0.6f;
@@ -576,13 +607,6 @@ void TonemapReinhard07(inout vec3 color, in BloomDataStruct bloomData)
 	color.r = pow((color.r / lum), s) * (compressed);
 	color.g = pow((color.g / lum), s) * (compressed);
 	color.b = pow((color.b / lum), s) * (compressed);
-
-
-
-
-	//color.rgb *= 30000.0f;
-
-
 
 	color.rgb = pow(color.rgb, vec3(1.0f / 2.2f));
 	color.rgb = max(vec3(0.0f), color.rgb * 1.15f - 0.15f);
@@ -622,15 +646,13 @@ void 	AddRainFogScatter(inout vec3 color, in BloomDataStruct bloomData)
 
 	float linearDepth = GetDepthLinear(texcoord.st);
 
-	float fogDensity = FOG_DENSITY * (rainStrength);
-		  //fogDensity += texture2D(composite, texcoord.st).g * 0.1f;
+	float fogDensity = FOG_DENSITY2 * (rainStrength);
 	float visibility = 1.0f / (pow(exp(linearDepth * fogDensity), 1.0f));
 	float fogFactor = 1.0f - visibility;
 		  fogFactor = clamp(fogFactor, 0.0f, 1.0f);
 		  fogFactor *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 6.0f));
 
-	// bool waterMask = GetWaterMask(texcoord.st);
-	// fogFactor = mix(fogFactor, 0.0f, float(waterMask));
+
 
 	color = mix(color, fogBlur, fogFactor * 1.0f);
 }
@@ -639,81 +661,57 @@ void 	AddRainFogScatter(inout vec3 color, in BloomDataStruct bloomData)
 void TonemapReinhard05(inout vec3 color, BloomDataStruct bloomData)
 {
 
-	//color.b *= 0.85f;
 
-	#ifdef TONEMAP_NATURAL
-	float averageLuminance = 0.00010f;
-	#endif
-	#ifdef TONEMAP_FILMIC
+	
+	
 	float averageLuminance = 0.000055f;
-	#endif
 
 
 
-	#ifdef TONEMAP_NATURAL
-	float contrast = 0.85f;
-	#endif
-	#ifdef TONEMAP_FILMIC
+
+	
 	float contrast = 0.99f;
-	#endif
+	
 
-	#ifdef TONEMAP_NATURAL
-	float adaptation = 0.75f;
-	#endif
+	
 
-	#ifdef TONEMAP_FILMIC
+	
 	float adaptation = 0.75f;
-	#endif
+
 
 	float lum = Luminance(color.rgb);
 	vec3 blur = bloomData.blur1;
 	     blur += bloomData.blur2;
 
 
-	#ifdef LOCAL_OPERATOR
-	vec3 ILocal = vec3(Luminance(blur));
-		 ILocal -= pow(Luminance(bloomData.blur2), 4.1f) * 100000000000.0f;
-		 ILocal = max(vec3(0.000000000001f), ILocal);
-
-		 //ILocal = vec3(sMax * 2.25f);
-	#endif
 
 
 
-	#ifdef LOCAL_OPERATOR
-	vec3 IGlobal = vec3(averageLuminance);
-	vec3 IAverage = mix(ILocal, IGlobal, vec3(adaptation));
-	#else
+	
 	vec3 IAverage = vec3(averageLuminance);
-	#endif
+	
 
 	vec3 value = color.rgb / (color.rgb + IAverage);
 
 
 
 
-	#ifdef TONEMAP_NATURAL
-	color.rgb = value * 2.195f - 0.00f;
-	color.rgb = pow(color.rgb, vec3(0.99f));
-	#endif
+	
 
-	#ifdef TONEMAP_FILMIC
+
 	color.rgb = value * 1.195f - 0.00f;
-	#endif
-
+	
 
 	color.rgb = min(color.rgb, vec3(1.0f));
 
 
 	color.rgb = pow(color.rgb, vec3(1.0f / 2.2f));
-	//color.rgb -= vec3(0.025f);
 }
 
 void LowlightFuzziness(inout vec3 color, in BloomDataStruct bloomData)
 {
 	float lum = Luminance(color.rgb);
 	float factor = 1.0f - clamp(lum * 50000000.0f, 0.0f, 1.0f);
-	      //factor *= factor * factor;
 
 
 	float time = frameTimeCounter * 4.0f;
@@ -742,7 +740,6 @@ vec3 sP = sunPosition;
       tpos = vec4(tpos.xyz/tpos.w,1.0);
       vec2 lPos = tpos.xy / tpos.z;
       lPos = (lPos + 1.0f)/2.0f;
-      //lPos = clamp(lPos, vec2(0.001f), vec2(0.999f));
       vec2 checkcoord = lPos;
 
       if (checkcoord.x < 1.0f && checkcoord.x > 0.0f && checkcoord.y < 1.0f && checkcoord.y > 0.0f && timeMidnight < 1.0)
@@ -885,9 +882,7 @@ vec3 sP = sunPosition;
 
                 sin(tempColor2);
 
-                //color.r = tempColor2.r;
-                //color.g = tempColor2.r;
-                //color.b = tempColor2.r;
+
 
 
 
@@ -2037,7 +2032,7 @@ void MoonGlow(inout vec3 color)
    tpos = vec4(tpos.xyz / tpos.w, 1.0);
 
     vec2 lPos = tpos.xy / tpos.z;
-    lPos = (lPos + 1.0f) / 2.0f;
+    lPos = (lPos + 1.0f) * 0.5f;
 
     vec2 checkcoord = lPos;
 
@@ -2111,18 +2106,72 @@ vec2 noisepattern(vec2 pos) {
 	return vec2(abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f)),abs(fract(sin(dot(pos.yx ,vec2(18.9898f,28.633f))) * 4378.5453f)));
 }
 
+float pixeldepth = texture2D(depthtex0,texcoord.xy).x;
+
+
+vec3 nvec3(vec4 pos) {
+    return pos.xyz/pos.w;
+}
+
+vec4 nvec4(vec3 pos) {
+    return vec4(pos.xyz, 1.0);
+}
+
+float waterH(vec3 posxz) {
+
+float wave = 0.0;
+
+
+float factor = 1.0;
+float amplitude = 0.2;
+float speed = 4.0;
+float size = 0.2;
+
+float px = posxz.x/50.0 + 250.0;
+float py = posxz.z/50.0  + 250.0;
+
+float fpx = abs(fract(px*20.0)-0.5)*2.0;
+float fpy = abs(fract(py*20.0)-0.5)*2.0;
+
+float d = length(vec2(fpx,fpy));
+
+for (int i = 1; i < 8; i++) {
+wave -= d*factor*cos( (1/factor)*px*py*size + 1.0*frameTimeCounter*speed);
+factor /= 2;
+}
+
+factor = 1.0;
+px = -posxz.x/50.0 + 250.0;
+py = -posxz.z/150.0 - 250.0;
+
+fpx = abs(fract(px*20.0)-0.5)*2.0;
+fpy = abs(fract(py*20.0)-0.5)*2.0;
+
+d = length(vec2(fpx,fpy));
+float wave2 = 0.0;
+for (int i = 1; i < 8; i++) {
+wave2 -= d*factor*cos( (1/factor)*px*py*size + 1.0*frameTimeCounter*speed);
+factor /= 2;
+}
+
+return amplitude*wave2+amplitude*wave;
+}
+
+
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void main() {
 
+
+
 		const float pi = 3.14159265359;
 		float rainlens = 0.0;
-		const float lifetime = 4.0;		//water drop lifetime in seconds
-		float ftime = frameTimeCounter*2.0/lifetime;
-		vec2 drop = vec2(0.0,fract(frameTimeCounter/10.0));
+		const float lifetime = 8.0;		//water drop lifetime in seconds
+		float ftime = frameTimeCounter*3.0/lifetime;
+		vec2 drop = vec2(0.0,fract(frameTimeCounter/5.0));
 
-#ifdef RAIN_LENS		
-		float gen = 1.0-fract((ftime+0.5)*0.5);
+#ifdef RAIN_LENS
+float gen = 1.0-fract((ftime+0.5)*0.5);
 		vec2 pos = (noisepattern(vec2(-0.94386347*floor(ftime*0.5+0.25),floor(ftime*0.5+0.25))))*0.8+0.1 - drop;
 		rainlens += gen_circular_lens(fract(pos),0.04)*gen*rainStrength;
 
@@ -2161,16 +2210,24 @@ void main() {
 		rainlens *= clamp((eyeBrightness.y-220)/15.0,0.0,1.0);
 #endif
 
-
 	vec2 fake_refract = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter*2.5 + texcoord.y*100.0 + texcoord.x*25.0)) * isEyeInWater;
 	vec2 Fake_Refract_1 = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter + texcoord.y*100.0 + texcoord.x*25.0)) ;
+					    //vec2(sin(frameTimeCounter + texcoord.x*100.0 + texcoord.y*50.0),cos(frameTimeCounter + texcoord.y*100.0 + texcoord.x*50.0)) ;
 
-	
 
-		vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.003 + 0.005 * (rainlens + Fake_Refract_1*0.001));	//Sample gcolor texture
-			 color += rainlens*vec3(0.25,0.3,0.4)/315999*timeNoon;
-			 color += rainlens*vec3(0.25,0.3,0.4)/535999*timeMidnight/33;
-	
+		vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.005 + 0.0045 * (rainlens + Fake_Refract_1*0.0045));	//Sample gcolor texture
+			 color += rainlens*vec3(0.06,0.08,0.09)/315999*timeNoon;
+			 color += rainlens*vec3(0.06,0.08,0.09)/535999*timeMidnight/33;
+
+
+mask.matIDs = GetMaterialIDs(texcoord.st);
+CalculateMasks(mask);
+#ifdef New_GlowStone
+color /= mix(1.0f, 15.0f, float(mask.glowstone)* timeMidnight);
+color /= mix(1.0f, 2.5f, float(mask.glowstone)* timeNoon);
+color /= mix(1.0f, 7.0f,float(mask.glowstone) * mix(1.0f, 0.0f, pow(eyeBrightnessSmooth.y / 240.0f, 2.0f))* timeNoon);
+#endif
+//color /= pow(eyeBrightnessSmooth.y / 240.0f, 6.0f) *(1.0f, 15.0f,float(mask.glowstone));
 
 #ifdef MOTIONBLUR
 	MotionBlur(color);
@@ -2180,8 +2237,10 @@ void main() {
 	DepthOfField(color);
 #endif
 
+
+
 	CalculateBloom(bloomData);			//Gather bloom textures
-	color = mix(color, bloomData.bloom, vec3(0.0095f));
+	color = mix(color, bloomData.bloom, vec3(0.0150f));
 
 #ifdef RainFog2
 	AddRainFogScatter(color, bloomData);
@@ -2221,6 +2280,9 @@ void main() {
 #ifdef MOON_GLOW
 	MoonGlow(color);
 #endif
+
+
+	color = mix(color, vec3(dot(color, vec3(1.0 / 3.0))), vec3(Color_desaturation));
 
 	gl_FragColor = vec4(color.rgb, 1.0f);
 

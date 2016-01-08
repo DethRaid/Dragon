@@ -1,4 +1,5 @@
 #version 120
+#extension GL_ARB_shader_texture_lod : enable
 
 //#define OLD_LIGHTING_FIX		//In newest versions of the shaders mod/optifine, old lighting isn't removed properly. If OldLighting is On and this is enabled, you'll get proper results in any shaders mod/minecraft version.
 
@@ -164,6 +165,7 @@ void main() {
 	if  (  mc_Entity.x == 31.0
 
 		|| mc_Entity.x == 38.0f 	//Rose
+    || mc_Entity.x == 175.0f 	//TallGrass
 		|| mc_Entity.x == 37.0f 	//Flower
 		|| mc_Entity.x == 1925.0f 	//Biomes O Plenty: Medium Grass
 		|| mc_Entity.x == 1920.0f 	//Biomes O Plenty: Thorns, barley
@@ -192,6 +194,7 @@ void main() {
 		|| mc_Entity.x == 1923.0f //Biomes O Plenty: Leaves
 		|| mc_Entity.x == 1926.0f //Biomes O Plenty: Leaves
 		|| mc_Entity.x == 1936.0f //Biomes O Plenty: Giant Flower Leaves
+    || mc_Entity.x == 338.0f 	//Rose
 
 		 ) {
 		materialIDs = max(materialIDs, 3.0f);

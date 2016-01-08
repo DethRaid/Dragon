@@ -1,0 +1,85 @@
+# shaders/lang/en_US.lang
+#Screens
+screen.Details=Details
+screen.Details.comment=The little details that add that extra touch to the shader
+screen.Waving=Waving
+screen.Waving.comment=Enabling and disabling waving grass, leaves, ect.
+screen.Clouds=Clouds
+screen.Clouds.comment=Adjusting the many cloud layers in the sky
+screen.Performance=Performance
+screen.Performance.comment=Stuff to increase speed at the cost of quality
+screen.Water=Water
+screen.Water.comment=Changing the many water effects
+screen.GodRays=GodRays
+screen.GodRays.comment=Adjustments to the Godrays
+screen.Misc=Misc
+screen.Misc.comment=General little stuff that you most likely wont touch
+
+#Settings
+option.LENS_FLARE=Lens Flare
+option.LENS_FLARE.comment=Light entering a camera lens creates a similar effect.
+option.BIG_RAINBOW=Big Rainbow
+option.BIG_RAINBOW.comment=The Large Rainbow Flare for the lens flare.
+option.MOON_GLOW=Moon Flare
+option.MOON_GLOW.comment=Lens Flare for the moon.
+option.ATMOSPHERIC_FOG=Atmospheric Fog
+option.ATMOSPHERIC_FOG.comment=Distance Fog, makes blocks look far away.
+option.CLOUD_PLANE=Cloud Plane
+option.CLOUD_PLANE.comment=Old 2D clouds in SEUS 10.2, Work well when Volumetric Clouds are disabled.
+option.CLOUD_PLANE_Cloud=New Cloud Plane
+option.CLOUD_PLANE_Cloud.comment=New 2D clouds, thinned and a new noise patters to fit with the Volumetric Clouds.
+option.CLOUD_SHADOW=Cloud Shadow
+option.CLOUD_SHADOW.comment=Shadows for the clouds, doesn't work well, to be improved later
+option.PARALLAX=POM
+option.PARALLAX.comment=Parallax Occlusional Mapping, adds depth to blocks.
+option.LQ_POM=LQ POM
+option.LQ_POM.comment=Lower Quality POM, saves a few fps.
+option.EVENING_FOG=Evening fog
+option.EVENING_FOG.comment=Increased distance fog in the afternoons.
+option.GI_QUALITY=GI Quality
+option.GI_QUALITY.comment=Global Illumination Quality, Global Illumination is the bouncing of light, improves quality greatly. 1.0 = Low Quality. 4.0 = High Quality
+option.GODRAYS=Godrays
+option.GODRAYS.comment=A second layer to godrays
+option.GODRAYS=Godrays
+option.GODRAYS.comment=Screen Space Godrays, 2D Godrays, Lower quality GR that are only visible when looking at the sun.
+option.HELD_LIGHT=Held Light
+option.HELD_LIGHT.comment=Light Emission from emissive objects in your hand.
+option.MOONRAYS=Moon Rays
+option.MOONRAYS.comment=Screen space godrays from the moon.
+option.MORNING_FOG=Morning Fog
+option.MORNING_FOG.comment=Increased fog in the mornings.
+option.MOTIONBLUR=Motion blur
+option.MOTIONBLUR.comment=Blurred vision when the camera moves fast, your eyes do this naturally so this is disabled.
+option.New_GlowStone=New GlowStone
+option.New_GlowStone.comment=New darker glowstone looks better during the day.
+option.NEW_SPECULAR= New Specular
+option.NEW_SPECULAR.comment=New Specular which has much higher quality for supported texture packs. Chroma Hills is supported.
+option.NO_ATMOSPHERIC_FOG_INSIDE=No Indoor Fog
+option.NO_ATMOSPHERIC_FOG_INSIDE.comment=Disables atmospheric fog inside buildings.
+option.NO_LEAVE_GRASS_LIGHTING=No Leaves/Grass lighting
+option.NO_LEAVE_GRASS_LIGHTING.comment=Disables the lighting on grass and leaves to make them look better at distance
+option.NO_UNDERWATER_RAYS=No Underwater Rays
+option.NO_UNDERWATER_RAYS.comment=Disables godrays underwater.
+option.OLD_LIGHTING_FIX=Lighting Fix
+option.OLD_LIGHTING_FIX.comment=This is used to counteract the effects of old lighting being enabled, if it is not fully removed in the version of optifine.
+option.VARIABLE_PENUMBRA_SHADOWS=PCSS
+option.VARIABLE_PENUMBRA_SHADOWS.comment=Variable Penumbra Shadows. Makes the shadows get softer as they go down.
+option.ENABLE_SOFT_SHADOWS=Soft Shadows
+option.ENABLE_SOFT_SHADOWS.comment=Soft Shadows. This overwrites pcss so disable it if you want pcss. This frays the edge of the shadows
+option.USE_RANDOM_ROTATION=Random Rotation
+option.USE_RANDOM_ROTATION.comment=Adds a noise to the edge of shadows and makes it transition more smoothly.
+option.PARALLAX_WATER=Parallax Water
+
+option.Water_DepthFog=Water Depth Fog
+
+option.Water_Refraction=Water Refraction
+
+option.WaterCaustics=Water Caustics
+
+option.Water_TempFix=Water Temp Fix
+
+option.SMOOTH_WATER=Smooth Water
+
+option.UnderwaterFog=Underwater Fog
+
+option.RAIN_WATER_SPEED=Rain Water Speed

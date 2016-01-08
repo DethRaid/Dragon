@@ -1,16 +1,13 @@
 #version 120
+#extension GL_ARB_shader_texture_lod : enable
 
 
-#define PARALLAX_WATER		//Turn on 3D waves in water
-
-#define Color_Red 0.2			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
-#define Color_Green 0.7			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
-#define Color_Blue 0.95			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1.0 1.1 1.2]
-#define Transparency 100.0		//[50 70 85 100 110 120 130 140 150 160 170 180 190 200 210 220 230 240 250]
+#define PARALLAX_WATER		/Turn on 3D waves in water
 
 #define WAVE_HEIGHT 0.56f
 #define WAVE_HEIGHT_RAIN 1.7f
 
+#define transparency 100.0f				//set to 200.0f if Water_DepthFog is disabled
 
 uniform sampler2D texture;
 uniform sampler2D specular;
@@ -308,7 +305,7 @@ void main() {
 
 		waterColor = normalize(waterColor);
 
-		tex = vec4(Color_Red, Color_Green, Color_Blue, Transparency/255.0f);
+		tex = vec4(0.2f, 0.7f, 0.95f, transparency/255.0f);
 		tex.rgb *= 1.0f * waterColor.rgb;
 		tex.rgb *= vec3(lum);
 

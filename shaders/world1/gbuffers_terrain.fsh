@@ -1,4 +1,5 @@
 #version 120
+#extension GL_ARB_shader_texture_lod : enable
 
 /*
  _______ _________ _______  _______  _
@@ -25,11 +26,10 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 	#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
 
 #define SPECULARITY
-	#define SPEC_BRIGHTNESS		0.6f	//[0.1 0.4 0.6 0.85 1.0 1.2]
-	// default is 1.0f - lower this number to increase the specular brightness for New specular
+	#define SPEC_BRIGHTNESS		0.6f	// default is 1.0f - lower this number to increase the specular brightness for New specular
 		//---for Resource pack Faithful recommended 1.0f, for Ovos Rustic and Chromahills recommended 0.7f---//
 
-	#define SPEC_BRIGHTNESS_OLD	1.75f	//default is 1.0f if not using a supported texture pack - higher this number lowers the specular best for supported texture packs
+	#define SPEC_BRIGHTNESS_OLD		1.75f	//default is 1.0f if not using a supported texture pack - higher this number lowers the specular best for supported texture packs
 
 // OLD_SPECULAR					// add back the #define to enable, Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
 #define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
@@ -126,7 +126,7 @@ vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
 vec2 OffsetCoord(in vec2 coord, in vec2 offset, in int level)
 {
 	int tileResolution = TILE_RESOLUTION;
-	ivec2 atlasTiles = ivec2(64, 32);
+	ivec2 atlasTiles = ivec2(32, 32);
 	ivec2 atlasResolution = tileResolution * atlasTiles;
 
 	coord *= atlasResolution;
@@ -405,7 +405,7 @@ void main() {
 
 	if (distance < bump_distance) {
 
-			vec3 bump = GetTexture(normals, parallaxCoord.st).rgb * 2.0f - 1.0f;
+			vec3 bump = texture2DLod(normals, parallaxCoord.st, 2.0).rgb * 2.0f - 1.0f;
 
 			float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
 	              bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.75f);
