@@ -51,6 +51,8 @@
     #include "clouds/clouds3.glsl"
 #endif
 
+#include "/lib/surface.glsl"
+
 void CloudPlane(inout SurfaceStruct surface)
 {
     //Initialize view ray

@@ -9,6 +9,8 @@
 #ifndef CLOUDS_BASE
 #define CLOUDS_BASE
 
+#include "/lib/surface.glsl"
+
 vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult) {
 	float linDepth = depth;
 
