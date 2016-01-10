@@ -6,6 +6,7 @@
 const float initial_p_multiplier = 4.0f;
 const float initial_t_multiplier = 0.02f;
 
+#include "color.glsl"
 #include "base.glsl"
 
 #endif

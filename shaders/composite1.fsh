@@ -372,27 +372,6 @@ vec4 	GetWorldSpacePosition(in vec2 coord, in float depth)
 	return pos;
 }
 
-vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult)
-{
-	// depth *= 30.0f;
-
-	float linDepth = depth;
-
-	float expDepth = (far * (linDepth - near)) / (linDepth * (far - near));
-
-	//Convert texture coordinates and depth into view space
-	vec4 viewPos = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * expDepth - 1.0f, 1.0f);
-		 viewPos /= viewPos.w;
-
-	//Convert from view space to world space
-	vec4 worldPos = gbufferModelViewInverse * viewPos;
-
-	worldPos.xyz *= distanceMult;
-	worldPos.xyz += cameraPosition.xyz;
-
-	return worldPos;
-}
-
 vec4 	ScreenSpaceFromWorldSpace(in vec4 worldPosition)
 {
 	worldPosition.xyz -= cameraPosition;
@@ -2415,11 +2394,11 @@ float ao = 1.0;
 #endif
 
 #ifdef VOLUMETRIC_CLOUDS2
-	CalculateClouds2(finalComposite.rgb, surface);
+	CalculateClouds(finalComposite.rgb, surface);
 #endif
 
 #ifdef VOLUMETRIC_CLOUDS3
-	CalculateClouds3(finalComposite.rgb, surface);
+	CalculateClouds(finalComposite.rgb, surface);
 #endif
 
 	//finalComposite = mix(finalComposite, cloudsTexture.rgb, cloudsTexture.a);
