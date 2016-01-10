@@ -1,6 +1,10 @@
 #ifndef CLOUDS_CLOUDS_3
 #define CLOUDS_CLOUDS_3
 
+#ifdef CLOUDS_CLOUDS_3
+float doNothing_clouds3;
+#endif
+
 /*
  * Look, a self-contained function with no external dependencies. How amazing!
  */

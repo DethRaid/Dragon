@@ -1,6 +1,11 @@
 #ifndef CLOUDS_GLSL
 #define CLOUDS_GLSL
 
+// Optifine check for elif, so I don't have an elif here so optifine won't get mat at my ifdef guards
+#ifdef CLOUDS_GLSL
+float doNothing_clouds;
+#endif
+
 /*
  * Includes all the code to make 3D SEUS clouds work
  *
@@ -32,17 +37,6 @@
 
  //#define CLOUD_SHADOW
 
-// Optifine check for elif
- #ifdef VOLUMETRIC_CLOUDS
- float doNothing;
- #endif
- #ifdef VOLUMETRIC_CLOUDS2
- float doNothing1;
- #endif
- #ifdef VOLUMETRIC_CLOUDS3
- float doNothing2;
- #endif
-
 #if defined VOLUMETRIC_CLOUDS
     #include "clouds/clouds1.glsl"
 #elif defined VOLUMETRIC_CLOUDS2
@@ -53,8 +47,7 @@
 
 #include "/lib/surface.glsl"
 
-void CloudPlane(inout SurfaceStruct surface)
-{
+void CloudPlane(inout SurfaceStruct surface) {
     //Initialize view ray
     vec4 worldVector = gbufferModelViewInverse * (-GetScreenSpacePosition(texcoord.st, 1.0f));
 
@@ -62,8 +55,6 @@ void CloudPlane(inout SurfaceStruct surface)
     surface.viewRay.origin = vec3(0.0f);
 
     float sunglow = CalculateSunglow(surface);
-
-
 
     float cloudsAltitude = 540.0f;
     float cloudsThickness = 150.0f;
@@ -73,8 +64,7 @@ void CloudPlane(inout SurfaceStruct surface)
 
     float density = 1.0f;
 
-    if (cameraPosition.y < cloudsLowerLimit)
-    {
+    if (cameraPosition.y < cloudsLowerLimit) {
         float planeHeight = cloudsUpperLimit;
 
         float stepSize = 25.5f;
@@ -86,10 +76,8 @@ void CloudPlane(inout SurfaceStruct surface)
 
         Intersection i = RayPlaneIntersectionWorld(surface.viewRay, pl);
 
-        if (i.angle < 0.0f)
-        {
-            if (i.distance < surface.linearDepth || surface.mask.sky > 0.0f)
-            {
+        if (i.angle < 0.0f) {
+            if (i.distance < surface.linearDepth || surface.mask.sky > 0.0f) {
                 vec4 cloudSample = CloudColor2(vec4(i.pos.xyz * 0.5f + vec3(30.0f), 1.0f), sunglow, surface.worldLightVector, cloudsAltitude, cloudsThickness, false);
                 cloudSample.a = min(1.0f, cloudSample.a * density);
 
@@ -104,8 +92,7 @@ void CloudPlane(inout SurfaceStruct surface)
     }
 }
 
-float CloudShadow(in SurfaceStruct surface)
-{
+float CloudShadow(in SurfaceStruct surface) {
     float cloudsAltitude = 540.0f;
     float cloudsThickness = 150.0f;
 

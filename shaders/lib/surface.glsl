@@ -1,6 +1,10 @@
 #ifndef SURFACE
 #define SURFACE
 
+#ifdef SURFACE
+float doNothing_surface;
+#endif
+
 struct DiffuseAttributesStruct {			//Diffuse surface shading attributes
 	float roughness;			//Roughness of surface. More roughness will use Oren Nayar reflectance.
 	float translucency; 		//How translucent the surface is. Translucency represents how much energy will be transfered through the surface

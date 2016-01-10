@@ -1,10 +1,15 @@
 #ifndef CLOUDS_COLOR
 #define CLOUDS_COLOR
+
+#ifdef CLOUDS_COLOR
+float doNothing_color;
+#endif
+
 /*
  * Defines the standard cloud color algorithm, which is nicely shared between clouds 1 and 2. Clouds 3 uses a different color algorithm
  * which I can't figure out how to easily merge with this one.
  */
- 
+
  /*
   * Calculates the noise value for the clouds
   *

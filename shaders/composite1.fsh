@@ -79,7 +79,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 //of the shaders mod. The shaders mod only reads these lines and doesn't actually know the real value assigned to these variables in GLSL.
 //Some of these variables are critical for proper operation. Change at your own risk.
 
-const int 		shadowMapResolution 	= 2048;			// Shadow Resolution. 1024 = Lowest Quality. 4096 = Highest Quality [1024 2048 3072 4096]
+const int 		shadowMapResolution 	= 2048;		// Shadow Resolution. 1024 = Lowest Quality. 4096 = Highest Quality [1024 2048 3072 4096]
 const float 	shadowDistance 			= 120;		// shadowDistance. 60 = Lowest Quality. 200 = Highest Quality [60 100 120 160 180 200]
 const float 	shadowIntervalSize 		= 4.0f;
 const bool 		shadowHardwareFiltering0 = true;
@@ -112,8 +112,6 @@ const int 		superSamplingLevel 		= 0;
 const float		sunPathRotation 		= -40.0f;
 const float 	ambientOcclusionLevel 	= 0.5f;
 
-const int 		noiseTextureResolution  = 64;
-
 //END OF INTERNAL VARIABLES//
 
 /* DRAWBUFFERS:0136 */
@@ -133,7 +131,6 @@ uniform sampler2D composite;
 uniform sampler2DShadow shadow;
 uniform sampler2D shadowtex1;
 //uniform sampler2D shadowcolor;
-uniform sampler2D noisetex;
 uniform sampler2D gaux1;
 uniform sampler2D gaux2;
 uniform sampler2D gaux3;
@@ -429,64 +426,6 @@ float 	ChebyshevUpperBound(in vec2 moments, in float distance) {
 
 	return pMax;
 }
-
-float  	CalculateDitherPattern() {
-	const int[4] ditherPattern = int[4] (0, 2, 1, 4);
-
-	vec2 count = vec2(0.0f);
-	     count.x = floor(mod(texcoord.s * viewWidth, 2.0f));
-		 count.y = floor(mod(texcoord.t * viewHeight, 2.0f));
-
-	int dither = ditherPattern[int(count.x) + int(count.y) * 2];
-
-	return float(dither) / 4.0f;
-}
-
-
-float  	CalculateDitherPattern1() {
-	const int[16] ditherPattern = int[16] (0 , 8 , 2 , 10,
-									 	   12, 4 , 14, 6 ,
-									 	   3 , 11, 1,  9 ,
-									 	   15, 7 , 13, 5 );
-
-	vec2 count = vec2(0.0f);
-	     count.x = floor(mod(texcoord.s * viewWidth, 4.0f));
-		 count.y = floor(mod(texcoord.t * viewHeight, 4.0f));
-
-	int dither = ditherPattern[int(count.x) + int(count.y) * 4];
-
-	return float(dither) / 16.0f;
-}
-
-float  	CalculateDitherPattern2() {
-	const int[64] ditherPattern = int[64] ( 1, 49, 13, 61,  4, 52, 16, 64,
-										   33, 17, 45, 29, 36, 20, 48, 32,
-										    9, 57,  5, 53, 12, 60,  8, 56,
-										   41, 25, 37, 21, 44, 28, 40, 24,
-										    3, 51, 15, 63,  2, 50, 14, 62,
-										   35, 19, 47, 31, 34, 18, 46, 30,
-										   11, 59,  7, 55, 10, 58,  6, 54,
-										   43, 27, 39, 23, 42, 26, 38, 22);
-
-	vec2 count = vec2(0.0f);
-	     count.x = floor(mod(texcoord.s * viewWidth, 8.0f));
-		 count.y = floor(mod(texcoord.t * viewHeight, 8.0f));
-
-	int dither = ditherPattern[int(count.x) + int(count.y) * 8];
-
-	return float(dither) / 64.0f;
-}
-
-vec3 	CalculateNoisePattern1(vec2 offset, float size) {
-	vec2 coord = texcoord.st;
-
-	coord *= vec2(viewWidth, viewHeight);
-	coord = mod(coord + offset, vec2(size));
-	coord /= noiseTextureResolution;
-
-	return texture2D(noisetex, coord).xyz;
-}
-
 
 void DrawDebugSquare(inout vec3 color) {
 	vec2 pix = vec2(1.0f / viewWidth, 1.0f / viewHeight);
@@ -1311,7 +1250,7 @@ float CrepuscularRays(in SurfaceStruct surface) {
 	float increment = 4.0f;
 
 	const float rayLimit = 30.0f;
-	float dither = CalculateDitherPattern2();
+	float dither = CalculateDitherPattern2(texcoord.st, viewWidth, viewHeight);
 
 	float lightAccumulation = 0.0f;
 	float ambientFogAccumulation = 0.0f;

@@ -9,6 +9,10 @@
 #ifndef CLOUDS_BASE
 #define CLOUDS_BASE
 
+#ifdef CLOUDS_BASE
+float doNothing_base;
+#endif
+
 #include "/lib/surface.glsl"
 
 vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult) {
@@ -53,9 +57,9 @@ void    CalculateClouds(inout vec3 color, inout SurfaceStruct surface) {
     float rayIncrement = far / CLOUD_DISPERSE;
 
     #ifdef SOFT_FLUFFY_CLOUDS
-          rayDepth += CalculateDitherPattern1() * rayIncrement;
-          #else
-          rayDepth += CalculateDitherPattern2() * rayIncrement;
+        rayDepth += CalculateDitherPattern1(texcoord.st, viewWidth, viewHeight) * rayIncrement;
+    #else
+        rayDepth += CalculateDitherPattern2(texcoord.st, viewWidth, viewHeight) * rayIncrement;
     #endif
 
     int i = 0;
