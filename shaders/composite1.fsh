@@ -3,6 +3,7 @@
 
  #include "/lib/clouds.glsl"
  #include "/lib/surface.glsl"
+ #include "/lib/noise.glsl"
 
 /*
  _______ _________ _______  _______  _
@@ -523,12 +524,6 @@ struct FinalStruct {			//Final textured and lit images sorted by what is illumin
 	vec3 heldLight;
 } final;
 
-struct Intersection {
-	vec3 pos;
-	float distance;
-	float angle;
-};
-
 /////////////////////////STRUCT FUNCTIONS//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////STRUCT FUNCTIONS//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -727,7 +722,7 @@ float CalculateSunlightVisibility(inout SurfaceStruct surface, in ShadingStruct 
 			int count = 0;
 			float spread = penumbraSize * 0.0062 * vpsSpread + 0.085 / shadowMapResolution;
 
-			vec3 noise = CalculateNoisePattern1(vec2(0.0), 64.0);
+			vec3 noise = CalculateNoisePattern1(vec2(0.0), 64.0, texcoord.st, viewWidth, viewHeight);
 
 			diffthresh *= 1.0 + avgDepth * 40.0;
 
@@ -962,14 +957,14 @@ void CalculateAO(inout SurfaceStruct surface) {
 		kernel[i] = normalize(kernel[i]);
 
 		//scale randomly to distribute within hemisphere;
-		kernel[i] *= pow(texture2D(noisetex, vec2(0.3f + (i * 1.0f) / noiseTextureResolution)).r * CalculateNoisePattern1(vec2(43.0f), 64.0f).x * 1.0f, 1.2f);
+		kernel[i] *= pow(texture2D(noisetex, vec2(0.3f + (i * 1.0f) / noiseTextureResolution)).r * CalculateNoisePattern1(vec2(43.0f), 64.0f, texcoord.st, viewWidth, viewHeight).x * 1.0f, 1.2f);
 	}
 
 	//Determine origin position and normal
 	vec3 origin = surface.screenSpacePosition1.xyz;
 	vec3 normal = surface.normal.xyz;
 
-	vec3	randomRotation = CalculateNoisePattern1(vec2(0.0f), 64.0f).xyz * 2.0f - 1.0f;
+	vec3	randomRotation = CalculateNoisePattern1(vec2(0.0f), 64.0f, texcoord.st, viewWidth, viewHeight).xyz * 2.0f - 1.0f;
 
 	vec3 tangent = normalize(randomRotation - upVector * dot(randomRotation, upVector));
 	vec3 bitangent = cross(upVector, tangent);
@@ -1133,65 +1128,8 @@ void 	CalculateAtmosphericScattering(inout vec3 color, in SurfaceStruct surface)
 	color += fogColor * fogFactor * 1.0f;
 }
 
-Intersection 	RayPlaneIntersectionWorld(in Ray ray, in Plane plane) {
-	float rayPlaneAngle = dot(ray.dir, plane.normal);
-
-	float planeRayDist = 100000000.0f;
-	vec3 intersectionPos = ray.dir * planeRayDist;
-
-	if (rayPlaneAngle > 0.0001f || rayPlaneAngle < -0.0001f) {
-		planeRayDist = dot((plane.origin), plane.normal) / rayPlaneAngle;
-		intersectionPos = ray.dir * planeRayDist;
-		intersectionPos = -intersectionPos;
-
-		intersectionPos += cameraPosition.xyz;
-	}
-
-	Intersection i;
-
-	i.pos = intersectionPos;
-	i.distance = planeRayDist;
-	i.angle = rayPlaneAngle;
-
-	return i;
-}
-
-Intersection 	RayPlaneIntersection(in Ray ray, in Plane plane) {
-	float rayPlaneAngle = dot(ray.dir, plane.normal);
-
-	float planeRayDist = 100000000.0f;
-	vec3 intersectionPos = ray.dir * planeRayDist;
-
-	if (rayPlaneAngle > 0.0001f || rayPlaneAngle < -0.0001f) {
-		planeRayDist = dot((plane.origin - ray.origin), plane.normal) / rayPlaneAngle;
-		intersectionPos = ray.origin + ray.dir * planeRayDist;
-	}
-
-	Intersection i;
-
-	i.pos = intersectionPos;
-	i.distance = planeRayDist;
-	i.angle = rayPlaneAngle;
-
-	return i;
-}
-
 float CubicSmooth(float x) {
 	return x * x * (3.0 - 2.0 * x);
-}
-
-float Get3DNoise(in vec3 pos) {
-	pos.z += 0.0f;
-	vec3 p = floor(pos);
-	vec3 f = fract(pos);
-
-	vec2 uv =  (p.xy + p.z * vec2(17.0f)) + f.xy;
-	vec2 uv2 = (p.xy + (p.z + 1.0f) * vec2(17.0f)) + f.xy;
-	vec2 coord =  (uv  + 0.5f) / noiseTextureResolution;
-	vec2 coord2 = (uv2 + 0.5f) / noiseTextureResolution;
-	float xy1 = texture2D(noisetex, coord).x;
-	float xy2 = texture2D(noisetex, coord2).x;
-	return mix(xy1, xy2, f.z);
 }
 
 vec4 BilateralUpsample(const in float scale, in vec2 offset, in float depth, in vec3 normal) {
@@ -1239,10 +1177,6 @@ vec4 Delta(vec3 albedo, vec3 normal, float skylight) {
 	delta.rgb *= 5.0f * delta.a * delta.a * (1.0 - rainStrength) * pow(skylight, 0.5);
 
 	return delta;
-}
-
-float getnoise(vec2 pos) {
-    return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
 }
 
 float CrepuscularRays(in SurfaceStruct surface) {
@@ -1410,7 +1344,6 @@ vec3 FakeRefract(vec3 vector, vec3 normal, float ior) {
 	return refract(vector, normal, ior);
 }
 
-
 float CalculateWaterCaustics(SurfaceStruct surface, ShadingStruct shading) {
 	if (isEyeInWater == 1) {
 		if (surface.mask.water > 0.5) {
@@ -1420,7 +1353,7 @@ float CalculateWaterCaustics(SurfaceStruct surface, ShadingStruct shading) {
 	vec4 worldPos = gbufferModelViewInverse * surface.screenSpacePosition;
 	worldPos.xyz += cameraPosition.xyz;
 
-	vec2 dither = CalculateNoisePattern1(vec2(0.0), 2.0).xy;
+	vec2 dither = CalculateNoisePattern1(vec2(0.0), 2.0, texcoord.st, viewWidth, viewHeight).xy;
 	// float waterPlaneHeight = worldPos.y + 8.0;
 	float waterPlaneHeight = 63.0;
 
@@ -1668,9 +1601,10 @@ void main() {
 	shading.direct 				*= shading.sunlightVisibility;
 	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
 	float caustics = 1.0;
-	if (surface.mask.water > 0.5 || isEyeInWater > 0)
 #ifdef WaterCaustics
+    if (surface.mask.water > 0.5 || isEyeInWater > 0) {
 		caustics = CalculateWaterCaustics(surface, shading);
+    }
 #endif
 	shading.direct *= caustics;
 	shading.waterDirect 		= shading.direct;
@@ -1679,7 +1613,7 @@ void main() {
 	shading.skylight 	*= caustics * 0.2 + 0.8;
 	shading.heldLight 	= CalculateHeldLightShading(surface);
 
-	#else
+#else
 
 	//Calculate surface shading
 	CalculateNdotL(surface);
@@ -1892,15 +1826,15 @@ void main() {
 #endif
 
 #ifdef VOLUMETRIC_CLOUDS
-	CalculateClouds(finalComposite.rgb, surface);
+	CalculateClouds(finalComposite.rgb, surface, frameTimeCounter);
 #endif
 
 #ifdef VOLUMETRIC_CLOUDS2
-	CalculateClouds(finalComposite.rgb, surface);
+	CalculateClouds(finalComposite.rgb, surface, frameTimeCounter);
 #endif
 
 #ifdef VOLUMETRIC_CLOUDS3
-	CalculateClouds(finalComposite.rgb, surface);
+	CalculateClouds(finalComposite.rgb, surface, frameTimeCounter);
 #endif
 
 	float volumetricLight = CrepuscularRays( surface );

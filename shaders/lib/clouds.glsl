@@ -11,7 +11,6 @@ float doNothing_clouds;
  *
  *
  * Needs:
-    - GetNoise3D
     - frameTimeCounter
     - rainStrength
     - colorSunlight
@@ -46,6 +45,8 @@ float doNothing_clouds;
 #endif
 
 #include "/lib/surface.glsl"
+#include "/lib/noise.glsl"
+#include "/lib/ray_plane.glsl"
 
 void CloudPlane(inout SurfaceStruct surface) {
     //Initialize view ray
@@ -125,4 +126,4 @@ float CloudShadow(in SurfaceStruct surface) {
     return cloudShadow;
 }
 
-#endif
+#endif  // CLOUDS

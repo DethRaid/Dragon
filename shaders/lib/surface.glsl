@@ -124,4 +124,4 @@ struct SurfaceStruct { 			//Surface shading properties, attributes, and function
 	float 	cloudAlpha;
 } surface;
 
-#endif
+#endif	// SURFACE

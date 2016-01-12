@@ -5,6 +5,8 @@
 float doNothing_color;
 #endif
 
+#include "/lib/noise.glsl"
+
 /*
  * Defines the standard cloud color algorithm, which is nicely shared between clouds 1 and 2. Clouds 3 uses a different color algorithm
  * which I can't figure out how to easily merge with this one.
@@ -26,7 +28,7 @@ float doNothing_color;
   *
   * To any future code maintainers - I'm sorry.
   */
- float generate_noise(in vec3 worldPosition) {
+ float generate_noise(in vec3 worldPosition, in float frameTimeCounter) {
      vec3 p = worldPosition / 150.0f;
 
      float t = frameTimeCounter / 2.0f;
@@ -50,7 +52,7 @@ float doNothing_color;
  /*
   * Calculates the color of clouds.
   */
- vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
+ vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector, in float frameTimeCounter) {
      float cloudHeight = 230.0f;
      float cloudDepth  = 150.0f;
      float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
@@ -60,7 +62,7 @@ float doNothing_color;
          return vec4(0.0f);
 
      } else {
-         float noise = generate_noise(worldPosition.xyz);
+         float noise = generate_noise(worldPosition.xyz, frameTimeCounter);
 
          const float lightOffset = 0.33f;
 

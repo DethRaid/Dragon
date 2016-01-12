@@ -14,28 +14,11 @@ const int 		noiseTextureResolution  = 64;
 uniform sampler2D noisetex;
 
 /*
- * 2x2 dither pattern
- *
- * Dither patterns are esseicually laid over the screen with each pixel corresponding to one item in the dither pattern
- */
-float  	CalculateDitherPattern(in vec2 texcoord, in int viewWidth, in float viewHeight) {
-	const int[4] ditherPattern = int[4] (0, 2, 1, 4);
-
-	vec2 count = vec2(0.0f);
-	     count.x = floor(mod(texcoord.s * viewWidth, 2.0f));
-		 count.y = floor(mod(texcoord.t * viewHeight, 2.0f));
-
-	int dither = ditherPattern[int(count.x) + int(count.y) * 2];
-
-	return float(dither) / 4.0f;
-}
-
-/*
  * 4x4 dither pattern
  *
  * Dither patterns are esseicually laid over the screen with each pixel corresponding to one item in the dither pattern
  */
-float  	CalculateDitherPattern1(in vec2 texcoord, in int viewWidth, in int viewHeight) {
+float  	CalculateDitherPattern1(in vec2 texcoord, in float viewWidth, in float viewHeight) {
 	const int[16] ditherPattern = int[16] (0 , 8 , 2 , 10,
 									 	   12, 4 , 14, 6 ,
 									 	   3 , 11, 1,  9 ,
@@ -55,7 +38,7 @@ float  	CalculateDitherPattern1(in vec2 texcoord, in int viewWidth, in int viewH
  *
  * Dither patterns are esseicually laid over the screen with each pixel corresponding to one item in the dither pattern
  */
-float  	CalculateDitherPattern2(in vec2 texcoord, in int viewWidth, in float viewHeight) {
+float  	CalculateDitherPattern2(in vec2 texcoord, in float viewWidth, in float viewHeight) {
 	const int[64] ditherPattern = int[64] ( 1, 49, 13, 61,  4, 52, 16, 64,
 										   33, 17, 45, 29, 36, 20, 48, 32,
 										    9, 57,  5, 53, 12, 60,  8, 56,
@@ -74,7 +57,10 @@ float  	CalculateDitherPattern2(in vec2 texcoord, in int viewWidth, in float vie
 	return float(dither) / 64.0f;
 }
 
-vec3 	CalculateNoisePattern1(vec2 offset, float size, in vec2 texcoord, in int viewWidth, in float viewHeight) {
+/*
+ * Uses the noise texture to retrieve something noisy
+ */
+vec3 	CalculateNoisePattern1(vec2 offset, float size, in vec2 texcoord, in float viewWidth, in float viewHeight) {
 	vec2 coord = texcoord.st;
 
 	coord *= vec2(viewWidth, viewHeight);
@@ -84,4 +70,22 @@ vec3 	CalculateNoisePattern1(vec2 offset, float size, in vec2 texcoord, in int v
 	return texture2D(noisetex, coord).xyz;
 }
 
-#endif
+float getnoise(vec2 pos) {
+    return abs(fract(sin(dot(pos ,vec2(18.9898f,28.633f))) * 4378.5453f));
+}
+
+float Get3DNoise(in vec3 pos) {
+	pos.z += 0.0f;
+	vec3 p = floor(pos);
+	vec3 f = fract(pos);
+
+	vec2 uv =  (p.xy + p.z * vec2(17.0f)) + f.xy;
+	vec2 uv2 = (p.xy + (p.z + 1.0f) * vec2(17.0f)) + f.xy;
+	vec2 coord =  (uv  + 0.5f) / noiseTextureResolution;
+	vec2 coord2 = (uv2 + 0.5f) / noiseTextureResolution;
+	float xy1 = texture2D(noisetex, coord).x;
+	float xy2 = texture2D(noisetex, coord2).x;
+	return mix(xy1, xy2, f.z);
+}
+
+#endif	// NOISE

@@ -1,7 +1,5 @@
 /*
  * Needed things:
-    - Get3DNoise
-    - CalculateDitherPattern[1,2]
     - CalculateSunglow
     - GetCloudSpacePosition
  */
@@ -14,6 +12,7 @@ float doNothing_base;
 #endif
 
 #include "/lib/surface.glsl"
+#include "/lib/noise.glsl"
 
 vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult) {
 	float linDepth = depth;
@@ -38,7 +37,7 @@ vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult
  * that function before this one exists, or you'll get yelled at. There's a simple one in color.glsl (in this folder) and a more complex
  * one in clouds3.glsl (also in this folder)
  */
-void    CalculateClouds(inout vec3 color, inout SurfaceStruct surface) {
+void    CalculateClouds(inout vec3 color, inout SurfaceStruct surface, in float frameTimeCounter) {
     surface.cloudAlpha = 0.0f;
 
     vec2 coord = texcoord.st * 2.0f;
@@ -81,7 +80,7 @@ void    CalculateClouds(inout vec3 color, inout SurfaceStruct surface) {
 
         float rayDistance = length((rayPosition.xyz - cameraPosition.xyz) / cloudDistanceMult);
 
-        vec4 proximity =  CloudColor(rayPosition, sunglow, surface.worldLightVector);
+        vec4 proximity =  CloudColor(rayPosition, sunglow, surface.worldLightVector, frameTimeCounter);
              proximity.a *= cloudDensity;
 
          if (surfaceDistance < rayDistance * cloudDistanceMult  && surface.mask.sky == 0.0) {

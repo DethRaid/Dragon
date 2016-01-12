@@ -45,7 +45,7 @@ float Get3DNoise3(in vec3 pos) {
 }
 
 
-vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
+vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector, in float frameTimeCounter) {
     float cloudHeight = 190.0f;
     float cloudDepth  = 120.0f;
     float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
