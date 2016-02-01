@@ -18,6 +18,10 @@ void main() {
 
     gl_Position = ftransform();
 
+    if(mc_Entity.x == 10.0 || mc_Entity.x == 11.0 || mc_Entity.x == 51.0) {
+        isEmissive = 1.0;
+    }
+
     normal = normalize( gl_NormalMatrix * gl_Normal );
 
     vec3 tangent = vec3( 0 );
@@ -47,7 +51,7 @@ void main() {
 
     tangent = normalize( gl_NormalMatrix * tangent );
     binormal = normalize( gl_NormalMatrix * binormal );
-    
+
     tbnMatrix = mat3( tangent,
                       binormal,
                       normal );

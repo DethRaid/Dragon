@@ -45,8 +45,8 @@ void main() {
         wNormal = wNormal * normalMatrix;
        // matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
     }
-    
+
     gl_FragData[0] = matColor;
-    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 0.99 );
-    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 ); 
+    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1.0 );
+    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, 1.0 );
 }

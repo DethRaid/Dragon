@@ -23,9 +23,9 @@ void main() {
     if( worldTime > 500 && worldTime < 13000 ) {
         lightVector = normalize( sunPosition );
         lightColor = vec3( 1, 0.98, 0.95 ) * 5.0;
-        ambientColor = vec3( 0.2, 0.2, 0.2 );
+        ambientColor = vec3( 0.2, 0.2, 0.2 ) * 0.5;
         fogColor = vec3( 0.529, 0.808, 0.980 );
-    } 
+    }
     if( rainStrength > 0.1 ) {
         //load up the rain fog profile
         fogColor = vec3( 0.5, 0.5, 0.5 );
@@ -34,8 +34,8 @@ void main() {
     }
     if( worldTime < 500 || worldTime > 13000 ) {
         lightVector = normalize( moonPosition );
-        lightColor = vec3( 0.125, 0.125, 0.15725 );
-        ambientColor = vec3( 0.02, 0.02, 0.02 ) * 0.5;
+        lightColor = vec3( 1, 0.98, 0.95 ) * 0.25;
+        ambientColor = vec3( 0.02, 0.02, 0.02 );
         fogColor = vec3( 0.103, 0.103, 0.105 );
     }
 }
