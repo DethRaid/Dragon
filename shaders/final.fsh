@@ -113,6 +113,11 @@ void fxaa( inout vec3 color ) {
 void doBloom( inout vec3 color ) {
     vec3 colorAccum = vec3( 0 );
     int numSamples = 0;
+
+    for(int i = 1; i < 4; i++ ) {
+        colorAccum += texture2DLod(gaux1, coord, i).rgb;
+    }
+
     vec2 halfTexel = vec2( 0.5 / viewWidth, 0.5 / viewHeight );
     float radius = BLOOM_RADIUS * 2.0;
     for( float i = -radius; i < radius; i += 4 ) {
@@ -181,6 +186,16 @@ vec3 doMotionBlur() {
 }
 #endif
 
+vec3 doToneMapping( in vec3 color ) {
+    //return unchartedTonemap( color );
+    float lumac = luma( color );
+    float lWhite = 2.4;
+
+    float lumat = (lumac * (1.0 + (lumac / (lWhite * lWhite) ))) / (1.0 + lumac );
+    float scale = lumat / lumac;
+    return color * scale;
+}
+
 void main() {
     vec3 color = vec3( 0 );
 #ifdef MOTION_BLUR
@@ -192,6 +207,8 @@ void main() {
 #ifdef BLOOM
     doBloom( color );
 #endif
+
+color = doToneMapping(color);
 
 #ifdef FXAA
     fxaa( color );

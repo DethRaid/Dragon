@@ -10,6 +10,7 @@ varying vec3 normal;
 varying mat3 tbnMatrix;
 
 varying float isEmissive;
+varying float isMetallic;
 
 void main() {
     color = gl_Color;
@@ -18,8 +19,17 @@ void main() {
 
     gl_Position = ftransform();
 
-    if(mc_Entity.x == 10.0 || mc_Entity.x == 11.0 || mc_Entity.x == 51.0) {
+    isEmissive = 0.0;
+
+    if( (mc_Entity.x > 9.9 && mc_Entity.x < 11.1) ||
+        (mc_Entity.x > 50.5 && mc_Entity.x < 51.5)) {
         isEmissive = 1.0;
+    }
+
+    isMetallic = 0.0;
+    if( (mc_Entity.x == 41.0f) ||   // iron
+        (mc_Entity.x == 42.0f)) {   // gold
+        isMetallic = 1.0;
     }
 
     normal = normalize( gl_NormalMatrix * gl_Normal );

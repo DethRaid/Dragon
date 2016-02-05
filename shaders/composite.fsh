@@ -21,10 +21,11 @@ const int 	RGB8 					= 1;
 const int 	RGB16 					= 2;
 const int   RGBA16                  = 3;
 const int   RGBA8                   = 4;
+const int   RGB32F                  = 5;
 const int 	gcolorFormat 			= RGB16;
 const int 	gdepthFormat 			= RGB8;
 const int 	gnormalFormat 			= RGBA16;
-const int 	compositeFormat 		= RGB16;
+const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
 const int   gaux2Format             = RGBA8;
 
@@ -336,7 +337,6 @@ float calcPenumbraSize( vec3 shadowCoord ) {
     return max( penumbra, MIN_PENUMBRA_SIZE );
 }
 
-
 float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
     vec3 shadowCoord = calcShadowCoordinate( fragPosition );
 
@@ -345,51 +345,50 @@ float calcShadowing( in vec4 fragPosition, in vec3 fragNormal ) {
         return 1.0;
     }
 
-#if SHADOW_MODE == HARD
-    float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
-    return step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
+    #if SHADOW_MODE == HARD
+        float shadowDepth = texture2D( shadow, shadowCoord.st ).r;
+        return step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
 
-#else
-    float penumbraSize = 0.5;    // whoo magic number!
+    #else
+        float penumbraSize = 0.5;    // whoo magic number!
 
-#if SHADOW_MODE == REALISTIC
-    penumbraSize = calcPenumbraSize( shadowCoord.xyz );
-#endif
+        #if SHADOW_MODE == REALISTIC
+            penumbraSize = calcPenumbraSize( shadowCoord.xyz );
+        #endif
 
-    float numBlockers = 0.0;
-    float numSamples = 0.0;
+        float numBlockers = 0.0;
+        float numSamples = 0.0;
 
-#if USE_RANDOM_ROTATION
-    float rotateAmount = texture2D(
-        noisetex,
-        coord.st * vec2(
-            viewWidth / noiseTextureResolution,
-            viewHeight / noiseTextureResolution
-        ) ).r * 2.0f - 1.0f;
+        #if USE_RANDOM_ROTATION
+            float rotateAmount = texture2D(
+                noisetex,
+                coord.st * vec2(
+                    viewWidth / noiseTextureResolution,
+                    viewHeight / noiseTextureResolution
+                ) ).r * 2.0f - 1.0f;
 
-    mat2 kernelRotation = mat2(
-        cos( rotateAmount ), -sin( rotateAmount ),
-        sin( rotateAmount ), cos( rotateAmount )
-    );
-#endif
+            mat2 kernelRotation = mat2(
+                cos( rotateAmount ), -sin( rotateAmount ),
+                sin( rotateAmount ), cos( rotateAmount )
+            );
+        #endif
 
-	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
-        for( int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++ ) {
-            vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
-            sampleCoord *= penumbraSize;
-#if USE_RANDOM_ROTATION
-            sampleCoord = kernelRotation * sampleCoord;
-#endif
-            float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
-            numBlockers += step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
-            numSamples++;
-        }
-	}
+    	for( int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++ ) {
+            for( int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++ ) {
+                vec2 sampleCoord = vec2( j, i ) / shadowMapResolution;
+                sampleCoord *= penumbraSize;
+                #if USE_RANDOM_ROTATION
+                    sampleCoord = kernelRotation * sampleCoord;
+                #endif
+                float shadowDepth = texture2D( shadow, shadowCoord.st + sampleCoord ).r;
+                numBlockers += step( shadowCoord.z - shadowDepth, SHADOW_BIAS );
+                numSamples++;
+            }
+    	}
 
-    return max( numBlockers / numSamples, 0 );
-#endif
+        return max( numBlockers / numSamples, 0 );
+    #endif
 }
-
 
 vec3 fresnel( vec3 specularColor, float hdotl ) {
     return specularColor + (vec3( 1.0 ) - specularColor) * pow( 1.0f - hdotl, 5 );
@@ -434,9 +433,9 @@ vec3 calcDirectLighting( in Pixel pixel ) {
     //use skyLighting as a maximum amount of direct lighting
     vec3 directLighting = (lambert + specular) * lightColor * getSkyLighting();
 
-#if SHADOW_QUALITY != OFF
-    directLighting *= calcShadowing( pixel.position, pixel.normal );
-#endif
+    #if SHADOW_QUALITY != OFF
+        directLighting *= calcShadowing( pixel.position, pixel.normal );
+    #endif
     //return vec3( getSkyLighting() );
     return directLighting;
 }
@@ -555,8 +554,9 @@ void main() {
         curFrag.torchLighting = calcTorchLighting( curFrag );
 
         finalColor = calcLitColor( curFrag );
-        finalColor = doToneMapping( finalColor );
+        //finalColor = doToneMapping( finalColor );
         //finalColor = calcSkyScattering( finalColor, curFrag.position.z );
+        //finalColor = vec3(1.0);
     } else {
         finalColor = curFrag.color;
     }
@@ -565,7 +565,7 @@ void main() {
     gl_FragData[1] = texture2D( gdepth, coord );
     gl_FragData[2] = texture2D( gnormal, coord );
 
-    gl_FragData[3] = vec4( finalColor, 1 );
+    gl_FragData[3] = vec4( curFrag.normal, 1 );
 
     gl_FragData[4] = texture2D( gaux1, coord );
     gl_FragData[5] = texture2D( gaux2, coord );

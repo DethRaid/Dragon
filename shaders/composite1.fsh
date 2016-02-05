@@ -216,7 +216,7 @@ void main() {
     fillPixelStruct( pixel );
     vec3 hitColor = pixel.color;
 #if NUM_RAYS > 0
-    if( !pixel.skipLighting && pixel.smoothness > 0.3 ) {
+    if( !pixel.skipLighting ) {
         hitColor = doLightBounce( pixel );
 
         vec3 viewVector = normalize( getCameraSpacePosition( coord ) );
