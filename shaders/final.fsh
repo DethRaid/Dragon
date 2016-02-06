@@ -13,7 +13,7 @@
 #define BLOOM
 #define BLOOM_RADIUS 9
 
-#define VINGETTE
+//#define VINGETTE
 #define VINGETTE_MIN        0.4
 #define VINGETTE_MAX        0.65
 #define VINGETTE_STRENGTH   0.15
