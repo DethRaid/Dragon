@@ -15,7 +15,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 */
 
-
+#include "lib/test.glsl"
 
 
 /////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2589,24 +2589,22 @@ float CalculateWaterCaustics(SurfaceStruct surface, ShadingStruct shading) {
 
 void WaterDepthFog(inout vec3 color, in SurfaceStruct surface, in MCLightmapStruct mcLightmap) {
 	if (surface.mask.water > 0.5 || isEyeInWater > 0) {
-			float depth = texture2D(depthtex1, texcoord.st).x;
-			float depthSolid = texture2D(gdepthtex, texcoord.st).x;
+		float depth = texture2D(depthtex1, texcoord.st).x;
+		float depthSolid = texture2D(gdepthtex, texcoord.st).x;
 
-			vec4 viewSpacePosition = GetScreenSpacePosition(texcoord.st, depth);
-			vec4 viewSpacePositionSolid = GetScreenSpacePosition(texcoord.st, depthSolid);
+		vec4 viewSpacePosition = GetScreenSpacePosition(texcoord.st, depth);
+		vec4 viewSpacePositionSolid = GetScreenSpacePosition(texcoord.st, depthSolid);
 
-			vec3 viewVector = normalize(viewSpacePosition.xyz);
+		vec3 viewVector = normalize(viewSpacePosition.xyz);
 
-			float waterDepth = distance(viewSpacePosition.xyz, viewSpacePositionSolid.xyz);
+		float waterDepth = distance(viewSpacePosition.xyz, viewSpacePositionSolid.xyz);
 
-			if (isEyeInWater > 0)
-			{
-				waterDepth = length(viewSpacePosition.xyz) * 0.5;
-				if (surface.mask.water > 0.5)
-				{
-					waterDepth = length(viewSpacePositionSolid.xyz) * 0.5;
-				}
+		if (isEyeInWater > 0) {
+			waterDepth = length(viewSpacePosition.xyz) * 0.5;
+			if (surface.mask.water > 0.5) {
+				waterDepth = length(viewSpacePositionSolid.xyz) * 0.5;
 			}
+		}
 
 		float fogDensity = 0.30;
 		float fogDensity2 = 0.010;
@@ -2615,49 +2613,41 @@ void WaterDepthFog(inout vec3 color, in SurfaceStruct surface, in MCLightmapStru
 
 		vec3 waterNormal = normalize(GetWaterNormals(texcoord.st));
 
-	//Rainy water colour
+		//Rainy water colour
 		vec3 waterFogColors = vec3(0.05, 0.08, 0.1);	//murky water for the rainy weather
 
-	//Depth water colour
+		//Depth water colour
 		vec3 waterFogColors2 = vec3(0.0015, 0.004, 0.0098) * colorSunlight * pow(1-rainStrength, 2.0f);	//Depth water colour, ALT (0.0028,0.0107,0.0180)
-			 waterFogColors2 *=mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 10.0f));
+		waterFogColors2 *=mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 10.0f));
 
-	//Underwater colour
+		//Underwater colour
 		vec3 waterFogColor = vec3(0.1, 0.5, 0.8); //clear water, Under water fog colour
-			 waterFogColor *= 0.01 * dot(vec3(0.33333), colorSunlight);
+		waterFogColor *= 0.01 * dot(vec3(0.33333), colorSunlight);
 
 
 		vec3 viewVectorRefracted = refract(viewVector, waterNormal, 1.0 / 1.3333);
 		float scatter = 1.0 / (pow(saturate(dot(-lightVector, viewVectorRefracted) * 0.5 + 0.5) * 20.0, 2.0) + 0.1);
 
 
-	if (isEyeInWater < 1)
-		{
+		if (isEyeInWater < 1) {
 			waterFogColor = mix(waterFogColor, colorSunlight * 21.0 * waterFogColor, vec3(scatter));
 		}
 
-//this is to change the water colour when raining
-	if (rainStrength > 0.9)
-		{
+		//this is to change the water colour when raining
+		if (rainStrength > 0.9) {
 			waterFogColors2 *= mix(waterFogColors, colorSunlight * waterFogColors, vec3(scatter * (1.0 - rainStrength)));
 		}
 
-
 		color *= pow(vec3(0.7, 0.88, 1.0) * 0.99, vec3(waterDepth * 0.45 + 0.8));
 
-
-
-//this is to separate water fog either in water or out
-	if (isEyeInWater < 0.9)
-		{
+		//this is to separate water fog either in water or out
+		if (isEyeInWater < 0.9) {
 			color = mix(waterFogColors2, color, saturate(visibility));
-			if (rainStrength > 0.9)
-				{
-					color = mix(waterFogColors2, color, saturate(visibility))* pow(1.65-rainStrength, 1.0f);
-				}
-		}
-		else
-		{
+
+			if (rainStrength > 0.9) {
+					color = mix(waterFogColors2, color, saturate(visibility)) * pow(1.65 - rainStrength, 1.0f);
+			}
+		} else {
 			color = mix(waterFogColor, color, saturate(visibility2));
 		}
 	}
@@ -2673,61 +2663,47 @@ void WaterDepthFog(inout vec3 color, in SurfaceStruct surface, in MCLightmapStru
 void main() {
 
 	//Initialize surface properties required for lighting calculation for any surface that is not part of the sky
-	surface.albedo 				= GetAlbedoLinear(texcoord.st);					//Gets the albedo texture
-	surface.albedo 				= pow(surface.albedo, vec3(1.4f));
+	surface.albedo = GetAlbedoLinear(texcoord.st);					//Gets the albedo texture
+	surface.albedo = pow(surface.albedo, vec3(1.4f));
 
-	//surface.albedo 				= vec3(0.8f);
-
-	surface.normal 				= GetNormals(texcoord.st);						//Gets the screen-space normals
-	surface.depth  				= GetDepth(texcoord.st);						//Gets the scene depth
-	surface.linearDepth 		= ExpToLinearDepth(surface.depth); 				//Get linear scene depth
+	surface.normal = GetNormals(texcoord.st);						//Gets the screen-space normals
+	surface.depth = GetDepth(texcoord.st);						//Gets the scene depth
+	surface.linearDepth = ExpToLinearDepth(surface.depth); 				//Get linear scene depth
 	surface.screenSpacePosition1 = GetScreenSpacePosition(texcoord.st); 			//Gets the screen-space position
 	surface.screenSpacePosition = GetScreenSpacePositionSolid(texcoord.st); 			//Gets the screen-space position
 	surface.screenSpacePositionSolid = GetScreenSpacePositionSolid(texcoord.st); 			//Gets the screen-space position
 
-	surface.viewVector 			= normalize(surface.screenSpacePosition1.rgb);	//Gets the view vector
-	surface.lightVector 		= lightVector;									//Gets the sunlight vector
-	surface.upVector 			= upVector;										//Store the up vector
+	surface.viewVector = normalize(surface.screenSpacePosition1.rgb);	//Gets the view vector
+	surface.lightVector = lightVector;									//Gets the sunlight vector
+	surface.upVector = upVector;										//Store the up vector
 
-#ifdef GTX500_FIX
-	//--causes GTX 500 cards yellow screen--//
-	vec4 wlv 					= shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
-	surface.worldLightVector 	= normalize(wlv.xyz);
-	surface.upVector 			= upVector;
-	//--causes GTX 500 cards yellow screen--//									//Store the up vector
+	#ifdef GTX500_FIX
+		//--causes GTX 500 cards yellow screen--//
+		vec4 wlv = shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
+		surface.worldLightVector = normalize(wlv.xyz);
+		surface.upVector = upVector;
+		//--causes GTX 500 cards yellow screen--//									//Store the up vector
+	#endif
 
-#endif
-
-	surface.mask.matIDs 		= GetMaterialIDs(texcoord.st);					//Gets material ids
+	surface.mask.matIDs = GetMaterialIDs(texcoord.st);					//Gets material ids
 	CalculateMasks(surface.mask);
 
-
-
-if (surface.mask.water > 0.5)
-	{
+	if (surface.mask.water > 0.5) {
 		surface.albedo *= 1.9;
 	}
+
 	surface.albedo *= 1.0f - float(surface.mask.sky); 						//Remove the sky from surface albedo, because sky will be handled separately
 
-
-
-	//surface.water.albedo = surface.albedo * float(surface.mask.water);		//Store underwater albedo
-	//surface.albedo *= 1.0f - float(surface.mask.water);						//Remove water from surface albedo to handle water separately
-
-
-
 	//Initialize sky surface properties
-	surface.sky.albedo 		= GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
+	surface.sky.albedo = GetAlbedoLinear(texcoord.st) * (min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)));							//Gets the albedo texture for the sky
 
-	//surface.sky.tintColor   = vec3(1.0f);
-	surface.sky.tintColor 	= mix(colorSunlight, vec3(colorSunlight.r), vec3(0.8f));									//Initializes the defualt tint color for the sky
-	surface.sky.tintColor 	*= mix(1.0f, 100.0f, timeSkyDark); 														//Boost sky color at night																		//Scale sunglow back to be less intense
+	surface.sky.tintColor = mix(colorSunlight, vec3(colorSunlight.r), vec3(0.8f));									//Initializes the defualt tint color for the sky
+	surface.sky.tintColor *= mix(1.0f, 100.0f, timeSkyDark); 														//Boost sky color at night																		//Scale sunglow back to be less intense
 
-	surface.sky.sunSpot   	= vec3(float(CalculateSunspot(surface))) * vec3((min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)))) * colorSunlight;
-	surface.sky.sunSpot 	*= 1.0f - timeMidnight;
-	surface.sky.sunSpot   	*= 300.0f;
-	surface.sky.sunSpot 	*= 1.0f - rainStrength;
-	//surface.sky.sunSpot     *= 1.0f - timeMidnight;
+	surface.sky.sunSpot = vec3(float(CalculateSunspot(surface))) * vec3((min(1.0f, float(surface.mask.sky) + float(surface.mask.sunspot)))) * colorSunlight;
+	surface.sky.sunSpot *= 1.0f - timeMidnight;
+	surface.sky.sunSpot *= 300.0f;
+	surface.sky.sunSpot *= 1.0f - rainStrength;
 
 	AddSkyGradient(surface);
 	AddSunglow(surface);
@@ -2735,186 +2711,115 @@ if (surface.mask.water > 0.5)
 
 
 	//Initialize MCLightmap values
-	mcLightmap.torch 		= GetLightmapTorch(texcoord.st);	//Gets the lightmap for light coming from emissive blocks
+	mcLightmap.torch = GetLightmapTorch(texcoord.st);	//Gets the lightmap for light coming from emissive blocks
 
-
-	mcLightmap.sky   		= GetLightmapSky(texcoord.st);		//Gets the lightmap for light coming from the sky
-	// mcLightmap.sky 		= 1.0f / pow((1.0f - mcLightmap.sky + 0.00001f), 2.0f);
-	// mcLightmap.sky 		-= 1.0f;
-	// mcLightmap.sky 		= max(0.0f, mcLightmap.sky);
-
-	mcLightmap.lightning    = 0.0f;								//gets the lightmap for light coming from lightning
-
+	mcLightmap.sky = GetLightmapSky(texcoord.st);		//Gets the lightmap for light coming from the sky
+	mcLightmap.lightning = 0.0f;								//gets the lightmap for light coming from lightning
 
 	//Initialize default surface shading attributes
-	surface.diffuse.roughness 			= 0.0f;					//Default surface roughness
-	surface.diffuse.translucency 		= 0.0f;					//Default surface translucency
-	surface.diffuse.translucencyColor 	= vec3(1.0f);			//Default translucency color
+	surface.diffuse.roughness = 0.0f;					//Default surface roughness
+	surface.diffuse.translucency = 0.0f;					//Default surface translucency
+	surface.diffuse.translucencyColor = vec3(1.0f);			//Default translucency color
 
-	surface.specular.specularity 		= GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
-	surface.specular.extraSpecularity 	= 0.0f;							//Default value for extra specularity
-	surface.specular.glossiness 		= GetGlossiness(texcoord.st);
-	surface.specular.metallic 			= 0.0f;							//Default value of how metallic the surface is
-	surface.specular.gain 				= 1.0f;							//Default surface specular gain
-	surface.specular.base 				= 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
-	surface.specular.fresnelPower 		= 5.0f;							//Default surface fresnel power
+	surface.specular.specularity = GetSpecularity(texcoord.st);	//Gets the reflectance/specularity of the surface
+	surface.specular.extraSpecularity = 0.0f;							//Default value for extra specularity
+	surface.specular.glossiness = GetGlossiness(texcoord.st);
+	surface.specular.metallic = 0.0f;							//Default value of how metallic the surface is
+	surface.specular.gain = 1.0f;							//Default surface specular gain
+	surface.specular.base = 0.0f;							//Default reflectance when the surface normal and viewing normal are aligned
+	surface.specular.fresnelPower = 5.0f;							//Default surface fresnel power
 
-
-
-#ifdef Global_Illumination
 	//Calculate surface shading
 	CalculateNdotL(surface);
-	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
-	//shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
-	shading.direct 				*= shading.sunlightVisibility;
-	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
+	shading.direct = CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
+	shading.sunlightVisibility = CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
+	shading.direct *= shading.sunlightVisibility;
+	shading.direct *= mix(1.0f, 0.0f, rainStrength);
 	float caustics = 1.0;
-	if (surface.mask.water > 0.5 || isEyeInWater > 0)
-		caustics = CalculateWaterCaustics(surface, shading);
-	shading.direct *= caustics;
-	shading.waterDirect 		= shading.direct;
-	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
-	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
-	shading.heldLight 	= CalculateHeldLightShading(surface);
 
+	if(surface.mask.water > 0.5 || isEyeInWater > 0)
+		caustics = CalculateWaterCaustics(surface, shading);
+
+	shading.direct *= caustics;
+	shading.waterDirect = shading.direct;
+
+	#ifdef Global_Illumination
+		shading.direct *= pow(mcLightmap.sky, 0.1f);
+		shading.skylight = CalculateSkylight(surface);					//Calculate scattered light from sky
+		shading.heldLight = CalculateHeldLightShading(surface);
 	#else
-
-	//Calculate surface shading
-	CalculateNdotL(surface);
-	shading.direct  			= CalculateDirectLighting(surface);				//Calculate direct sunlight without visibility check (shadows)
-	shading.direct  			= mix(shading.direct, 1.0f, float(surface.mask.water)); //Remove shading from water
-	shading.sunlightVisibility 	= CalculateSunlightVisibility(surface, shading);					//Calculate shadows and apply them to direct lighting
-	shading.direct 				*= shading.sunlightVisibility;
-	shading.direct 				*= mix(1.0f, 0.0f, rainStrength);
-	float caustics = 1.0;
-	if (surface.mask.water > 0.5 || isEyeInWater > 0)
-		caustics = CalculateWaterCaustics(surface, shading);
-	shading.direct *= caustics;
-	shading.waterDirect 		= shading.direct;
-	shading.direct 				*= pow(mcLightmap.sky, 0.1f);
-	shading.bounced 	= CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
-	shading.scattered 	= CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
-	shading.skylight 	= CalculateSkylight(surface);					//Calculate scattered light from sky
-	shading.scatteredUp = CalculateScatteredUpLight(surface);
-	shading.heldLight 	= CalculateHeldLightShading(surface);
-
+		shading.direct *= pow(mcLightmap.sky, 0.1f);
+		shading.bounced = CalculateBouncedSunlight(surface);			//Calculate fake bounced sunlight
+		shading.scattered = CalculateScatteredSunlight(surface);			//Calculate fake scattered sunlight
+		shading.skylight = CalculateSkylight(surface);					//Calculate scattered light from sky
+		shading.scatteredUp = CalculateScatteredUpLight(surface);
+		shading.heldLight = CalculateHeldLightShading(surface);
 	#endif
 
 	InitializeAO(surface);
-#ifdef Global_Illumination
-float ao = 1.0;
-	//if (texcoord.s < 0.5f && texcoord.t < 0.5f)
-	//CalculateAO(surface);
 
+	#ifdef Global_Illumination
+		float ao = 1.0;
+		vec4 delta = vec4(0.0);
+		delta.a = 1.0;
+		delta = Delta(surface.albedo.rgb, surface.normal.xyz, mcLightmap.sky);
 
-	vec4 delta = vec4(0.0);
-	delta.a = 1.0;
-
-	delta = Delta(surface.albedo.rgb, surface.normal.xyz, mcLightmap.sky);
-
-	ao = delta.a;
-#endif
-
-
-	//Colorize surface shading and store in lightmaps
-#ifdef Global_Illumination
-
-	lightmap.sunlight 			= vec3(shading.direct) * colorSunlight;
-	AddCloudGlow(lightmap.sunlight, surface);
-	//lightmap.sunlight 			*= 2.0f - AO;
-
-	lightmap.skylight 			= vec3(mcLightmap.sky);
-	lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * (mix(Shadow_Brightness, 1.0f, wetness)) * (1.0f - rainStrength);
-	//lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(0.2f));
-	lightmap.skylight 			*= shading.skylight;
-	lightmap.skylight 			*= mix(1.0f, 5.0f, float(surface.mask.clouds));
-	lightmap.skylight 			*= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
-	lightmap.skylight 			*= surface.ao.skylight;
-	//lightmap.skylight 			*= surface.ao.constant * 0.5f + 0.5f;
-	lightmap.skylight 			+= mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
-	lightmap.skylight 			*= mix(1.0f, 1.2f, rainStrength);
-	lightmap.skylight 			*= ao;
-
-
-	// lightmap.bouncedSunlight	= vec3(shading.bounced) * colorBouncedSunlight;
-	// lightmap.bouncedSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.75f));
-	// lightmap.bouncedSunlight 	*= mix(1.0f, 0.25f, timeSunriseSunset);
-	// lightmap.bouncedSunlight 	*= mix(1.0f, 0.0f, rainStrength);
-	// lightmap.bouncedSunlight 	*= surface.ao.bouncedSunlight;
-	// lightmap.bouncedSunlight 	*= ao;
-	//lightmap.bouncedSunlight 	*= surface.ao.constant * 0.5f + 0.5f;
-
-
-	// lightmap.scatteredSunlight  = vec3(shading.scattered) * colorScatteredSunlight * (1.0f - rainStrength);
-	// lightmap.scatteredSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.0f));
-	// lightmap.scatteredSunlight 	*= ao;
-	//lightmap.scatteredSunlight  *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
-
-	lightmap.torchlight 		= mcLightmap.torch * colorTorchlight;
-	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
-	lightmap.torchlight 		*= ao;
-
-	lightmap.nolight 			= vec3(0.05f);
-	lightmap.nolight 			*= surface.ao.constant;
-	lightmap.nolight 			*= ao;
-
-	//lightmap.scatteredUpLight 	= vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
-	//lightmap.scatteredUpLight   *= pow(mcLightmap.sky, 0.5f);
-	//lightmap.scatteredUpLight 	*= surface.ao.scatteredUpLight;
-	//lightmap.scatteredUpLight 	*= mix(1.0f, 0.1f, rainStrength);
-	//lightmap.scatteredUpLight   *= surface.ao.constant * 0.5f + 0.5f;
-
-	lightmap.heldLight 			= vec3(shading.heldLight);
-	lightmap.heldLight 			*= colorTorchlight;
-	lightmap.heldLight 			*= heldBlockLightValue / 16.0f;
-
-	#else
-
-	lightmap.sunlight 			= vec3(shading.direct) * colorSunlight;
-	AddCloudGlow(lightmap.sunlight, surface);
-
-	lightmap.skylight 			= vec3(mcLightmap.sky);
-	lightmap.skylight 			*= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * (mix(Shadow_Brightness, 1.0f, wetness)) * (1.0f - rainStrength);
-	lightmap.skylight 			*= shading.skylight;
-	lightmap.skylight 			*= mix(1.0f, 5.0f, float(surface.mask.clouds));
-	lightmap.skylight 			*= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
-	lightmap.skylight 			*= surface.ao.skylight;
-	lightmap.skylight 			+= mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
-	lightmap.skylight 			*= mix(1.0f, 1.2f, rainStrength);
-
-	lightmap.bouncedSunlight	= vec3(shading.bounced) * colorBouncedSunlight;
-	lightmap.bouncedSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.75f));
-	lightmap.bouncedSunlight 	*= mix(1.0f, 0.25f, timeSunrise + timeSunset);
-	lightmap.bouncedSunlight 	*= mix(1.0f, 0.0f, rainStrength);
-	lightmap.bouncedSunlight 	*= surface.ao.bouncedSunlight;
-
-
-	lightmap.scatteredSunlight  = vec3(shading.scattered) * colorScatteredSunlight * (1.0f - rainStrength);
-	lightmap.scatteredSunlight 	*= pow(vec3(mcLightmap.sky), vec3(1.0f));
-
-	lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
-
-	lightmap.torchlight 		= mcLightmap.torch * colorTorchlight;
-	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
-
-	lightmap.nolight 			= vec3(0.05f);
-	lightmap.nolight 			*= surface.ao.constant;
-
-	lightmap.scatteredUpLight 	= vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
-	lightmap.scatteredUpLight   *= pow(mcLightmap.sky, 0.5f);
-	lightmap.scatteredUpLight 	*= surface.ao.scatteredUpLight;
-	lightmap.scatteredUpLight 	*= mix(1.0f, 0.1f, rainStrength);
-
-	lightmap.heldLight 			= vec3(shading.heldLight);
-	lightmap.heldLight 			*= colorTorchlight;
-	lightmap.heldLight 			*= heldBlockLightValue * 0.070f;
-
+		ao = delta.a;
 	#endif
 
+	//Colorize surface shading and store in lightmaps
+	lightmap.sunlight = vec3(shading.direct) * colorSunlight;
+	AddCloudGlow(lightmap.sunlight, surface);
 
+	lightmap.skylight = vec3(mcLightmap.sky);
+	lightmap.skylight *= mix(colorSkylight, colorBouncedSunlight, vec3(max(0.0f, (1.0f - pow(mcLightmap.sky + 0.1f, 0.45f) * 1.0f)))) + colorBouncedSunlight * (mix(Shadow_Brightness, 1.0f, wetness)) * (1.0f - rainStrength);
+	lightmap.skylight *= shading.skylight;
+	lightmap.skylight *= mix(1.0f, 5.0f, float(surface.mask.clouds));
+	lightmap.skylight *= mix(1.0f, 50.0f, float(surface.mask.clouds) * timeSkyDark);
+	lightmap.skylight *= surface.ao.skylight;
+	lightmap.skylight += mix(colorSkylight, colorSunlight, vec3(0.2f)) * vec3(mcLightmap.sky) * surface.ao.constant * 0.05f;
+	lightmap.skylight *= mix(1.0f, 1.2f, rainStrength);
+
+	#ifdef Global_Illumination
+		lightmap.skylight *= ao;
+
+		lightmap.underwater = vec3(mcLightmap.sky) * colorSkylight;
+
+		lightmap.torchlight = mcLightmap.torch * colorTorchlight;
+		lightmap.torchlight *= surface.ao.constant * surface.ao.constant;
+		lightmap.torchlight *= ao;
+
+		lightmap.nolight = vec3(0.05f);
+		lightmap.nolight *= surface.ao.constant;
+		lightmap.nolight *= ao;
+	#else
+		lightmap.bouncedSunlight = vec3(shading.bounced) * colorBouncedSunlight;
+		lightmap.bouncedSunlight *= pow(vec3(mcLightmap.sky), vec3(1.75f));
+		lightmap.bouncedSunlight *= mix(1.0f, 0.25f, timeSunrise + timeSunset);
+		lightmap.bouncedSunlight *= mix(1.0f, 0.0f, rainStrength);
+		lightmap.bouncedSunlight *= surface.ao.bouncedSunlight;
+
+
+		lightmap.scatteredSunlight = vec3(shading.scattered) * colorScatteredSunlight * (1.0f - rainStrength);
+		lightmap.scatteredSunlight *= pow(vec3(mcLightmap.sky), vec3(1.0f));
+
+		lightmap.underwater = vec3(mcLightmap.sky) * colorSkylight;
+
+		lightmap.torchlight = mcLightmap.torch * colorTorchlight;
+		lightmap.torchlight *= surface.ao.constant * surface.ao.constant;
+
+		lightmap.nolight = vec3(0.05f);
+		lightmap.nolight *= surface.ao.constant;
+
+		lightmap.scatteredUpLight = vec3(shading.scatteredUp) * mix(colorSunlight, colorSkylight, vec3(0.0f));
+		lightmap.scatteredUpLight *= pow(mcLightmap.sky, 0.5f);
+		lightmap.scatteredUpLight *= surface.ao.scatteredUpLight;
+		lightmap.scatteredUpLight *= mix(1.0f, 0.1f, rainStrength);
+	#endif
+
+	lightmap.heldLight = vec3(shading.heldLight);
+	lightmap.heldLight *= colorTorchlight;
+	lightmap.heldLight *= heldBlockLightValue * 0.070f;
 
 	//If eye is in water
 	if (isEyeInWater > 0) {
@@ -2930,36 +2835,29 @@ float ao = 1.0;
 	surface.albedo.rgb = mix(surface.albedo.rgb, pow(surface.albedo.rgb, vec3(2.0f)), vec3(float(surface.mask.fire)));
 
 	//Apply lightmaps to albedo and generate final shaded surface
-	final.nolight 			= surface.albedo * lightmap.nolight;
-	final.sunlight 			= surface.albedo * lightmap.sunlight;
-	final.skylight 			= surface.albedo * lightmap.skylight;
-	final.bouncedSunlight 	= surface.albedo * lightmap.bouncedSunlight;
+	final.nolight = surface.albedo * lightmap.nolight;
+	final.sunlight = surface.albedo * lightmap.sunlight;
+	final.skylight = surface.albedo * lightmap.skylight;
+	final.bouncedSunlight = surface.albedo * lightmap.bouncedSunlight;
 	final.scatteredSunlight = surface.albedo * lightmap.scatteredSunlight;
-	final.scatteredUpLight  = surface.albedo * lightmap.scatteredUpLight;
-	final.torchlight 		= surface.albedo * lightmap.torchlight;
-	final.underwater        = surface.water.albedo * colorWaterBlue;
-	// final.underwater 		*= GetUnderwaterLightmapSky(texcoord.st);
-	// final.underwater  		+= vec3(0.9f, 1.00f, 0.35f) * float(surface.mask.water) * 0.065f;
-	 final.underwater 		*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
-
+	final.scatteredUpLight = surface.albedo * lightmap.scatteredUpLight;
+	final.torchlight = surface.albedo * lightmap.torchlight;
+	final.underwater = surface.water.albedo * colorWaterBlue;
+	final.underwater *= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
 
 	//final.glow.torch 				= pow(surface.albedo, vec3(4.0f)) * float(surface.mask.torch);
-	final.glow.lava 				= Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
+	final.glow.lava = Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
+	final.glow.glowstone = Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
+	final.torchlight *= 1.0f - float(surface.mask.glowstone);
 
-	final.glow.glowstone 			= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
-	final.torchlight 			   *= 1.0f - float(surface.mask.glowstone);
-
-	final.glow.fire 				= surface.albedo * float(surface.mask.fire);
-	final.glow.fire 				= pow(final.glow.fire, vec3(1.0f));
-
-	final.glow.torch 				= pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
-
+	final.glow.fire = surface.albedo * float(surface.mask.fire);
+	final.glow.fire = pow(final.glow.fire, vec3(1.0f));
+	final.glow.torch = pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
 
 	//Remove glow items from torchlight to keep control
 	final.torchlight *= 1.0f - float(surface.mask.lava);
 
 	final.heldLight = lightmap.heldLight * surface.albedo;
-
 
 	//Do night eye effect on outdoor lighting and sky
 	DoNightEye(final.sunlight);
@@ -2973,121 +2871,102 @@ float ao = 1.0;
 
 
 
-#ifdef CLOUD_SHADOW
-	surface.cloudShadow = CloudShadow(surface);
-	float sunlightMult = surface.cloudShadow * 2.0f + 0.1f;
-#else
-	surface.cloudShadow = 1.0f;
-	const float sunlightMult = Brightness;
-#endif
+	#ifdef CLOUD_SHADOW
+		surface.cloudShadow = CloudShadow(surface);
+		float sunlightMult = surface.cloudShadow * 2.0f + 0.1f;
+	#else
+		surface.cloudShadow = 1.0f;
+		const float sunlightMult = Brightness;
+	#endif
 
 	//Apply lightmaps to albedo and generate final shaded surface
-	vec3 finalComposite = final.sunlight 			* 0.9f 	* 1.5f * sunlightMult				//Add direct sunlight
-						+ final.skylight 			* 0.045f				//Add ambient skylight
-						+ final.nolight 			* CAVE_BRIGHTNESS			//Add base ambient light
-					#ifdef Global_Illumination
-						//+ final.bouncedSunlight 	* 0.05f 	* sunlightMult				//Add fake bounced sunlight
-						//+ final.scatteredSunlight 	* 0.02f		* sunlightMult			//Add fake scattered sunlight
-						//+ final.scatteredUpLight 	* 0.001f 	* sunlightMult
-					#else
-						+ final.bouncedSunlight 	* 0.05f 	* sunlightMult				//Add fake bounced sunlight
-						+ final.scatteredSunlight 	* 0.02f		* sunlightMult			//Add fake scattered sunlight
-						+ final.scatteredUpLight 	* 0.001f 	* sunlightMult
-					#endif
-						+ final.torchlight 			* 5.0f 			//Add light coming from emissive blocks
-						+ final.glow.lava			* 2.6f
-						+ final.glow.glowstone		* 2.1f
-						+ final.glow.fire			* 0.35f
-						+ final.glow.torch			* 1.15f
-					#ifdef HELD_LIGHT
-						+ final.heldLight 			* 0.05f
-					#endif
-						;
+	vec3 finalComposite = final.sunlight * 0.9f * 1.5f * sunlightMult				//Add direct sunlight
+	+ final.skylight * 0.045f				//Add ambient skylight
+	+ final.nolight * CAVE_BRIGHTNESS			//Add base ambient light
 
+	#ifndef Global_Illumination
+		+ final.bouncedSunlight * 0.05f * sunlightMult				//Add fake bounced sunlight
+		+ final.scatteredSunlight * 0.02f	* sunlightMult			//Add fake scattered sunlight
+		+ final.scatteredUpLight * 0.001f * sunlightMult
+	#endif
+
+	+ final.torchlight * 5.0f 			//Add light coming from emissive blocks
+	+ final.glow.lava * 2.6f
+	+ final.glow.glowstone * 2.1f
+	+ final.glow.fire	* 0.35f
+	+ final.glow.torch	* 1.15f
+
+	#ifdef HELD_LIGHT
+		+ final.heldLight * 0.05f
+	#endif
+	;
 
 	//Apply sky to final composite
-		 surface.sky.albedo *= 0.85f;
-		 surface.sky.albedo = surface.sky.albedo * surface.sky.tintColor + surface.sky.sunglow + surface.sky.sunSpot;
-#ifdef CLOUD_PLANE
-		 CloudPlane(surface);
-#endif
-		 //DoNightEye(surface.sky.albedo);
-		 finalComposite 	+= surface.sky.albedo;		//Add sky to final image
-	#ifdef Global_Illumination
-		 finalComposite 	+= delta.rgb * sunlightMult;
+	surface.sky.albedo *= 0.85f;
+	surface.sky.albedo = surface.sky.albedo * surface.sky.tintColor + surface.sky.sunglow + surface.sky.sunSpot;
+
+	#ifdef CLOUD_PLANE
+		CloudPlane(surface);
 	#endif
-		 vec4 cloudsTexture = pow(texture2DLod(gaux2, texcoord.st / 4.0, 0).rgba, vec4(2.2, 2.2, 2.2, 1.0));
 
+	finalComposite 	+= surface.sky.albedo;		//Add sky to final image
 
+	#ifdef Global_Illumination
+		finalComposite 	+= delta.rgb * sunlightMult;
+	#endif
+
+	vec4 cloudsTexture = pow(texture2DLod(gaux2, texcoord.st / 4.0, 0).rgba, vec4(2.2, 2.2, 2.2, 1.0));
 
 	//if eye is in water, do underwater fog
 	if (isEyeInWater > 0) {
-	#ifdef UnderwaterFog
-		CalculateUnderwaterFog(surface, finalComposite);
-	#endif
+		#ifdef UnderwaterFog
+			CalculateUnderwaterFog(surface, finalComposite);
+		#endif
 	}
 
-#ifdef RAIN_FOG
-	CalculateRainFog(finalComposite.rgb, surface);
-#endif
-
+	#ifdef RAIN_FOG
+		CalculateRainFog(finalComposite.rgb, surface);
+	#endif
 
 ////////////////////////////////////
 
-#ifdef NEW_UNDERWATER
-	#ifdef ATMOSPHERIC_FOG
-		if (isEyeInWater > 0) {
-			//CalculateAtmosphericScattering(finalComposite.rgb, surface);
-		} else {
+	#ifdef NEW_UNDERWATER
+		#ifdef ATMOSPHERIC_FOG
+			if (isEyeInWater < 0)
+				CalculateAtmosphericScattering(finalComposite.rgb, surface);
+		#endif
+	#else
+		#ifdef ATMOSPHERIC_FOG
 			CalculateAtmosphericScattering(finalComposite.rgb, surface);
-		}
+		#endif
 	#endif
-#else
-	#ifdef ATMOSPHERIC_FOG
-		CalculateAtmosphericScattering(finalComposite.rgb, surface);
-	#endif
-#endif
 
 //////////////////////////////////////
 
 
-#ifdef VOLUMETRIC_CLOUDS
-	CalculateClouds(finalComposite.rgb, surface);
-#endif
+	#ifdef VOLUMETRIC_CLOUDS
+		CalculateClouds(finalComposite.rgb, surface);
+	#endif
 
-#ifdef VOLUMETRIC_CLOUDS2
-	CalculateClouds2(finalComposite.rgb, surface);
-#endif
+	#ifdef VOLUMETRIC_CLOUDS2
+		CalculateClouds2(finalComposite.rgb, surface);
+	#endif
 
-#ifdef VOLUMETRIC_CLOUDS3
-	CalculateClouds3(finalComposite.rgb, surface);
-#endif
-	//finalComposite = mix(finalComposite, cloudsTexture.rgb, cloudsTexture.a);
-
-
-
+	#ifdef VOLUMETRIC_CLOUDS3
+		CalculateClouds3(finalComposite.rgb, surface);
+	#endif
 
 	float Get2DGodRays = Rays( surface );
 
-
-#ifdef Water_DepthFog
-	WaterDepthFog(finalComposite, surface, mcLightmap);
-#endif
-
-
-	// finalComposite = texture2D(gaux1, texcoord.st).rgb * 0.001;
+	#ifdef Water_DepthFog
+		WaterDepthFog(finalComposite, surface, mcLightmap);
+	#endif
 
 	finalComposite *= 0.0007f;												//Scale image down for HDR
 	finalComposite.b *= 1.0f;
 
-
-
-	 //TestRaymarch(finalComposite.rgb, surface);
-	  //finalComposite.rgb = surface.debug * 0.00004f;
-
-	 finalComposite = pow(finalComposite, vec3(1.0f / 2.2f)); 					//Convert final image into gamma 0.45 space to compensate for gamma 2.2 on displays
-	 finalComposite = pow(finalComposite, vec3(1.0f / BANDING_FIX_FACTOR)); 	//Convert final image into banding fix space to help reduce color banding
-
+	finalComposite = pow(finalComposite, vec3(1.0f / 2.2f)); 					//Convert final image into gamma 0.45 space to compensate for gamma 2.2 on displays
+	finalComposite = pow(finalComposite, vec3(1.0f / BANDING_FIX_FACTOR)); 	//Convert final image into banding fix space to help reduce color banding
 
 	if (finalComposite.r > 1.0f) {
 		finalComposite.r = 0.0f;
@@ -3101,25 +2980,18 @@ float ao = 1.0;
 		finalComposite.b = 0.0f;
 	}
 
-	//finalComposite *= ao;
+	vec4 finalCompositeCompiled = vec4(finalComposite, 1.0);
 
+	#ifdef GODRAYS
+		finalCompositeCompiled.a = Get2DGodRays;
+	#endif
 
-
-vec4 finalCompositeCompiled = vec4(finalComposite, 1.0);
-
-		#ifdef GODRAYS
-			finalCompositeCompiled.a = Get2DGodRays;
-		#endif
-
-		#ifdef VOLUMETRIC_LIGHT
-			finalCompositeCompiled.a = CrepuscularRays(surface);
-		#endif
+	#ifdef VOLUMETRIC_LIGHT
+		finalCompositeCompiled.a = CrepuscularRays(surface);
+	#endif
 
 	gl_FragData[0] = finalCompositeCompiled;
 	gl_FragData[1] = vec4(surface.mask.matIDs, surface.shadow * surface.cloudShadow * pow(mcLightmap.sky, 0.2f), mcLightmap.sky, 1.0f);
 	gl_FragData[2] = vec4(surface.specular.specularity, surface.cloudAlpha, surface.specular.glossiness, 1.0f);
-
-	// gl_FragData[4] = vec4(pow(surface.albedo.rgb, vec3(1.0f / 2.2f)), 1.0f);
-	// gl_FragData[5] = vec4(surface.normal.rgb * 0.5f + 0.5f, 1.0f);
 
 }
