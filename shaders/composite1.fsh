@@ -38,7 +38,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define CAVE_BRIGHTNESS	0.0007		//[0.0002 0.0005 0.0007 0.003]
 
 #define RAIN_FOG
-	#define FOG_DENSITY	0.0030f			//default is 0.0018f and is best if using RainFog2 from final[0.0018 0.0025 0.0030 0.0038]
+#define FOG_DENSITY	0.0030f			//default is 0.0018f and is best if using RainFog2 from final[0.0018 0.0025 0.0030 0.0038]
 
 #define ATMOSPHERIC_FOG
 #define NO_ATMOSPHERIC_FOG_INSIDE		//removes distant fog in caves/buildings
@@ -48,15 +48,13 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 //#define NO_LEAVE_GRASS_LIGHTING		//This removes Sunlight from the tree leaves so you dont get over bright tree leaves that are far away
 
 //----------3D clouds----------//
-//#define VOLUMETRIC_CLOUDS				//Original 3D Clouds from 1.0 and 1.1, bad dither pattern ripple, ONLY ENABLE ONE VOLUMETRIC CLOUDS
-//#define VOLUMETRIC_CLOUDS2				//latest 3D clouds, Reduced dither pattern ripple, ONLY ENABLE ONE VOLUMETRIC CLOUDS
-#define VOLUMETRIC_CLOUDS3
+#define VOLUMETRIC_CLOUDS
 #define SOFT_FLUFFY_CLOUDS				// dissable to fully remove dither Pattern ripple, adds a little pixel noise on cloud edge
 #define CLOUD_DISPERSE 10.0f          // increase this for thicker clouds and so that they don't fizzle away when you fly close to them, 10 is default Dont Go Over 30 will lag and maybe crash
-#define Vol_Cloud_Coverage 0.45f		// Vol_Cloud_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.45 0.50 0.60 0.70]
 
 #define Cloud3Height 200				//[100 120 140 160 180 200 220 240 250] //Sets the Volumetric clouds3 Height
 //#define CLOUD3_TYPE
+
 //----------New 2D clouds----------//
 //#define CLOUD_PLANE					// 2D clouds
 #define CLOUD_PLANE_Coverage 0.40f		// CLOUD_PLANE_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.40 0.50 0.60 0.70]
@@ -1165,227 +1163,6 @@ float GetCoverage(in float coverage, in float density, in float clouds) {
 	return clouds;
 }
 
-vec4 CloudColor(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
-	float cloudHeight = 230.0f;
-	float cloudDepth  = 150.0f;
-	float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
-	float cloudLowerHeight = cloudHeight - (cloudDepth / 2.0f);
-
-	if (worldPosition.y < cloudLowerHeight || worldPosition.y > cloudUpperHeight) {
-		return vec4(0.0f);
-	} else {
-		vec3 p = worldPosition.xyz / 150.0f;
-		float t = frameTimeCounter / 2.0f;
-		p.x -= t * 0.02f;
-		p += (Get3DNoise(p * 1.0f + vec3(0.0f, t * 0.01f, 0.0f)) * 2.0f - 1.0f) * 0.3f;
-
-		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
-		float noise  = 	Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));	p *= 4.0f;	p.x -= t * 0.02f;	vec3 p2 = p;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;				p *= 3.0f;	p.xz -= t * 0.05f;	vec3 p3 = p;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.075f;				p *= 2.0f;	p.xz -= t * 0.05f;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;				p *= 2.0f;
-		noise /= 1.2f;
-
-		const float lightOffset = 0.35f;
-
-		float cloudAltitudeWeight = 1.0f - clamp(distance(worldPosition.y, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight = pow(cloudAltitudeWeight, 0.5f);
-
-		noise *= cloudAltitudeWeight;
-
-		//cloud edge
-		float coverage = 0.45f;
-		coverage = mix(coverage, 0.77f, rainStrength);
-		float density = 0.66f;
-		noise = clamp(noise - (1.0f - coverage), 0.0f, 1.0f - density) / (1.0f - density);
-
-		float directLightFalloff = clamp(pow(-(cloudLowerHeight - worldPosition.y) / cloudDepth, 3.5f), 0.0f, 1.0f);
-		directLightFalloff *= mix(	clamp(pow(noise, 0.9f), 0.0f, 1.0f), 	clamp(pow(1.0f - noise, 10.3f), 0.0f, 0.5f), 	pow(sunglow, 0.2f));
-
-		vec3 colorDirect = colorSunlight * 38.0f;
-		colorDirect = mix(colorDirect, colorDirect * vec3(0.1f, 0.2f, 0.3f), timeMidnight);
-		colorDirect = mix(colorDirect, colorDirect * vec3(0.2f, 0.2f, 0.2f), rainStrength);
-		colorDirect *= 1.0f + pow(sunglow, 4.0f) * 100.0f;
-
-		vec3 colorAmbient = mix(colorSkylight, colorSunlight, 0.15f) * 0.065f;
-		colorAmbient *= mix(1.0f, 0.3f, timeMidnight);
-
-		vec3 color = mix(colorAmbient, colorDirect, vec3(directLightFalloff));
-
-		vec4 result = vec4(color.rgb, noise);
-		return result;
-	}
-}
-
-void 	CalculateClouds (inout vec3 color, inout SurfaceStruct surface) {
-		surface.cloudAlpha = 0.0f;
-		vec2 coord = texcoord.st * 2.0f;
-
-		vec4 worldPosition = gbufferModelViewInverse * surface.screenSpacePosition1;
-		worldPosition.xyz += cameraPosition.xyz;
-
-		float cloudHeight = 150.0f;
-		float cloudDepth  = 60.0f;
-		float cloudDensity = 2.25f;
-
-		float startingRayDepth = far - 5.0f;
-
-		float rayDepth = startingRayDepth;
-		float rayIncrement = far / CLOUD_DISPERSE;
-
-		#ifdef SOFT_FLUFFY_CLOUDS
-			rayDepth += CalculateDitherPattern1() * rayIncrement;
-		#else
-			rayDepth += CalculateDitherPattern2() * rayIncrement;
-		#endif
-
-		int i = 0;
-
-		vec3 cloudColor = colorSunlight;
-		vec4 cloudSum = vec4(0.0f);
-		cloudSum.rgb = colorSkylight * 0.2f;
-		cloudSum.rgb = color.rgb;
-
-		float sunglow = CalculateSunglow(surface);
-
-		float cloudDistanceMult = 400.0f / far;
-
-		float surfaceDistance = length(worldPosition.xyz - cameraPosition.xyz);
-
-		while (rayDepth > 0.0f) {
-			//determine worldspace ray position
-			vec4 rayPosition = GetCloudSpacePosition(texcoord.st, rayDepth, cloudDistanceMult);
-
-			float rayDistance = length((rayPosition.xyz - cameraPosition.xyz) / cloudDistanceMult);
-
-			vec4 proximity =  CloudColor(rayPosition, sunglow, surface.worldLightVector);
-			proximity.a *= cloudDensity;
-
-			if (surfaceDistance < rayDistance * cloudDistanceMult  && surface.mask.sky == 0.0)
-			proximity.a = 0.0f;
-
-			color.rgb = mix(color.rgb, proximity.rgb, vec3(min(1.0f, proximity.a * cloudDensity)));
-
-			surface.cloudAlpha += proximity.a;
-
-			//Increment ray
-			rayDepth -= rayIncrement;
-			i++;
-		}
-}
-
-vec4 CloudColors(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
-	float cloudHeight = Cloud3Height;
-	float cloudDepth  = 150.0f;
-	float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
-	float cloudLowerHeight = cloudHeight - (cloudDepth / 2.0f);
-
-	if (worldPosition.y < cloudLowerHeight || worldPosition.y > cloudUpperHeight) {
-		return vec4(0.0f);
-	} else {
-		vec3 p = worldPosition.xyz / 150.0f;
-		float t = frameTimeCounter / 2.0f;
-		p.x -= t * 0.02f;
-		p += (Get3DNoise(p * 1.0f + vec3(0.0f, t * 0.01f, 0.0f)) * 2.0f - 1.0f) * 0.3f;
-
-		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
-		float noise  = 	Get3DNoise(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));	p *= 2.0f;	p.x -= t * 0.097f;	vec3 p2 = p;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;				p *= 3.0f;	p.xz -= t * 0.05f;	vec3 p3 = p;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.075f;				p *= 2.0f;	p.xz -= t * 0.05f;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;				p *= 2.0f;
-		noise /= 1.2f;
-
-		const float lightOffset = 0.33f;
-
-		float cloudAltitudeWeight = 1.0f - clamp(distance(worldPosition.y, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight = pow(cloudAltitudeWeight, 0.5f);
-
-		noise *= cloudAltitudeWeight;
-
-		//cloud edge
-		float rainy = mix(wetness, 1.0f, rainStrength);
-		float coverage = Vol_Cloud_Coverage + rainy * 0.335f;
-		coverage = mix(coverage, 0.77f, rainStrength);
-		float density = 0.66f;
-		noise = clamp(noise - (1.0f - coverage), 0.0f, 1.0f - density) / (1.0f - density);
-
-		float directLightFalloff = clamp(pow(-(cloudLowerHeight - worldPosition.y) / cloudDepth, 3.5f), 0.0f, 1.0f);
-		directLightFalloff *= mix(	clamp(pow(noise, 0.9f), 0.0f, 1.0f), 	clamp(pow(1.0f - noise, 10.3f), 0.0f, 0.5f), 	pow(sunglow, 0.2f));
-
-		vec3 colorDirect = colorSunlight * 25.0f;
-		colorDirect = mix(colorDirect, colorDirect * vec3(0.1f, 0.2f, 0.3f), timeMidnight);
-		colorDirect = mix(colorDirect, colorDirect * vec3(0.2f, 0.2f, 0.2f), rainStrength);
-		colorDirect *= 1.0f + pow(sunglow, 4.0f) * 100.0f;
-
-		vec3 colorAmbient = mix(colorSkylight, colorSunlight, 0.15f) * 0.065f;
-		colorAmbient *= mix(1.0f, 0.3f, timeMidnight);
-
-		vec3 color = mix(colorAmbient, colorDirect, vec3(directLightFalloff));
-
-		vec4 result = vec4(color.rgb, noise);
-		return result;
-	}
-}
-
-void 	CalculateClouds2 (inout vec3 color, inout SurfaceStruct surface) {
-	surface.cloudAlpha = 0.0f;
-
-	vec2 coord = texcoord.st * 2.0f;
-
-	vec4 worldPosition = gbufferModelViewInverse * surface.screenSpacePosition1;
-	worldPosition.xyz += cameraPosition.xyz;
-
-	float cloudHeight = 150.0f;
-	float cloudDepth  = 60.0f;
-	float cloudDensity = 2.25f;
-
-	float startingRayDepth = far - 5.0f;
-
-	float rayDepth = startingRayDepth;
-
-	float rayIncrement = far / CLOUD_DISPERSE;
-
-	#ifdef SOFT_FLUFFY_CLOUDS
-		rayDepth += CalculateDitherPattern1() * rayIncrement;
-	#else
-		rayDepth += CalculateDitherPattern2() * rayIncrement;
-	#endif
-
-	int i = 0;
-
-	vec3 cloudColors = colorSunlight;
-	vec4 cloudSum = vec4(0.0f);
-	cloudSum.rgb = colorSkylight * 0.2f;
-	cloudSum.rgb = color.rgb;
-
-	float sunglow = CalculateSunglow(surface);
-
-	float cloudDistanceMult = 400.0f / far;
-
-
-	float surfaceDistance = length(worldPosition.xyz - cameraPosition.xyz);
-
-	while (rayDepth > 0.0f) {
-		//determine worldspace ray position
-		vec4 rayPosition = GetCloudSpacePosition(texcoord.st, rayDepth, cloudDistanceMult);
-
-		float rayDistance = length((rayPosition.xyz - cameraPosition.xyz) / cloudDistanceMult);
-
-		vec4 proximity =  CloudColors(rayPosition, sunglow, surface.worldLightVector);
-		proximity.a *= cloudDensity;
-
-		if(surfaceDistance < rayDistance * cloudDistanceMult  && surface.mask.sky == 0.0)
-			proximity.a = 0.0f;
-
-		color.rgb = mix(color.rgb, proximity.rgb, vec3(min(1.0f, proximity.a * cloudDensity)));
-		surface.cloudAlpha += proximity.a;
-
-		//Increment ray
-		rayDepth -= rayIncrement;
-		i++;
-	}
-}
-
 float Get3DNoise3(in vec3 pos) {
 	pos.z += 0.0f;
 	pos.xyz += 0.5f;
@@ -1421,12 +1198,8 @@ float GetCoverage2(in float coverage, in float density, in float clouds) {
 
 vec4 CloudColor3(in vec4 worldPosition, in float sunglow, in vec3 worldLightVector) {
 	float cloudHeight = Cloud3Height;
+	float cloudDepth  = 120.0f;
 
-	#ifdef CLOUD3_TYPE
-		float cloudDepth  = 150.0f;
-	#else
-		float cloudDepth  = 120.0f;
-	#endif
 
 	float cloudUpperHeight = cloudHeight + (cloudDepth / 2.0f);
 	float cloudLowerHeight = cloudHeight - (cloudDepth / 2.0f);
@@ -1437,81 +1210,42 @@ vec4 CloudColor3(in vec4 worldPosition, in float sunglow, in vec3 worldLightVect
 
 	vec3 p = worldPosition.xyz / 150.0f;
 
-	#ifdef CLOUD3_TYPE
-		float t = frameTimeCounter / 2.0f ;
-		p.x -= t * 0.02f;
+	float t = frameTimeCounter * 2 ;
+	p.x -= t * 0.02f;
 
-		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
-		float noise  = 	Get3DNoise3(p * vec3(1.0f, 0.5f, 1.0f) + vec3(0.0f, t * 0.01f, 0.0f));	p *= 2.0f;	p.x -= t * 0.097f;	vec3 p2 = p;
-		noise += (1.0 - abs(Get3DNoise3(p) * 1.0f - 0.5f) - 0.1) * 0.55f;					p *= 2.5f;	p.xz -= t * 0.065f;	vec3 p3 = p;
-		noise += (1.0 - abs(Get3DNoise3(p) * 3.0f - 1.5f) - 0.2) * 0.065f;  p *= 2.5f;	p.xz -= t * 0.165f;	vec3 p4 = p;
-		noise += (1.0 - abs(Get3DNoise3(p) * 3.0f - 1.5f)) * 0.032f;						p *= 2.5f;	p.xz -= t * 0.165f;
-		noise += (1.0f - abs(Get3DNoise(p) * 1.0f - 1.5f)) * 0.05f;	p *= 2.0f;												p *= 2.5f;
-		noise /= 1.315f;
+	vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
+	float noise  = 			   Get3DNoise(p) 				 * 1.0f;	p *= 4.0f;	p.x += t * 0.02f; vec3 p2 = p;
+	noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;	p *= 3.0f;	p.xz += t * 0.05f;
+	noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.5f)-0.2) * 0.065f;	p.xz -=t * 0.165f;	p.xz += t * 0.05f;
+	noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;	p *= 2.0f;
+	noise += (1.0 - abs(Get3DNoise3(p) * 2.0 - 1.0)) * 0.015f;
+	noise /= 1.2f;
 
-		const float lightOffset = 0.3f;
+	const float lightOffset = 0.3f;
 
-		float heightGradient = clamp(( - (cloudLowerHeight - worldPosition.y) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
-		float heightGradient2 = clamp(( - (cloudLowerHeight - (worldPosition.y + worldLightVector.y * lightOffset * 150.0f)) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
+	float heightGradient = clamp(( - (cloudLowerHeight - worldPosition.y) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
+	float heightGradient2 = clamp(( - (cloudLowerHeight - (worldPosition.y + worldLightVector.y * lightOffset * 150.0f)) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
 
-		float cloudAltitudeWeight = 1.0f - clamp(distance(worldPosition.y, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight = (-cos(cloudAltitudeWeight * 3.1415f)) * 0.5 + 0.5;
-		cloudAltitudeWeight = pow(cloudAltitudeWeight, mix(0.33f, 0.8f, rainStrength));
+	float cloudAltitudeWeight = 1.0f - clamp(distance(worldPosition.y, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
+	cloudAltitudeWeight = (-cos(cloudAltitudeWeight * 3.1415f)) * 0.5 + 0.5;
+	cloudAltitudeWeight = pow(cloudAltitudeWeight, mix(0.33f, 0.8f, rainStrength));
 
-		float cloudAltitudeWeight2 = 1.0f - clamp(distance(worldPosition.y + worldLightVector.y * lightOffset * 150.0f, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight2 = (-cos(cloudAltitudeWeight2 * 3.1415f)) * 0.5 + 0.5;
-		cloudAltitudeWeight2 = pow(cloudAltitudeWeight2, mix(0.33f, 0.8f, rainStrength));
+	float cloudAltitudeWeight2 = 1.0f - clamp(distance(worldPosition.y + worldLightVector.y * lightOffset * 150.0f, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
+	cloudAltitudeWeight2 = (-cos(cloudAltitudeWeight2 * 3.1415f)) * 0.5 + 0.5;
+	cloudAltitudeWeight2 = pow(cloudAltitudeWeight2, mix(0.33f, 0.8f, rainStrength));
 
-		noise *= cloudAltitudeWeight;
+	noise *= cloudAltitudeWeight;
 
-		//cloud edge
-		float rainy = mix(wetness, 1.0f, rainStrength);
-		float coverage = 0.275 + rainy * 0.335;
-		coverage = mix(coverage, 0.77f, rainStrength);
+	//cloud edge
+	float rainy = mix(wetness, 1.0f, rainStrength);
+	float coverage = 0.48f + rainy * 0.335;
+	coverage = mix(coverage, 0.77f, rainStrength);
 
-		float dist = length(worldPosition.xz - cameraPosition.xz);
-		coverage *= max(0.0f, 1.0f - dist / 40000.0f);
-		float density = 0.90f;
-		noise = GetCoverage2(coverage, density, noise);
-		noise = pow(noise, 1.5);
-	#else
-		float t = frameTimeCounter * 2 ;
-		p.x -= t * 0.02f;
-
-		vec3 p1 = p * vec3(1.0f, 0.5f, 1.0f)  + vec3(0.0f, t * 0.01f, 0.0f);
-		float noise  = 			   Get3DNoise(p) 				 * 1.0f;	p *= 4.0f;	p.x += t * 0.02f; vec3 p2 = p;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.20f;	p *= 3.0f;	p.xz += t * 0.05f;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.5f)-0.2) * 0.065f;	p.xz -=t * 0.165f;	p.xz += t * 0.05f;
-		noise += (1.0f - abs(Get3DNoise(p) * 3.0f - 1.0f)) * 0.05f;	p *= 2.0f;
-		noise += (1.0 - abs(Get3DNoise3(p) * 2.0 - 1.0)) * 0.015f;
-		noise /= 1.2f;
-
-		const float lightOffset = 0.3f;
-
-		float heightGradient = clamp(( - (cloudLowerHeight - worldPosition.y) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
-		float heightGradient2 = clamp(( - (cloudLowerHeight - (worldPosition.y + worldLightVector.y * lightOffset * 150.0f)) / (cloudDepth * 1.0f)), 0.0f, 1.0f);
-
-		float cloudAltitudeWeight = 1.0f - clamp(distance(worldPosition.y, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight = (-cos(cloudAltitudeWeight * 3.1415f)) * 0.5 + 0.5;
-		cloudAltitudeWeight = pow(cloudAltitudeWeight, mix(0.33f, 0.8f, rainStrength));
-
-		float cloudAltitudeWeight2 = 1.0f - clamp(distance(worldPosition.y + worldLightVector.y * lightOffset * 150.0f, cloudHeight) / (cloudDepth / 2.0f), 0.0f, 1.0f);
-		cloudAltitudeWeight2 = (-cos(cloudAltitudeWeight2 * 3.1415f)) * 0.5 + 0.5;
-		cloudAltitudeWeight2 = pow(cloudAltitudeWeight2, mix(0.33f, 0.8f, rainStrength));
-
-		noise *= cloudAltitudeWeight;
-
-		//cloud edge
-		float rainy = mix(wetness, 1.0f, rainStrength);
-		float coverage = 0.48f + rainy * 0.335;
-		coverage = mix(coverage, 0.77f, rainStrength);
-
-		float dist = length(worldPosition.xz - cameraPosition.xz);
-		coverage *= max(0.0f, 1.0f - dist / 40000.0f);
-		float density = 0.90f;
-		noise = GetCoverage2(coverage, density, noise);
-		noise = pow(noise, 1.5);
-	#endif
+	float dist = length(worldPosition.xz - cameraPosition.xz);
+	coverage *= max(0.0f, 1.0f - dist / 40000.0f);
+	float density = 0.90f;
+	noise = GetCoverage2(coverage, density, noise);
+	noise = pow(noise, 1.5);
 
 	if(noise <= 0.001f) {
 		return vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -2443,16 +2177,7 @@ void main() {
 
 //////////////////////////////////////
 
-
 	#ifdef VOLUMETRIC_CLOUDS
-		CalculateClouds(finalComposite.rgb, surface);
-	#endif
-
-	#ifdef VOLUMETRIC_CLOUDS2
-		CalculateClouds2(finalComposite.rgb, surface);
-	#endif
-
-	#ifdef VOLUMETRIC_CLOUDS3
 		CalculateClouds3(finalComposite.rgb, surface);
 	#endif
 
