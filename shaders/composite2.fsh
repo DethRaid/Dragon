@@ -1,4 +1,5 @@
 #version 120
+#extension GL_ARB_shader_texture_lod : enable
 
 /*
  _______ _________ _______  _______  _
@@ -1784,39 +1785,26 @@ void main() {
 		CloudPlane(surface);
 	#endif
 
-
-
-#ifdef Water_Refraction
-	WaterRefraction(surface);
-#endif
-
+	#ifdef Water_Refraction
+		WaterRefraction(surface);
+	#endif
 
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);
 	//CalculateGlossySpecularReflections(surface);
 
-#ifdef VOLUMETRIC_LIGHT
-	surface.color.rgb += GetCrepuscularRays(surface);
-#endif
+	#ifdef VOLUMETRIC_LIGHT
+		surface.color.rgb += GetCrepuscularRays(surface);
+	#endif
 
-#ifdef GODRAYS
-	surface.color.rgb += Get2DGodraysRays(surface);
-#endif
+	#ifdef GODRAYS
+		surface.color.rgb += Get2DGodraysRays(surface);
+	#endif
 
-#ifdef MOONRAYS
-	surface.color.rgb += Get2DMoonGodraysRays(surface);
-#endif
-
-	// surface.color = surface.normal * 0.0001f;
-
-	//surface.color = vec3(fwidth(surface.depth)) * 0.01f;
-
-	//surface.color.rgb = surface.reflection.rgb;
-
+	#ifdef MOONRAYS
+		surface.color.rgb += Get2DMoonGodraysRays(surface);
+	#endif
 
 	surface.color = pow(surface.color, vec3(1.0f / 2.2f));
 	gl_FragData[0] = vec4(surface.color, 1.0f);
-	//gl_FragData[1] = vec4(texture2D(composite, texcoord.st).r, cloudAlpha, texture2D(composite, texcoord.st).b, 1.0f);
-
-
 }
