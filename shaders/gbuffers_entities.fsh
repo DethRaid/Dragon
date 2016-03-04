@@ -58,8 +58,7 @@ void main() {
 	lightmap.b = pow(lightmap.b, 1.0f);
 	lightmap.r = pow(lightmap.r, 3.0f);
 
-
-	vec4 frag2 = vec4((normal), 1.0f);
+	vec4 frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);
 
 	//Diffuse
 	vec4 albedo = texture2D(texture, texcoord.st) * color;
