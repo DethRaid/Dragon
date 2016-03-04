@@ -34,7 +34,6 @@ uniform sampler2D normals;
 varying vec4 color;
 varying vec4 texcoord;
 varying vec4 lmcoord;
-varying mat3 tbnMatrix;
 
 varying vec3 normal;
 

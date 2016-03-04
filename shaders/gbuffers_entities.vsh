@@ -38,39 +38,4 @@ void main() {
 
 	normal = normalize(gl_NormalMatrix * gl_Normal);
 
-
-	vec3 tangent;
-	vec3 binormal;
-
-		if (gl_Normal.x > 0.5) {
-			//  1.0,  0.0,  0.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		} else if (gl_Normal.x < -0.5) {
-			// -1.0,  0.0,  0.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		} else if (gl_Normal.y > 0.5) {
-			//  0.0,  1.0,  0.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-		} else if (gl_Normal.y < -0.5) {
-			//  0.0, -1.0,  0.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-		} else if (gl_Normal.z > 0.5) {
-			//  0.0,  0.0,  1.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		} else if (gl_Normal.z < -0.5) {
-			//  0.0,  0.0, -1.0
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		}
-
-
-	tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
-                   tangent.y, binormal.y, normal.y,
-                   tangent.z, binormal.z, normal.z);
-
 }
