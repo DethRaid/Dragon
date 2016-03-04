@@ -45,15 +45,12 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define MORNING_FOG
 #define EVENING_FOG
 
-//#define NO_LEAVE_GRASS_LIGHTING		//This removes Sunlight from the tree leaves so you dont get over bright tree leaves that are far away
-
 //----------3D clouds----------//
 #define VOLUMETRIC_CLOUDS
 #define SOFT_FLUFFY_CLOUDS				// dissable to fully remove dither Pattern ripple, adds a little pixel noise on cloud edge
 #define CLOUD_DISPERSE 10.0f          // increase this for thicker clouds and so that they don't fizzle away when you fly close to them, 10 is default Dont Go Over 30 will lag and maybe crash
 
 #define Cloud3Height 200				//[100 120 140 160 180 200 220 240 250] //Sets the Volumetric clouds3 Height
-//#define CLOUD3_TYPE
 
 //----------New 2D clouds----------//
 //#define CLOUD_PLANE					// 2D clouds
@@ -685,28 +682,10 @@ void 	CalculateNdotL(inout SurfaceStruct surface) {		//Calculates direct sunligh
 float 	CalculateDirectLighting(in SurfaceStruct surface) {
 	//Tall grass translucent shading
 	if (surface.mask.grass > 0.5f) {
-
-		#ifdef NO_LEAVE_GRASS_LIGHTING
-			if (surface.NdotL > -0.01f) {
-		 		return surface.NdotL * 0.99f + 0.01f;
-		 	} else {
-		 		return abs(surface.NdotL) * 0.25f;
-		 	}
-		#endif
 		return 1.0f;
-
 	//Leaves
 	} else if(surface.mask.leaves > 0.5f) {
-
-		#ifdef NO_LEAVE_GRASS_LIGHTING
-			if (surface.NdotL > -0.01f) {
-		 		return surface.NdotL * 0.99f + 0.01f;
-		 	} else {
-		 		return abs(surface.NdotL) * 0.25f;
-		 	}
-		#endif
-	return 1.0f;
-
+		return 1.0f;
 	//clouds
 	} else if(surface.mask.clouds > 0.5f) {
 		return 0.5f;
