@@ -3,10 +3,10 @@
 
 
 //---------- Diffuse bouncing variables ------------//
-#define MAX_RAY_LENGTH          10.0
+#define MAX_RAY_LENGTH          1.0
 #define MAX_DEPTH_DIFFERENCE    0.6     //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.8
-#define RAY_DEPTH_BIAS          0.05    //Serves the same purpose as a shadow bias
+#define RAY_STEP_LENGTH         0.01
+#define RAY_DEPTH_BIAS          0.0005    //Serves the same purpose as a shadow bias
 #define RAY_GROWTH              1.04    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
@@ -62,8 +62,12 @@ float getDepth(vec2 coord) {
     return texture2D(gdepthtex, coord).r;
 }
 
+float convert_to_linear_depth(in float depth) {
+	return 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
+}
+
 float getDepthLinear(vec2 coord) {
-    return 2.0 * near * far / (far + near - (2.0 * texture2D(gdepthtex, coord).r - 1.0) * (far - near));
+    return convert_to_linear_depth(getDepth(coord));
 }
 
 vec3 getCameraSpacePosition(vec2 uv) {
@@ -87,10 +91,17 @@ vec3 cameraToWorldSpace(vec3 cameraPos) {
     return pos.xyz;
 }
 
-vec2 getCoordFromCameraSpace(in vec3 position) {
-    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
-    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
-    return ndcSpacePosition * 0.5 + 0.5;
+vec4 getCoordFromCameraSpace(in vec4 position) {
+    vec4 viewSpacePosition = gbufferProjection * position;
+    vec4 ndcSpacePosition = viewSpacePosition / viewSpacePosition.w;
+
+	if(position.w > 0.5) {
+		// We have a position
+    	return ndcSpacePosition * 0.5 + 0.5;
+	} else {
+		// We have a normal
+		return ndcSpacePosition;
+	}
 }
 
 vec3 getColor(in vec2 coord) {
@@ -109,8 +120,14 @@ float rand(vec2 co) {
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
 vec3 castRay(in vec3 origin, in vec3 rayStep, in float maxDist) {
-    vec3 curPos = origin;
-    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    vec3 curPos = getCoordFromCameraSpace(vec4(origin, 1.0)).xyz;
+	curPos.z = convert_to_linear_depth(curPos.z);
+	rayStep = normalize(getCoordFromCameraSpace(vec4(rayStep, 0.0)).xyz);
+	rayStep.x *= -1;
+	rayStep.z = convert_to_linear_depth(rayStep.z);
+	//return rayStep;
+	//return -1 * rayStep.yyy;
+
     rayStep = normalize(rayStep) * RAY_STEP_LENGTH;
     bool forward = true;
     float distanceTravelled = 0;
@@ -122,9 +139,8 @@ vec3 castRay(in vec3 origin, in vec3 rayStep, in float maxDist) {
     for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
         curPos += rayStep;
         distanceTravelled += sqrt(dot(rayStep, rayStep));
-        curCoord = getCoordFromCameraSpace(curPos);
 
-        float worldDepth = getCameraSpacePosition(curCoord).z;
+        float worldDepth = getDepthLinear(curPos.st);
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = length(rayStep) + RAY_DEPTH_BIAS;
@@ -137,13 +153,14 @@ vec3 castRay(in vec3 origin, in vec3 rayStep, in float maxDist) {
         } else {
             depthDiff *= -1;
             if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                return vec3(curCoord, distanceTravelled);
+				//sreturn rayStep;
+                return vec3(curPos.st, distanceTravelled);
             }
         }
         rayStep *= RAY_GROWTH;
     }
 
-    return retVal;
+    return vec3(curPos.st, 0);
 }
 
 vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
@@ -169,7 +186,8 @@ vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
         reflectDir = normalize(noiseSample * 0.5 + normal);
         reflectDir *= sign(dot(normal, reflectDir));
 
-        hitUV = castRay(rayStart, reflectDir, MAX_RAY_LENGTH);
+        hitUV = castRay(rayStart, normal, MAX_RAY_LENGTH);
+		return vec4(hitUV, 1.0);
         if(hitUV.s > 0.0 && hitUV.s < 1.0 && hitUV.t > 0.0 && hitUV.t < 1.0) {
             float matId = GetMaterialIDs(hitUV.st);
             float emissive = GetMaterialMask(hitUV.st, 10, matId) +    // glowstone
@@ -177,7 +195,7 @@ vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
                              GetMaterialMask(hitUV.st, 33, matId);     // fire
             emissive = clamp(emissive, 0.0, 1.0);
 
-            retColor += getColor(hitUV.st) / (hitUV.z * hitUV.z) * emissive;
+            retColor += getColor(hitUV.st);// / (hitUV.z * hitUV.z) * emissive;
             numHitRays++;
         }
     }
@@ -188,4 +206,5 @@ vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
 void main() {
     vec3 normal = GetNormals(texcoord);
     gl_FragData[0] = computeRaytracedLight(getCameraSpacePosition(texcoord), normal);
+	gl_FragData[0] = vec4(0);
 }

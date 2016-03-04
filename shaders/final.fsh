@@ -54,6 +54,7 @@ uniform sampler2D noisetex;
 uniform sampler2D gaux1;
 uniform sampler2D gaux2;
 uniform sampler2D gaux3;
+uniform sampler2D gaux4;
 uniform sampler2D shadowtex1;
 
 varying vec4 texcoord;
@@ -990,6 +991,6 @@ color /= mix(1.0f, 7.0f,float(mask.glowstone) * mix(1.0f, 0.0f, pow(eyeBrightnes
 	color = mix(color, vec3(dot(color, vec3(1.0 / 3.0))), vec3(Color_desaturation));
 
 	gl_FragColor = vec4(color.rgb, 1.0f);
-	//gl_FragColor = vec4(texture2D(gaux1, texcoord.st).rgb, 1.0f);
+	//gl_FragColor = vec4(texture2D(gaux4, texcoord.st).rgb, 1.0f);
 
 }
