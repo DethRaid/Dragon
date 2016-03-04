@@ -49,7 +49,6 @@ const float fademult = 0.1f;
 
 
 void main() {
-
 	//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
 	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -60,17 +59,12 @@ void main() {
 	lightmap.b = pow(lightmap.b, 1.0f);
 	lightmap.r = pow(lightmap.r, 3.0f);
 
-
-
 	vec4 frag2;
 
 	if(distance < bump_distance) {
 		vec3 bump = texture2D(normals, texcoord.st).rgb * 2.0f - 1.0f;
 		float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
-
 		bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
-
-		//bump += CalculateRainBump(worldPosition.xyz);
 
 		frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
 
