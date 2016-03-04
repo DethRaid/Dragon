@@ -57,7 +57,6 @@ const int 		noiseTextureResolution  = 64;
 
 uniform sampler2D colortex2;
 uniform sampler2D colortex1;
-uniform sampler2D colortex0;
 uniform sampler2D gdepthtex;
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor;
@@ -81,9 +80,6 @@ uniform float aspectRatio;
 uniform float rainStrength;
 uniform float sunAngle;
 uniform float frameTimeCounter;
-uniform vec3 cameraPosition;
-uniform float near;
-uniform float far;
 
 uniform int isEyeInWater;
 
@@ -569,19 +565,16 @@ vec3 GetWavesNormal(vec3 position) {
 	return wavesNormal.rgb;
 }
 
-
 //////////////////////////////MAIN////////////////////////////////////////////////////////////
 //////////////////////////////MAIN////////////////////////////////////////////////////////////
 
 void main() {
 
 	CalculateMasks(mask, texcoord);
-	vec3	normal 				= GetNormals(texcoord);
-
 	gl_FragData[1] = vec4(GetWavesNormal(vec3(texcoord.s * 50.0, 1.0, texcoord.t * 50.0)) * 0.5 + 0.5, 1.0);
-
 	if (mask.sky + mask.water > 0.5) { gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0); return; }
 
+	vec3	normal 				= GetNormals(texcoord);
 	float	depth  				= GetDepth(texcoord);
 	vec4	viewSpacePosition	= GetViewSpacePosition(texcoord, depth);
 	vec3	noisePattern		= CalculateNoisePattern1(4);

@@ -1,22 +1,15 @@
 #version 120
 
-
 #define SHADOW_MAP_BIAS 0.80
 
-#define Water_TempFix
-
+//#define Water_TempFix
 
 varying vec4 texcoord;
-varying vec4 vPosition;
 varying vec4 color;
-varying vec4 lmcoord;
-
 varying vec3 normal;
-varying vec3 rawNormal;
-
-attribute vec4 mc_Entity;
 
 varying float materialIDs;
+varying float iswater;
 
 uniform sampler2D noisetex;
 uniform float frameTimeCounter;
@@ -31,13 +24,13 @@ uniform mat4 shadowModelView;
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjection;
-varying float iswater;
+
+attribute vec4 mc_Entity;
 
 #define WAVING_VINES
 #define ENTITY_VINES        106.0
 
-vec4 cubic(float x)
-{
+vec4 cubic(float x) {
     float x2 = x * x;
     float x3 = x2 * x;
     vec4 w;
@@ -48,77 +41,51 @@ vec4 cubic(float x)
     return w / 6.f;
 }
 
-vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
-{
+vec4 BicubicTexture(in sampler2D tex, in vec2 coord) {
 	int resolution = 64;
 
 	coord *= resolution;
 
 	float fx = fract(coord.x);
-    float fy = fract(coord.y);
-    coord.x -= fx;
-    coord.y -= fy;
+  float fy = fract(coord.y);
+  coord.x -= fx;
+  coord.y -= fy;
 
-    vec4 xcubic = cubic(fx);
-    vec4 ycubic = cubic(fy);
+  vec4 xcubic = cubic(fx);
+  vec4 ycubic = cubic(fy);
 
-    vec4 c = vec4(coord.x - 0.5, coord.x + 1.5, coord.y - 0.5, coord.y + 1.5);
-    vec4 s = vec4(xcubic.x + xcubic.y, xcubic.z + xcubic.w, ycubic.x + ycubic.y, ycubic.z + ycubic.w);
-    vec4 offset = c + vec4(xcubic.y, xcubic.w, ycubic.y, ycubic.w) / s;
+  vec4 c = vec4(coord.x - 0.5, coord.x + 1.5, coord.y - 0.5, coord.y + 1.5);
+  vec4 s = vec4(xcubic.x + xcubic.y, xcubic.z + xcubic.w, ycubic.x + ycubic.y, ycubic.z + ycubic.w);
+  vec4 offset = c + vec4(xcubic.y, xcubic.w, ycubic.y, ycubic.w) / s;
 
-    vec4 sample0 = texture2D(tex, vec2(offset.x, offset.z) / resolution);
-    vec4 sample1 = texture2D(tex, vec2(offset.y, offset.z) / resolution);
-    vec4 sample2 = texture2D(tex, vec2(offset.x, offset.w) / resolution);
-    vec4 sample3 = texture2D(tex, vec2(offset.y, offset.w) / resolution);
+  vec4 sample0 = texture2D(tex, vec2(offset.x, offset.z) / resolution);
+  vec4 sample1 = texture2D(tex, vec2(offset.y, offset.z) / resolution);
+  vec4 sample2 = texture2D(tex, vec2(offset.x, offset.w) / resolution);
+  vec4 sample3 = texture2D(tex, vec2(offset.y, offset.w) / resolution);
 
-    float sx = s.x / (s.x + s.y);
-    float sy = s.z / (s.z + s.w);
+  float sx = s.x / (s.x + s.y);
+  float sy = s.z / (s.z + s.w);
 
-    return mix( mix(sample3, sample2, sx), mix(sample1, sample0, sx), sy);
+  return mix(mix(sample3, sample2, sx), mix(sample1, sample0, sx), sy);
 }
-
-
-vec4 TextureSmooth(in sampler2D tex, in vec2 coord)
-{
-	int resolution = 64;
-
-	coord *= resolution;
-	vec2 i = floor(coord);
-	vec2 f = fract(coord);
-	     f = f * f * (3.0f - 2.0f * f);
-
-	coord = (i + f) / resolution;
-
-	vec4 result = texture2D(tex, coord);
-
-	return result;
-}
-
 
 void main() {
 	gl_Position = ftransform();
 
-	lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;
+	vec4 lmcoord = gl_TextureMatrix[1] * gl_MultiTexCoord1;
 	texcoord = gl_MultiTexCoord0;
 
 	vec4 position = gl_Position;
 
-		 //position *= position.w;
-
-		 position = shadowProjectionInverse * position;
-		 position = shadowModelViewInverse * position;
-		 position.xyz += cameraPosition.xyz;
-		 //position = gbufferModelView * position;
-
-
-	//convert to world-space position
+	position = shadowProjectionInverse * position;
+	position = shadowModelViewInverse * position;
+	position.xyz += cameraPosition.xyz;
 
 	materialIDs = 0.0f;
 
 	iswater = 0.0;
 
-	if (mc_Entity.x == 1971.0f)
-	{
+	if (mc_Entity.x == 1971.0f) {
 		iswater = 1.0f;
 	}
 
@@ -126,18 +93,15 @@ void main() {
 		iswater = 1.0f;
 	}
 
-if (mc_Entity.x == 160.0f)				//stained glass pane
-	{
+  if (mc_Entity.x == 160.0f) {				//stained glass pane
 		materialIDs = max(materialIDs, 89114.0f);		//disabled
 	}
 
-	if (mc_Entity.x == 95.0f)			//stained glass
-	{
+	if (mc_Entity.x == 95.0f) {			//stained glass
 		materialIDs = max(materialIDs, 89114.0f);		//disabled
 	}
 
-if (mc_Entity.x == 51.0f)				//Fire
-	{
+  if (mc_Entity.x == 51.0f) {				//Fire
 		materialIDs = max(materialIDs, 89224.0f);		//disabled
 	}
 
@@ -154,9 +118,7 @@ if (mc_Entity.x == 51.0f)				//Fire
 		|| mc_Entity.x == 176.0f 	//Biomes O Plenty: Desert Grass
 		|| mc_Entity.x == 177.0f 	//Biomes O Plenty: Desert Grass
 		|| mc_Entity.x == 178.0f 	//Lavender
-
-		)
-	{
+		) {
 			materialIDs = max(materialIDs, 2.0f);
 	}
 
@@ -188,63 +150,57 @@ if (mc_Entity.x == 51.0f)				//Fire
 
 	//Ice
 	if (  mc_Entity.x == 79.0f
-	   || mc_Entity.x == 174.0f)
-	{
-		materialIDs = max(materialIDs, 4.0f);
+	   || mc_Entity.x == 174.0f) {
+		 materialIDs = max(materialIDs, 4.0f);
 	}
 
 	//Cobweb
-	if ( mc_Entity.x == 30.0f)
-	{
+	if ( mc_Entity.x == 30.0f) {
 		materialIDs = max(materialIDs, 11.0f);
 	}
 
 	float grassWeight = mod(texcoord.t * 16.0f, 1.0f / 16.0f);
 
 	float lightWeight = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
-		  lightWeight *= 1.1f;
-		  lightWeight -= 0.1f;
-		  lightWeight = max(0.0f, lightWeight);
-		  lightWeight = pow(lightWeight, 5.0f);
+	lightWeight *= 1.1f;
+	lightWeight -= 0.1f;
+	lightWeight = max(0.0f, lightWeight);
+	lightWeight = pow(lightWeight, 5.0f);
 
-		  if (grassWeight < 0.01f) {
-		  	grassWeight = 1.0f;
-		  } else {
-		  	grassWeight = 0.0f;
-		  }
+	if(grassWeight < 0.01f) {
+	   grassWeight = 1.0f;
+	} else {
+	   grassWeight = 0.0f;
+	}
 
 	//Waving grass
-	//Waving grass
-	if (materialIDs == 2.0f)
-	{
+	if (materialIDs == 2.0f) {
 		vec2 angleLight = vec2(0.0f);
 		vec2 angleHeavy = vec2(0.0f);
 		vec2 angle 		= vec2(0.0f);
 
 		vec3 pn0 = position.xyz;
-			 pn0.x -= frameTimeCounter / 3.0f;
+		pn0.x -= frameTimeCounter / 3.0f;
 
 		vec3 stoch = BicubicTexture(noisetex, pn0.xz / 64.0f).xyz;
 		vec3 stochLarge = BicubicTexture(noisetex, position.xz / (64.0f * 6.0f)).xyz;
 
 		vec3 pn = position.xyz;
-			 pn.x *= 2.0f;
-			 pn.x -= frameTimeCounter * 15.0f;
-			 pn.z *= 8.0f;
+		pn.x *= 2.0f;
+		pn.x -= frameTimeCounter * 15.0f;
+		pn.z *= 8.0f;
 
 		vec3 stochLargeMoving = BicubicTexture(noisetex, pn.xz / (64.0f * 10.0f)).xyz;
 
-
-
 		vec3 p = position.xyz;
-		 	 p.x += sin(p.z / 2.0f) * 1.0f;
-		 	 p.xz += stochLarge.rg * 5.0f;
+		p.x += sin(p.z / 2.0f) * 1.0f;
+		p.xz += stochLarge.rg * 5.0f;
 
 		float windStrength = mix(0.85f, 1.0f, rainStrength);
 		float windStrengthRandom = stochLargeMoving.x;
-			  windStrengthRandom = pow(windStrengthRandom, mix(2.0f, 1.0f, rainStrength));
-			  windStrength *= mix(windStrengthRandom, 0.5f, rainStrength * 0.25f);
-			  //windStrength = 1.0f;
+	  windStrengthRandom = pow(windStrengthRandom, mix(2.0f, 1.0f, rainStrength));
+		windStrength *= mix(windStrengthRandom, 0.5f, rainStrength * 0.25f);
+		//windStrength = 1.0f;
 
 		//heavy wind
 		float heavyAxialFrequency 			= 8.0f;
@@ -297,20 +253,18 @@ if (mc_Entity.x == 51.0f)				//Fire
 	if (materialIDs == 3.0f && texcoord.t < 1.90 && texcoord.t > -1.0) {
 		float speed = 0.05;
 
-
-			  //lightWeight = max(0.0f, 1.0f - (lightWeight * 5.0f));
-
 		float magnitude = (sin((position.y + position.x + tick * pi / ((28.0) * speed))) * 0.15 + 0.15) * 0.30 * lightWeight;
-			  magnitude *= grassWeight;
-			  magnitude *= lightWeight;
+		magnitude *= grassWeight;
+		magnitude *= lightWeight;
+
 		float d0 = sin(tick * pi / (112.0 * speed)) * 3.0 - 1.5;
 		float d1 = sin(tick * pi / (142.0 * speed)) * 3.0 - 1.5;
 		float d2 = sin(tick * pi / (132.0 * speed)) * 3.0 - 1.5;
 		float d3 = sin(tick * pi / (122.0 * speed)) * 3.0 - 1.5;
+
 		position.x += sin((tick * pi / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude * (1.0f + rainStrength * 1.0f);
 		position.z += sin((tick * pi / (17.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude * (1.0f + rainStrength * 1.0f);
 		position.y += sin((tick * pi / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/2.0) * (1.0f + rainStrength * 1.0f);
-
 	}
 
 
@@ -318,82 +272,65 @@ if (mc_Entity.x == 51.0f)				//Fire
 	if (materialIDs == 3.0f) {
 		float speed = 0.075;
 
-
-
 		float magnitude = (sin((tick * pi / ((28.0) * speed))) * 0.05 + 0.15) * 0.075 * lightWeight;
-			  magnitude *= 1.0f - grassWeight;
-			  magnitude *= lightWeight;
+		magnitude *= 1.0f - grassWeight;
+		magnitude *= lightWeight;
+
 		float d0 = sin(tick * pi / (122.0 * speed)) * 3.0 - 1.5;
 		float d1 = sin(tick * pi / (142.0 * speed)) * 3.0 - 1.5;
 		float d2 = sin(tick * pi / (162.0 * speed)) * 3.0 - 1.5;
 		float d3 = sin(tick * pi / (112.0 * speed)) * 3.0 - 1.5;
+
 		position.x += sin((tick * pi / (13.0 * speed)) + (position.x + d0)*0.9 + (position.z + d1)*0.9) * magnitude;
 		position.z += sin((tick * pi / (16.0 * speed)) + (position.z + d2)*0.9 + (position.x + d3)*0.9) * magnitude;
 		position.y += sin((tick * pi / (15.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/1.0);
 	}
 
-#ifdef WAVING_VINES
+  #ifdef WAVING_VINES
     //large scale movement
     if ( mc_Entity.x == ENTITY_VINES ) {
         float speed = 1.0;
-        float magnitude = (sin(((position.y + position.x)/2.0 + worldTime * 3.14159265358979323846264 / ((88.0)))) * 0.05 + 0.15) * 0.26;
-        float d0 = sin(worldTime * 3.14159265358979323846264 / (122.0 * speed)) * 3.0 - 1.5;
-        float d1 = sin(worldTime * 3.14159265358979323846264 / (152.0 * speed)) * 3.0 - 1.5;
-        float d2 = sin(worldTime * 3.14159265358979323846264 / (192.0 * speed)) * 3.0 - 1.5;
-        float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 - 1.5;
-        position.x += sin((worldTime * 3.14159265358979323846264 / (16.0 * speed)) + (position.x + d0)*0.5 + (position.z + d1)*0.5 + (position.y)) * magnitude;
-        //position.x -= 0.05;
-        position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*0.5 + (position.x + d3)*0.5 + (position.y)) * magnitude;
-        //position.z -= 0.05;
-        //position.y += sin((worldTime * 3.14159265358979323846264 / (10.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/2.0);
+        float magnitude = (sin(((position.y + position.x)/2.0 + worldTime * pi / ((88.0)))) * 0.05 + 0.15) * 0.26;
+
+        float d0 = sin(worldTime * pi / (122.0 * speed)) * 3.0 - 1.5;
+        float d1 = sin(worldTime * pi / (152.0 * speed)) * 3.0 - 1.5;
+        float d2 = sin(worldTime * pi / (192.0 * speed)) * 3.0 - 1.5;
+        float d3 = sin(worldTime * pi / (142.0 * speed)) * 3.0 - 1.5;
+
+        position.x += sin((worldTime * pi / (16.0 * speed)) + (position.x + d0)*0.5 + (position.z + d1)*0.5 + (position.y)) * magnitude;
+        position.z += sin((worldTime * pi / (18.0 * speed)) + (position.z + d2)*0.5 + (position.x + d3)*0.5 + (position.y)) * magnitude;
     }
 
     //small scale movement
     if (mc_Entity.x == 106.0 && texcoord.t < 0.20) {
-        float speed = 1.1;
-        float magnitude = (sin(((position.y + position.x)/8.0 + worldTime * 3.14159265358979323846264 / ((88.0)))) * 0.15 + 0.05) * 0.22;
-        float d0 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
-        float d1 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
-        float d2 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
-        float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
-        position.x += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude;
-        //position.x -= 0.05;
-        position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude;
-        //position.z -= 0.05;
-        position.y += sin((worldTime * 3.14159265358979323846264 / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/4.0);
-    }
-#endif
+      float speed = 1.1;
+      float magnitude = (sin(((position.y + position.x)/8.0 + worldTime * 3.14159265358979323846264 / ((88.0)))) * 0.15 + 0.05) * 0.22;
 
-#ifdef Water_TempFix
-if (isEyeInWater > 0.9) {
-    } else {
-	if (iswater > 0.5)
-	{
-		position.xyz += 10000.0;
-	}
-}
-#else
-if (iswater > 0.5)
-	{
-		position.xyz += 10000.0;
-	}
-#endif
-	//position = gbufferModelViewInverse * position;
+      float d0 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
+      float d1 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
+      float d2 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
+      float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
+
+      position.x += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude;
+      position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude;
+      position.y += sin((worldTime * 3.14159265358979323846264 / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/4.0);
+    }
+  #endif
+
+
+  if(iswater > 0.5) {
+	  position.xyz += 10000.0;
+  }
+
 	position.xyz -= cameraPosition.xyz;
 	position = shadowModelView * position;
 	position = shadowProjection * position;
 
 	normal = normalize(gl_NormalMatrix * gl_Normal);
 
-	float facingLightFactor = dot(normal, vec3(0.0, 0.0, 1.0));
-	position.z += pow(max(0.0, 1.0 - facingLightFactor), 4.0) * 0.01;
-
-	// position.z += pow(max(0.0, 1.0 - dot(normal, vec3(0.0, 0.0, 1.0))), 4.0) * 0.01;
-
+	position.z += pow(max(0.0, 1.0 - normal.z), 4.0) * 0.01;
 
 	gl_Position = position;
-
-
 
 	float dist = sqrt(dot(gl_Position.xy, gl_Position.xy));
 
@@ -401,16 +338,10 @@ if (iswater > 0.5)
 	dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
-
 	gl_Position.xy *= 1.0f / distortFactor;
 	gl_Position.z /= 4.0;
 
-
-	vPosition = gl_Position;
-
 	gl_FrontColor = gl_Color;
 	color = gl_Color;
-
-
 
 }
