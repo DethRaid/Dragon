@@ -1,6 +1,6 @@
 #version 450 compatibility
 
-#define VERTEX_SCALE 1.0
+#define VERTEX_SCALE 0.5
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
