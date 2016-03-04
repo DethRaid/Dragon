@@ -1,39 +1,42 @@
-#version 120
-
-/*
- _______ _________ _______  _______  _
-(  ____ \\__   __/(  ___  )(  ____ )( )
-| (    \/   ) (   | (   ) || (    )|| |
-| (_____    | |   | |   | || (____)|| |
-(_____  )   | |   | |   | ||  _____)| |
-      ) |   | |   | |   | || (      (_)
-/\____) |   | |   | (___) || )       _
-\_______)   )_(   (_______)|/       (_)
-
-Do not modify this code until you have read the LICENSE.txt contained in the root directory of this shaderpack!
-
-*/
-
-/////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////ADJUSTABLE VARIABLES//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#version 450 compatibility
 
 #define SHADOW_MAP_BIAS 0.80
+#define FRAGMENT_SCALE 1.0
+#define VERTEX_SCALE 1.0
 
+#define EXTENDED_SHADOW_DISTANCE
 
+#define GI_QUALITY 2.0 //[1.0 2.0 3.0 4.0] //sets the Quality of the GI Calculation
+#define GI_Boost true
 
-#define GI_QUALITY 1.5f				// GI Quality. 1.0 = Lowest Quality. 4 = Highest Quality [1.0 1.5 2.0 4.0]
+#define NEW_GI
+#define NEW_GI_QUALITY 256 //[128 256 512]
 
-#define Global_Illumination
+//#define AO
 
+//---------- Diffuse bouncing variables ------------//
+#define MAX_RAY_LENGTH          10.0
+#define MAX_DEPTH_DIFFERENCE    0.6     //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.8
+#define RAY_DEPTH_BIAS          0.05    //Serves the same purpose as a shadow bias
+#define RAY_GROWTH              1.04    //Make this number smaller to get more accurate reflections at the cost of performance
+                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
+                                        //shorter and shorter until you're barely making any progress
+#define NUM_RAYS                3       //The best setting in the whole shader pack. If you increase this value,
+                                        //more and more rays will be sent per pixel, resulting in better and better
+                                        //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+//---------- End diffuse bouncing variables ------------//
 
-/////////INTERNAL VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////INTERNAL VARIABLES////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////INTERNAL VARIABLES////////////////////////////////////////////////////////////
+//////////////////////////////INTERNAL VARIABLES////////////////////////////////////////////////////////////
 //Do not change the name of these variables or their type. The Shaders Mod reads these lines and determines values to send to the inner-workings
 //of the shaders mod. The shaders mod only reads these lines and doesn't actually know the real value assigned to these variables in GLSL.
 //Some of these variables are critical for proper operation. Change at your own risk.
 
-const float 	shadowDistance 			= 120;		// shadowDistance. 60 = Lowest Quality. 200 = Highest Quality [60 100 120 160 180 200]
-const float 	shadowIntervalSize 		= 4.0f;
+const int 		shadowMapResolution 	= 2048;
+const float 	shadowDistance 			= 140;	// shadowDistance. 60 = Lowest Quality. 200 = Highest Quality [60 100 120 160 180 200]
+const float 	shadowIntervalSize 		= 4.0;
+const bool 		shadowHardwareFiltering0 = true;
 
 const bool 		shadowtex1Mipmap = true;
 const bool 		shadowtex1Nearest = true;
@@ -45,37 +48,37 @@ const bool 		shadowcolor1Nearest = false;
 const int 		R8 						= 0;
 const int 		RG8 					= 0;
 const int 		RGB8 					= 1;
+const int 		RGBA8 					= 1;
 const int 		RGB16 					= 2;
-const int 		gcolorFormat 			= RGB16;
-const int 		gdepthFormat 			= RGB8;
-const int 		gnormalFormat 			= RGB16;
-const int 		compositeFormat 		= RGB8;
+const int 		RGBA16 					= 2;
+const int 		colortex0Format 		= RGB16;
+const int 		colortex1Format 		= RGB8;
+const int 		colortex2Format 		= RGB16;
+const int 		colortex3Format 		= RGB8;
+const int 		colortex4Format 		= RGBA8;
+const int 		colortex5Format 		= RGB8;
 
-const float 	eyeBrightnessHalflife 	= 10.0f;
-const float 	centerDepthHalflife 	= 2.0f;
-const float 	wetnessHalflife 		= 100.0f;
-const float 	drynessHalflife 		= 40.0f;
+const float 	wetnessHalflife 		= 100.0;
+const float 	drynessHalflife 		= 40.0;
+const float 	centerDepthHalflife 	= 2.0;
+const float 	eyeBrightnessHalflife 	= 10.0;
 
-const int 		superSamplingLevel 		= 0;
-
-const float		sunPathRotation 		= -40.0f;
-const float 	ambientOcclusionLevel 	= 0.5f;
+const float		sunPathRotation 		= -40.0;
+const float 	ambientOcclusionLevel 	= 0.65;
 
 const int 		noiseTextureResolution  = 64;
 
-//END OF INTERNAL VARIABLES//
-
-/* DRAWBUFFERS:46 */
-
-uniform sampler2D gnormal;
+uniform sampler2D colortex2;
+uniform sampler2D colortex1;
+uniform sampler2D colortex0;
 uniform sampler2D gdepthtex;
-uniform sampler2D gdepth;
-uniform sampler2D shadowcolor1;
-uniform sampler2D shadowcolor;
 uniform sampler2D shadowtex1;
+uniform sampler2D shadowcolor;
+uniform sampler2D shadowcolor1;
 uniform sampler2D noisetex;
+uniform sampler2D gdepth;
+uniform sampler2DShadow shadow;
 
-uniform mat4 gbufferModelView;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowModelViewInverse;
@@ -83,231 +86,377 @@ uniform mat4 shadowProjection;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferProjection;
 
-varying vec4 texcoord;
-varying vec3 lightVector;
+uniform vec3 previousCameraPosition;
 
-varying float timeSunriseSunset;
-varying float timeNoon;
-varying float timeMidnight;
-varying float timeSkyDark;
-
-varying vec3 colorSunlight;
-varying vec3 colorSkylight;
-varying vec3 colorSunglow;
-varying vec3 colorBouncedSunlight;
-varying vec3 colorScatteredSunlight;
-varying vec3 colorTorchlight;
-varying vec3 colorWaterMurk;
-varying vec3 colorWaterBlue;
-varying vec3 colorSkyTint;
-																																																																																																																									#define K1J5 )
-uniform float near;
-uniform float far;
 uniform float viewWidth;
 uniform float viewHeight;
-uniform float rainStrength;
-uniform float wetness;
 uniform float aspectRatio;
-uniform float frameTimeCounter;
+uniform float rainStrength;
 uniform float sunAngle;
-uniform vec3 skyColor;
+uniform float frameTimeCounter;
 uniform vec3 cameraPosition;
+uniform float near;
+uniform float far;
 
-/////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define RW32 vec3
+uniform int isEyeInWater;
 
-vec3  	GetNormals(in vec2 coord) {				//Function that retrieves the screen space surface normals. Used for lighting calculations
-	return texture2DLod(gnormal, coord.st, 0).rgb * 2.0f - 1.0f;
+in vec3 lightVector;
+
+in vec2 texcoord;
+
+/* DRAWBUFFERS:467 */
+
+struct MaskStruct {
+	float materialIDs;
+	float matIDs;
+
+	float fullbright;
+	float bit1;
+	float bit2;
+	float bit3;
+
+	float sky;
+
+	float grass;
+	float leaves;
+	float water;
+} mask;
+
+//////////////////////////////FUNCTIONS////////////////////////////////////////////////////////////
+//////////////////////////////FUNCTIONS////////////////////////////////////////////////////////////
+
+vec3 GetNormals(in vec2 coord) {
+	return texture2DLod(colortex2, coord.st, 0).xyz * 2.0 - 1.0;
 }
 
-float 	GetDepth(in vec2 coord) {
+float GetDepth(in vec2 coord) {
 	return texture2D(gdepthtex, coord.st).x;
 }
 
-vec4  	GetScreenSpacePosition(in vec2 coord) {	//Function that calculates the screen-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
+vec4 GetViewSpacePosition(in vec2 coord) {		//Function that calculates the view-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
 	float depth = GetDepth(coord);
-	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * depth - 1.0f, 1.0f);
+	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
 		 fragposition /= fragposition.w;
-#define UBWG texture2DLod
+
 	return fragposition;
 }
 
-vec3 	CalculateNoisePattern1(vec2 offset, float size) {
-	vec2 coord = texcoord.st;
-																																																																																																																																																									#define U73B shadowcolor1
+vec4 GetViewSpacePosition(in vec2 coord, in float depth) {		//Function that calculates the view-space position of the objects in the scene using the depth texture and the texture coordinates of the full-screen quad
+	vec4 fragposition = gbufferProjectionInverse * vec4(vec3(coord.st, depth) * 2.0 - 1.0, 1.0);
+		 fragposition /= fragposition.w;
+
+	return fragposition;
+}
+
+vec4 ViewSpaceToWorldSpace(in vec4 viewSpacePosition) {
+	vec4 pos = gbufferModelViewInverse * viewSpacePosition;
+	return pos / pos.w;
+}
+
+vec4 WorldSpaceToShadowSpace(in vec4 worldSpacePosition) {
+	vec4 pos = shadowProjection * shadowModelView * worldSpacePosition;
+	return pos /= pos.w;
+}
+
+vec4 BiasShadowProjection(in vec4 projectedShadowSpacePosition) {
+	#ifndef EXTENDED_SHADOW_DISTANCE
+		float dist = length(projectedShadowSpacePosition.xy);
+	#else
+		vec2 pos = abs(projectedShadowSpacePosition.xy * 1.165);
+		float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	#endif
+
+	float distortFactor = (1.0 - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	projectedShadowSpacePosition.xy /= distortFactor;
+
+	#ifdef EXTENDED_SHADOW_DISTANCE
+		projectedShadowSpacePosition.z /= 4.0;
+	#endif
+
+	return projectedShadowSpacePosition;
+}
+
+vec2 BiasShadowMap(in vec2 ShadowMapPosition) {
+	ShadowMapPosition = ShadowMapPosition * 2.0 - 1.0;
+
+	#ifndef EXTENDED_SHADOW_DISTANCE
+		float dist = length(ShadowMapPosition.xy);
+	#else
+		vec2 pos = abs(ShadowMapPosition.xy * 1.165);
+		float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	#endif
+
+	float distortFactor = (1.0 - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	ShadowMapPosition /= distortFactor;
+
+	ShadowMapPosition = ShadowMapPosition * 0.5 + 0.5;
+
+	return ShadowMapPosition;
+}
+
+vec3 CalculateNoisePattern1(const float size) {
+	vec2 coord = texcoord * VERTEX_SCALE;
+
 	coord *= vec2(viewWidth, viewHeight);
-	coord = mod(coord + offset, vec2(size));
+	coord = mod(coord, vec2(size));
 	coord /= noiseTextureResolution;
-																																																																																																																		#define U38J (
+
 	return texture2D(noisetex, coord).xyz;
 }
 
-vec2 DistortShadowSpace(in vec2 pos)
-{
-	vec2 signedPos = pos * 2.0f - 1.0f;
-
-	float dist = sqrt(dot(signedPos.xy, signedPos.xy));
-	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-	signedPos.xy /= distortFactor;
-#define I636 float
-	pos = signedPos * 0.5f + 0.5f;
-																																																																																																																																																																																	#define U008 shadowtex1
-	return pos;
-}
-
-vec3 Contrast(in vec3 color, in float contrast)
-{
-	float colorLength = length(color);
-	vec3 nColor = color / colorLength;
-#define IP89 if
-	colorLength = pow(colorLength, contrast);
-#define JJ8B shadowcolor
-	return nColor * colorLength;
-}
 
 float 	GetMaterialIDs(in vec2 coord) {			//Function that retrieves the texture that has all material IDs stored in it
 	return texture2D(gdepth, coord).r;
 }
 
-bool 	GetSkyMask(in vec2 coord)
-{
-	float matID = GetMaterialIDs(coord);
-	matID = floor(matID * 255.0f);
-#define OIU3 int
-	if (matID < 1.0f || matID > 254.0f)
-	{
-		return true;
+float 	GetMaterialMask(in vec2 coord ,const in int ID, in float matID) {
+	matID = (matID * 255.0f);
+
+	//Catch last part of sky
+	if (matID > 254.0f) {
+		matID = 0.0f;
+	}
+
+	if (matID == ID) {
+		return 1.0f;
 	} else {
-		return false;
+		return 0.0f;
 	}
 }
 
-float GetAO(in vec4 screenSpacePosition, in vec3 normal, in vec2 coord, in vec3 dither)
-{
-	//Determine origin position
-	vec3 origin = screenSpacePosition.xyz;
+float GetWaterMask(in vec2 coord, in float matID) {					//Function that returns "true" if a pixel is water, and "false" if a pixel is not water.
+	matID = (matID * 255.0f);
 
-	vec3 randomRotation = normalize(dither.xyz * vec3(2.0f, 2.0f, 1.0f) - vec3(1.0f, 1.0f, 0.0f));
+	if (matID >= 35.0f && matID <= 51) {
+		return 1.0f;
+	} else {
+		return 0.0f;
+	}
+}
+
+
+void CalculateMasks(inout MaskStruct mask, in vec2 coord) {
+	mask.materialIDs	= GetMaterialIDs(coord);
+	mask.matIDs			= mask.materialIDs;
+
+	mask.sky 			= GetMaterialMask(texcoord.st, 0, mask.matIDs);
+
+	mask.grass 			= GetMaterialMask(texcoord.st, 2, mask.matIDs);
+	mask.leaves	 		= GetMaterialMask(texcoord.st, 3, mask.matIDs);
+	mask.water		 	= GetWaterMask(texcoord.st, mask.matIDs);
+}
+
+
+float CalculateAO(in vec4 viewSpacePosition, in vec3 normal, in vec2 coord, const in int sampleCount, in vec3 dither) {
+	//Determine origin position
+	vec3 origin = viewSpacePosition.xyz;
+
+	vec3 randomRotation = normalize(dither.xyz * vec3(2.0, 2.0, 1.0) - vec3(1.0, 1.0, 0.0));
 
 	vec3 tangent = normalize(randomRotation - normal * dot(randomRotation, normal));
 	vec3 bitangent = cross(normal, tangent);
 	mat3 tbn = mat3(tangent, bitangent, normal);
 
-	float aoRadius   = 0.25f * -screenSpacePosition.z;
+	float aoRadius   = 1.0;
+	float zThickness = 0.25 * -viewSpacePosition.z;
 
-	float zThickness = 0.25f * -screenSpacePosition.z;
+	vec3 	samplePosition 		= vec3(0.0);
+	vec4 	sampleViewSpace 	= vec4(0.0);
+	float 	sampleDepth 		= 0.0;
 
+	float ao = 0.0;
 
-	vec3 	samplePosition 		= vec3(0.0f);
-	float 	intersect 			= 0.0f;
-	vec4 	sampleScreenSpace 	= vec4(0.0f);
-	float 	sampleDepth 		= 0.0f;
-	float 	distanceWeight 		= 0.0f;
-	float 	finalRadius 		= 0.0f;
+	for (int i = 0; i < sampleCount; i++) {
+		vec3 kernel = vec3(texture2D(noisetex, vec2(0.1 + i / 64.0)).x * 2.0 - 1.0,
+						   texture2D(noisetex, vec2(0.1 + i / 64.0)).y * 2.0 - 1.0,
+						   texture2D(noisetex, vec2(0.1 + i / 64.0)).z);
 
-	int numRaysPassed = 0;
-
-	float ao = 0.0f;
-
-	for (int i = 0; i < 4; i++)
-	{
-		vec3 kernel = vec3(texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).r * 2.0f - 1.0f,
-					     texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).g * 2.0f - 1.0f,
-					     texture2D(noisetex, vec2(0.1f + (i * 1.0f) / 64.0f)).b * 1.0f);
-			 kernel = normalize(kernel);
-			 kernel *= pow(dither.x + 0.01f, 1.0f);
+		kernel = normalize(kernel);
+		kernel *= dither.x + 0.01;
 
 		samplePosition = tbn * kernel;
-		samplePosition = samplePosition * aoRadius + origin;
+		samplePosition = origin + samplePosition * aoRadius;
 
-			sampleScreenSpace = gbufferProjection * vec4(samplePosition, 0.0f);
-			sampleScreenSpace.xyz /= sampleScreenSpace.w;
-			sampleScreenSpace.xyz = sampleScreenSpace.xyz * 0.5f + 0.5f;
+		sampleViewSpace = gbufferProjection * vec4(samplePosition, 0.0);
+		sampleViewSpace.xyz /= sampleViewSpace.w;
+		sampleViewSpace.xyz = sampleViewSpace.xyz * 0.5 + 0.5;
 
-			//Check depth at sample point
-			sampleDepth = GetScreenSpacePosition(sampleScreenSpace.xy).z;
+		//Check depth at sample point
+		sampleDepth = GetViewSpacePosition(sampleViewSpace.xy).z;
 
-			//If point is behind geometry, buildup AO
-			if (sampleDepth >= samplePosition.z && sampleDepth - samplePosition.z < zThickness)
-			{
-				ao += 1.0f;
-			} else {
-
-			}
+		//If point is behind geometry, buildup AO
+		if (sampleDepth >= samplePosition.z && sampleDepth - samplePosition.z < zThickness) {
+			ao += 1.0;
+		}
 	}
-	ao /= 4;
-	ao = 1.0f - ao;
-	ao = pow(ao, 1.0f);
+
+	ao /= sampleCount;
+	ao = 1.0 - ao;
 
 	return ao;
 }
 
+vec3 CalculateGI(in vec2 coord, in vec4 viewSpacePosition, in vec3 normal, const in float radius, const in float quality, in vec3 noisePattern, in MaskStruct mask) {
+	float NdotL = dot(normal, lightVector);
 
+	vec3 shadowSpaceNormal = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
 
-vec4 f U38J in  OIU3  f,in vec2 d,in  I636  v,in  I636  z, RW32  s K1J5 { I636  x=pow U38J 2.f, I636  U38J f K1J5  K1J5 ,y=.002f; IP89  U38J texcoord.x-d.x+y<1.f/x+y*2.f&&texcoord.y-d.y+y<1.f/x+y*2.f&&texcoord.x-d.x+y>0.f&&texcoord.y-d.y+y>0.f K1J5 {vec2 i= U38J texcoord.xy-d.xy K1J5 *x; RW32  t=GetNormals U38J i.xy K1J5 ;vec4 m=gbufferModelViewInverse*vec4 U38J t.xyz,0.f K1J5 ;m=shadowModelView*m;m.xyz=normalize U38J m.xyz K1J5 ; RW32  a=m.xyz;vec4 S=GetScreenSpacePosition U38J i.xy K1J5 ; RW32  r=normalize U38J S.xyz K1J5 ; I636  e=sqrt U38J S.x*S.x+S.y*S.y+S.z*S.z K1J5 ,p=texture2D U38J gdepth,i K1J5 .x*255.f;vec4 o=shadowModelView*vec4 U38J 0.f,1.,0.,0. K1J5 ,n=gbufferModelViewInverse*S;n=shadowModelView*n; I636  c=-n.z;n=shadowProjection*n;n/=n.w; I636  w=sqrt U38J n.x*n.x+n.y*n.y K1J5 ,l=1.f-SHADOW_MAP_BIAS+w*SHADOW_MAP_BIAS;n=n*.5f+.5f; I636  b=0.f,h=0.f; RW32  g= RW32  U38J 0.f K1J5 ; I636  D=0.; IP89  U38J e<shadowDistance&&c>0.f&&n.x<1.f&&n.x>0.f&&n.y<1.f&&n.y>0.f K1J5 { I636  M=.15f;b=clamp U38J shadowDistance*.85f*M-e*M,0.f,1.f K1J5 ; I636  u=v; OIU3  G=0; I636  A=2.f*u/2048;vec2 V=s.xy-.5f; I636  P=1.f/z;for U38J  I636  I=-2.f;I<=2.f;I+=P K1J5 {for U38J  I636  O=-2.f;O<=2.f;O+=P K1J5 {vec2 L= U38J vec2 U38J I,O K1J5 +V*P K1J5 *A,W=n.xy+L,H=DistortShadowSpace U38J W K1J5 ; I636  B= UBWG  U38J  U008 ,H,2 K1J5 .x; RW32  q= RW32  U38J W.x,W.y,B K1J5 ,k=normalize U38J q.xyz-n.xyz K1J5 ,N= UBWG  U38J  U73B ,H,5 K1J5 .xyz*2.f-1.f;N.x=-N.x;N.y=-N.y; I636  j=max U38J 0.f,dot U38J a.xyz,k* RW32  U38J 1.,1.,-1. K1J5  K1J5  K1J5 ; IP89  U38J abs U38J p-3.f K1J5 <.1f||abs U38J p-2.f K1J5 <.1f||abs U38J p-11.f K1J5 <.1f K1J5 j=1.f; IP89  U38J j>0. K1J5 {bool Z=length U38J N K1J5 <.5f; IP89  U38J Z K1J5 N.xyz= RW32  U38J 0.f,0.f,1.f K1J5 ; I636  Y=dot U38J k,N K1J5 ,X=Y; IP89  U38J Z K1J5 Y=abs U38J Y K1J5 *.25f;Y=max U38J Y,0.f K1J5 ; I636  U=length U38J q.xyz-n.xyz- RW32  U38J 0.f,0.f,0.f K1J5  K1J5 ; IP89  U38J U<.005f K1J5 U=1e+07f;const  I636  T=2.f; I636  R=1.f/ U38J pow U38J U* U38J 13600.f/u K1J5 ,T K1J5 +.0001f*P K1J5 ;R=max U38J 0.f,R-9e-05f K1J5 ; IP89  U38J X<0.f K1J5 R=max U38J R*30.f-.13f,0.f K1J5 ,R*=.04f; RW32  Q=pow U38J  UBWG  U38J  JJ8B ,H,5 K1J5 .xyz, RW32  U38J 2.2f K1J5  K1J5 ;g+=Q*Y*R*j;}G+=1;}}g/=G;}g=mix U38J  RW32  U38J 0.f K1J5 ,g, RW32  U38J b K1J5  K1J5 ; I636  R=1.f;bool P=GetSkyMask U38J i.xy K1J5 ; IP89  U38J !P K1J5 R*=GetAO U38J S.xyzw,t.xyz,i.xy,s.xyz K1J5 ;return vec4 U38J g.xyz*1150.f,R K1J5 ;}else return vec4 U38J 0.f K1J5 ;}
+	vec4 position = ViewSpaceToWorldSpace(viewSpacePosition);
+		 position = WorldSpaceToShadowSpace(position);
+		 position = position * 0.5 + 0.5;
 
+	#ifndef EXTENDED_SHADOW_DISTANCE
+		if (position.x <= 0.0 || position.x >= 1.0 ||
+			position.y <= 0.0 || position.y >= 1.0 ||
+			position.z <= 0.0 || position.z >= 1.0
+			) return vec3(0.0);
+	#endif
 
-vec4 	GetCloudSpacePosition(in vec2 coord, in float depth, in float distanceMult)
-{
+	float fademult 	= 0.15;
+	//float lightMult	= clamp(1.0 - (length(viewSpacePosition.xyz) - shadowDistance) / shadowDistance, 0.0, 1.0);
+	float lightMult	= 1.0;
 
+	if (GI_Boost) {
+		vec4 biasPos = BiasShadowProjection(position * 2.0 - 1.0) * 0.5 + 0.5;
+		float sunlight = shadow2DLod(shadow, vec3(biasPos.xyz), 0).x;
+		lightMult *= clamp(1.0 - NdotL * 4.0 * pow(sunlight, 8.0), 0.0 , 1.0);
+		if (lightMult < 0.01) return vec3(0.0);
 
-	float linDepth = depth;
+		float skylight = texture2D(colortex1, coord).b;
+		if (skylight <= 0.01) return vec3(0.0);
+	}
 
-	float expDepth = (far * (linDepth - near)) / (linDepth * (far - near));
+	const float range		= 2.0;
+	const float A			= range * radius / 2048.0;
+	const float interval	= 1.0 / quality;
+	float depthLOD			= 2.0 * clamp(1.0 - length(viewSpacePosition.xyz) / shadowDistance, 0.0, 1.0);
+	float sampleLOD			= 5.0 * clamp(1.0 - length(viewSpacePosition.xyz) / shadowDistance, 0.0, 1.0);
+	vec2 V					= noisePattern.xy - 0.5;
+	vec3 light				= vec3(0.0);
+	int samples				= 0;
 
-	//Convert texture coordinates and depth into view space
-	vec4 viewPos = gbufferProjectionInverse * vec4(coord.s * 2.0f - 1.0f, coord.t * 2.0f - 1.0f, 2.0f * expDepth - 1.0f, 1.0f);
-		 viewPos /= viewPos.w;
+	for (float I = -range; I <= range; I += interval) {
+		for (float O = -range; O <= range; O += interval) {
+			vec2 randomPos		= (vec2(I, O) + V * interval) * A;
+			vec3 samplePos		= vec3(position.xy + randomPos, 0.0);
+			vec2 biasedSample	= BiasShadowMap(samplePos.xy);
+			samplePos.z			= texture2DLod(shadowtex1, biasedSample, depthLOD).x;
+			#ifdef EXTENDED_SHADOW_DISTANCE
+				samplePos.z		= ((samplePos.z * 2.0 - 1.0) * 4.0) * 0.5 + 0.5;
+			#endif
+			vec3 sampleDir		= normalize(samplePos.xyz - position.xyz);
+			vec3 shadowNormal	= texture2DLod(shadowcolor1, biasedSample, sampleLOD).xyz * 2.0 - 1.0;
+			shadowNormal.xy		*= -1.0;
+			float NdotS			= max(0.0, dot(shadowSpaceNormal, sampleDir * vec3(1.0, 1.0, -1.0)));
+			float SdotN			= max(0.0, dot(shadowNormal, sampleDir));
 
-	//Convert from view space to world space
-	vec4 worldPos = gbufferModelViewInverse * viewPos;
+			if (mask.leaves + mask.grass > 0.5) NdotS = 1.0;
 
-	worldPos.xyz *= distanceMult;
-	worldPos.xyz += cameraPosition.xyz;
+			float falloff = length(samplePos.xyz - position.xyz);
+			falloff = max(falloff, 0.005);
+			falloff = 1.0 / (pow(falloff * (13600.0 / radius), 2.0) + 0.0001 * interval);
+			falloff = max(0.0, falloff - 9e-05);
 
-	return worldPos;
+			vec3 sampleColor = pow(texture2DLod(shadowcolor, biasedSample, sampleLOD).rgb, vec3(2.2));
+
+			light += sampleColor * falloff * SdotN * NdotS;
+		}
+	}
+
+	light /= pow(4.0 / interval + 1.0, 2.0);
+
+	light *= mix(0.0, 1.0, lightMult);
+
+	return light * 1200.0;// / radius * 16.0;
 }
 
-float  	CalculateDitherPattern1() {
-	const int[16] ditherPattern = int[16] (0 , 8 , 2 , 10,
-									 	   12, 4 , 14, 6 ,
-									 	   3 , 11, 1,  9 ,
-									 	   15, 7 , 13, 5 );
+vec3 CalculateGINew(in vec2 coord, in vec4 viewSpacePosition, in vec3 normal, const in float radius, const in float quality, in vec3 noisePattern, in MaskStruct mask) {
+	float NdotL = dot(normal, lightVector);
 
-	vec2 count = vec2(0.0f);
-	     count.x = floor(mod(texcoord.s * viewWidth, 4.0f));
-		 count.y = floor(mod(texcoord.t * viewHeight, 4.0f));
+	vec3 shadowSpaceNormal = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
 
-	int dither = ditherPattern[int(count.x) + int(count.y) * 4];
+	vec4 position = ViewSpaceToWorldSpace(viewSpacePosition);
+		 position = WorldSpaceToShadowSpace(position);
+		 position = position * 0.5 + 0.5;
 
-	return float(dither) / 16.0f;
+	#ifndef EXTENDED_SHADOW_DISTANCE
+		if (position.x <= 0.0 || position.x >= 1.0 ||
+			position.y <= 0.0 || position.y >= 1.0 ||
+			position.z <= 0.0 || position.z >= 1.0
+			) return vec3(0.0);
+	#endif
+
+	float fademult 	= 0.15;
+	float lightMult	= 1.0;
+
+	if (GI_Boost) {
+		vec4 biasPos = BiasShadowProjection(position * 2.0 - 1.0) * 0.5 + 0.5;
+		float sunlight = shadow2DLod(shadow, vec3(biasPos.xyz), 0).x;
+		lightMult *= clamp(1.0 - NdotL * 4.0 * pow(sunlight, 8.0), 0.0 , 1.0);
+		if (lightMult < 0.01) return vec3(0.0);
+
+		float skylight = texture2D(colortex1, coord).b;
+		if (skylight <= 0.01) return vec3(0.0);
+	}
+
+	const float interval = 1.0 / quality;
+
+	float sampleLOD	= 3.0 * clamp(1.0 - length(viewSpacePosition.xyz) / shadowDistance, 0.0, 1.0);
+
+	vec2 noiseOffset = noisePattern.xy - 0.5;
+	noiseOffset *= 3;
+	vec3 light = vec3(0.0);
+	int samples	= 0;
+
+	#define GI_SAMPLE_RADIUS 7
+	#define PI 3.14
+
+	for(int i = 0; i < NEW_GI_QUALITY; i++) {
+		float percentage_done = float(i) / float(NEW_GI_QUALITY);
+		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
+
+		float theta = percentage_done * (NEW_GI_QUALITY / 16) * PI;
+		vec2 offset = vec2(cos(theta), sin(theta)) * (dist_from_center * 6);
+		offset += noiseOffset;
+		offset /= shadowMapResolution;
+
+		vec3 samplePos = vec3(position.xy + offset, 0.0);
+		vec2 biasedSample	= BiasShadowMap(samplePos.xy);
+		samplePos.z	= texture2DLod(shadowtex1, biasedSample, 0.0).x;
+
+		#ifdef EXTENDED_SHADOW_DISTANCE
+			samplePos.z	= ((samplePos.z * 2.0 - 1.0) * 4.0) * 0.5 + 0.5;
+		#endif
+
+		vec3 sampleDir = normalize(samplePos.xyz - position.xyz);
+		vec3 shadowNormal	= texture2DLod(shadowcolor1, biasedSample, 0).xyz * 2.0 - 1.0;
+		shadowNormal.xy	*= -1.0;
+
+	//return shadowNormal;
+
+		float viewNormalCoeff	= max(0.0, dot(shadowSpaceNormal, sampleDir * vec3(1.0, 1.0, -1.0)));
+		float shadowNormalCoeff	= max(0.0, dot(shadowNormal, sampleDir));
+
+		if (mask.leaves + mask.grass > 0.5) viewNormalCoeff = 1.0;
+
+		float falloff = length(samplePos.xyz - position.xyz);
+		falloff = max(falloff, 0.005);
+		falloff = 1.0 / (pow(falloff * (40000.0 / radius), 2.0) + 0.0001);
+		falloff = max(0.0, falloff - 9e-05);
+
+		vec3 sampleColor = pow(texture2DLod(shadowcolor, biasedSample, sampleLOD).rgb, vec3(2.2));
+		//return sampleColor;
+
+		light += sampleColor * falloff * shadowNormalCoeff * viewNormalCoeff;
+	}
+
+	light /= NEW_GI_QUALITY * 5 * radius;
+	light *= mix(0.0, 1.0, lightMult);
+
+	return light * 12000.0;
 }
-
-void 	DoNightEye(inout vec3 color) {			//Desaturates any color input at night, simulating the rods in the human eye
-
-	float amount = 0.8f; 						//How much will the new desaturated and tinted image be mixed with the original image
-	vec3 rodColor = vec3(0.2f, 0.4f, 1.0f); 	//Cyan color that humans percieve when viewing extremely low light levels via rod cells in the eye
-	float colorDesat = dot(color, vec3(1.0f)); 	//Desaturated color
-
-	color = mix(color, vec3(colorDesat) * rodColor, timeMidnight * amount);
-
-}
-
-
-float   CalculateSunglow(vec4 screenSpacePosition, vec3 lightVector) {
-
-	float curve = 4.0f;
-
-	vec3 npos = normalize(screenSpacePosition.xyz);
-	vec3 halfVector2 = normalize(-lightVector + npos);
-	float factor = 1.0f - dot(halfVector2, npos);
-
-	return factor * factor * factor * factor;
-}
-
-
-
 
 vec4 textureSmooth(in sampler2D tex, in vec2 coord)
 {
@@ -433,48 +582,170 @@ vec3 GetWavesNormal(vec3 position) {
 	return wavesNormal.rgb;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+float getDepth(vec2 coord) {
+    return texture2D(gdepthtex, coord).r;
+}
+
+float getDepthLinear(vec2 coord) {
+    return 2.0 * near * far / (far + near - (2.0 * texture2D(gdepthtex, coord).r - 1.0) * (far - near));
+}
+
+vec3 getCameraSpacePosition(vec2 uv) {
+    float depth = getDepth(uv);
+    vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
+         fragposition /= fragposition.w;
+    return fragposition.xyz;
+}
+
+vec3 getWorldSpacePosition(vec2 uv) {
+    vec4 pos = vec4(getCameraSpacePosition(uv), 1);
+    pos = gbufferModelViewInverse * pos;
+    pos.xyz += cameraPosition.xyz;
+    return pos.xyz;
+}
+
+vec3 cameraToWorldSpace(vec3 cameraPos) {
+    vec4 pos = vec4(cameraPos, 1);
+    pos = gbufferModelViewInverse * pos;
+    pos.xyz /= pos.w;
+    return pos.xyz;
+}
+
+vec2 getCoordFromCameraSpace(in vec3 position) {
+    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
+}
+
+vec3 getColor(in vec2 coord) {
+    return texture2DLod(colortex0, coord, 0).rgb;
+}
+
+float rand(vec2 co) {
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+//Determines the UV coordinate where the ray hits
+//If the returned value is not in the range [0, 1] then nothing was hit.
+//NOTHING!
+//Note that origin and direction are assumed to be in screen-space coordinates, such that
+//  -origin.st is the texture coordinate of the ray's origin
+//  -direction.st is of such a length that it moves the equivalent of one texel
+//  -both origin.z and direction.z correspond to values raw from the depth buffer
+vec3 castRay(in vec3 origin, in vec3 rayStep, in float maxDist) {
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    rayStep = normalize(rayStep) * RAY_STEP_LENGTH;
+    bool forward = true;
+    float distanceTravelled = 0;
+    float hasResult = 0.0;
+    vec3 retVal = vec3(-1);
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
+        curPos += rayStep;
+        distanceTravelled += sqrt(dot(rayStep, rayStep));
+        curCoord = getCoordFromCameraSpace(curPos);
+
+        float worldDepth = getCameraSpacePosition(curCoord).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = length(rayStep) + RAY_DEPTH_BIAS;
+        if(forward) {
+            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+                //return curCoord;
+                rayStep = -1 * normalize(rayStep) * 0.15;
+                forward = false;
+            }
+        } else {
+            depthDiff *= -1;
+            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+                return vec3(curCoord, distanceTravelled);
+            }
+        }
+        rayStep *= RAY_GROWTH;
+    }
+
+    return retVal;
+}
+
+vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
+    //Find where the ray hits
+    //get the blur at that point
+    //mix with the color
+    vec3 rayStart = viewSpacePos.xyz;
+    vec2 noiseCoord = vec2(texcoord.s * viewWidth / 64.0, texcoord.t * viewHeight / 64.0);
+    vec3 retColor = vec3(0);
+    vec3 noiseSample = vec3(0);
+    vec3 reflectDir = vec3(0);
+    vec3 hitUV = vec3(0);
+    float numHitRays = 0;
+
+    //trace the number of rays defined previously
+    for(int i = 0; i < NUM_RAYS; i++) {
+        noiseSample = vec3(
+            rand(noiseCoord * (i + 1)),
+            rand(noiseCoord * (i + 5)),
+            rand(noiseCoord * (i + 32))
+            ) * 2.0 - 1.0;
+
+        reflectDir = normalize(noiseSample * 0.5 + normal);
+        reflectDir *= sign(dot(normal, reflectDir));
+
+        hitUV = castRay(rayStart, reflectDir, MAX_RAY_LENGTH);
+        if(hitUV.s > 0.0 && hitUV.s < 1.0 && hitUV.t > 0.0 && hitUV.t < 1.0) {
+            float matId = GetMaterialIDs(hitUV.st);
+            float emissive = GetMaterialMask(hitUV.st, 10, matId) +    // glowstone
+                             GetMaterialMask(hitUV.st, 31, matId) +    // lava
+                             GetMaterialMask(hitUV.st, 33, matId);     // fire
+            emissive = clamp(emissive, 0.0, 1.0);
+
+            retColor += getColor(hitUV.st) / (hitUV.z * hitUV.z) * emissive;
+            numHitRays++;
+        }
+    }
+
+    return vec4(retColor, numHitRays) / float(NUM_RAYS);
+}
+
+//////////////////////////////MAIN////////////////////////////////////////////////////////////
+//////////////////////////////MAIN////////////////////////////////////////////////////////////
+
 void main() {
 
-	vec3 noisePattern = CalculateNoisePattern1(vec2(0.0f), 4);
-	vec4 screenSpacePosition = GetScreenSpacePosition(texcoord.st);
-	vec4 worldSpacePosition = gbufferModelViewInverse * screenSpacePosition;
-	vec4 worldLightVector = shadowModelViewInverse * vec4(0.0f, 0.0f, 1.0f, 0.0f);
-	vec3 normal = GetNormals(texcoord.st);
+	CalculateMasks(mask, texcoord);
+	vec3	normal 				= GetNormals(texcoord);
 
-	vec4 light = vec4(0.0);
-	#ifdef Global_Illumination
-		 light = f(1, 		vec2(0.0f			), 16.0f,  GI_QUALITY, noisePattern);
+	gl_FragData[1] = vec4(GetWavesNormal(vec3(texcoord.s * 50.0, 1.0, texcoord.t * 50.0)) * 0.5 + 0.5, 1.0);
+	gl_FragData[2] = computeRaytracedLight(getCameraSpacePosition(texcoord), normal);
+
+	if (mask.sky + mask.water > 0.5) { gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0); return; }
+
+	vec2 gi_coord = texcoord * 2.0;
+	if(gi_coord.x > 1.0 || gi_coord.x < 0.0 || gi_coord.y < 0.0 || gi_coord.y > 1.0) {
+		gl_FragData[0] = vec4(0, 0, 0, 1);
+		return;
+	}
+
+	float	depth  				= GetDepth(gi_coord);
+	vec4	viewSpacePosition	= GetViewSpacePosition(gi_coord, depth);
+	vec3	noisePattern		= CalculateNoisePattern1(4);
+
+	vec4 light = vec4(0.0, 0.0, 0.0, 1.0);
+
+	#ifdef AO
+		light.a		= CalculateAO(viewSpacePosition, normal, gi_coord, 8, noisePattern);
 	#endif
-	if (light.r >= 1.0f)
-	{
-		light.r = 0.0f;
-	}
 
-	if (light.g >= 1.0f)
-	{
-		light.g = 0.0f;
-	}
+	if (isEyeInWater > 0.5 || rainStrength > 0.99) { gl_FragData[0] = light; return; }
 
-	if (light.b >= 1.0f)
-	{
-		light.b = 0.0f;
-	}
-
-
-
-
-
-
-
-
-
+	#ifdef NEW_GI
+		light.rgb	= CalculateGINew(gi_coord, viewSpacePosition, normal, 64.0, 8.0, noisePattern, mask);
+	#else
+		light.rgb	= CalculateGI(gi_coord, viewSpacePosition, normal, 16.0, GI_QUALITY, noisePattern, mask);
+	#endif
 
 	gl_FragData[0] = vec4(pow(light.rgb, vec3(1.0 / 2.2)), light.a);
-	gl_FragData[1] = vec4(GetWavesNormal(vec3(texcoord.s * 50.0, 1.0, texcoord.t * 50.0)) * 0.5 + 0.5, light.a);
-	
 }

@@ -1,5 +1,5 @@
 #version 120
-
+#extension GL_ARB_shader_texture_lod : enable
 /*
  _______ _________ _______  _______  _
 (  ____ \\__   __/(  ___  )(  ____ )( )
@@ -22,9 +22,11 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define TILE_RESOLUTION 128
 
 #define PARALLAX			//POM, need supported texture pack to get 3D look to blocks
-	#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
+	//#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
+	#define POM_Offset 64		//[16 32 64 128 512]	//Set this to the Resolution of your texture pack
+	#define POM_Offset2 32		//[16 32 64 128 512]	//must always be half of what POM_Offset is
 
-#define SPECULARITY
+#define SPECULARITY		//Please use the Specular ON/OFF function in the shaders menu to turn Specular off to save fps
 	#define SPEC_BRIGHTNESS		0.6f	//[0.1 0.4 0.6 0.85 1.0 1.2]
 	// default is 1.0f - lower this number to increase the specular brightness for New specular
 		//---for Resource pack Faithful recommended 1.0f, for Ovos Rustic and Chromahills recommended 0.7f---//
@@ -34,9 +36,11 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 // OLD_SPECULAR					// add back the #define to enable, Old specular from 1st SEUS complete, works best for our custom specular maps for ChromaHills
 #define NEW_SPECULAR					// New specular from SEUS 10.1 and 10.2 preview
 
+//#define TEMP_UNDERGROUND_LIGHT_FIX
+
 ///////////////////////////////////////////////////END OF ADJUSTABLE VARIABLES///////////////////////////////////////////////////
 
-/* DRAWBUFFERS:0123 */
+/* DRAWBUFFERS:01235 */
 
 uniform sampler2D texture;
 uniform sampler2D lightmap;
@@ -126,7 +130,7 @@ vec4 BicubicTexture(in sampler2D tex, in vec2 coord)
 vec2 OffsetCoord(in vec2 coord, in vec2 offset, in int level)
 {
 	int tileResolution = TILE_RESOLUTION;
-	ivec2 atlasTiles = ivec2(64, 32);
+	ivec2 atlasTiles = ivec2(POM_Offset, POM_Offset2);
 	ivec2 atlasResolution = tileResolution * atlasTiles;
 
 	coord *= atlasResolution;
@@ -363,6 +367,22 @@ void main() {
 	}
 #endif
 
+#ifdef TEMP_UNDERGROUND_LIGHT_FIX
+//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
+	vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	//Separate lightmap types
+	lightmap.r = clamp((lmcoord.s * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+	lightmap.b = clamp((lmcoord.t * 33.05f / 32.0f) - 1.05f / 32.0f, 0.0f, 1.0f);
+
+	lightmap.b = pow(lightmap.b, 1.0f);
+	lightmap.r = pow(lightmap.r, 3.0f);
+
+
+	 float wetfactor = clamp(lightmap.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
+	 	   wetfactor *= w;
+#else
+
 	vec4 mclightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	vec4 mclightmaps = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -389,7 +409,7 @@ void main() {
 
 	 float wetfactor = clamp(mclightmaps.b * 1.05f - 0.9f, 0.0f, 0.1f) / 0.1f;
 	 	   wetfactor *= w;
-
+#endif
 	 spec.g *= wetfactor;
 
 #ifdef OLD_SPECULAR
@@ -453,7 +473,11 @@ void main() {
 	gl_FragData[0] = albedo;
 
 	//Depth
+#ifdef TEMP_UNDERGROUND_LIGHT_FIX
+	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);
+#else
 	gl_FragData[1] = vec4(mats_1/255.0f, mclightmap.r, mclightmap.b, 1.0f);
+#endif
 
 	//normal
 	gl_FragData[2] = frag2;
@@ -464,8 +488,8 @@ void main() {
 	gl_FragData[3] = vec4(spec.r + spec.g, spec.b, 0.0f, 1.0f);
 	#endif
 	#ifdef OLD_SPECULAR
-	gl_FragData[4] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
+	gl_FragData[3] = vec4(specs.r + specs.g, specs.b, 0.0f, 1.0f);
 	#endif
 #endif
-
+gl_FragData[4] = frag2;
 }

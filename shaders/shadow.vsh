@@ -1,5 +1,5 @@
 #version 120
-#extension GL_ARB_shader_texture_lod : enable
+
 
 #define SHADOW_MAP_BIAS 0.80
 
@@ -396,10 +396,14 @@ if (iswater > 0.5)
 
 
 	float dist = sqrt(dot(gl_Position.xy, gl_Position.xy));
+
+	vec2 pos = abs(gl_Position.xy * 1.165);
+	dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
 
 	gl_Position.xy *= 1.0f / distortFactor;
+	gl_Position.z /= 4.0;
 
 
 	vPosition = gl_Position;

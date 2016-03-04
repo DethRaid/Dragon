@@ -8,6 +8,10 @@
 #define NIGHT_LIGHT 0.3			// [0.00015 0.0015 0.015 0.15 0.3 0.5 0.75 1.0]
 // increase for brighter nights 0.00015 is default, best is 0.15 for brighter night
 
+#define Torch_Color_Red 1.0			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
+#define Torch_Color_Green 0.22			//[0.1 0.2 0.22 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
+#define Torch_Color_Blue 0.00			//[0.00 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1.0 1.1 1.2]
+
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////END OF CONFIGURABLE VARIABLES/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -227,7 +231,7 @@ void main() {
 
 	//Torchlight color
 	float torchWhiteBalance = 0.02f;
-	colorTorchlight = vec3(1.00f, 0.22f, 0.00f);
+	colorTorchlight = vec3(Torch_Color_Red, Torch_Color_Green, Torch_Color_Blue);
 	colorTorchlight = mix(colorTorchlight, vec3(1.0f), vec3(torchWhiteBalance));
 
 	colorTorchlight = pow(colorTorchlight, vec3(0.99f));

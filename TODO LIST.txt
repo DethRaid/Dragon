@@ -1,5 +1,0 @@
-Add normal and POM in nether and end dimentions.
-Improve bloom to sonic ethers bloom.
-Ray Traced lighting from light sources plox? .-.
-Some more advanced tone mapping
-Specular reflections

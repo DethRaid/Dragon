@@ -18,7 +18,32 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define BANDING_FIX_FACTOR 1.0f
 
-#define SMOOTH_SKY			//Turn on when using 3D clouds/Volumetric clouds
+#define SMOOTH_SKY
+
+
+#define CLOUD_PLANE_Cloud			//New 2D clouds!
+#define CLOUD_PLANE_Coverage 0.40f		// CLOUD_PLANE_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.40 0.50 0.60 0.70]
+//#define CLOUD_COVERAGE CLOUD_PLANE_Coverage + rainy * 0.335f;		//Default is 0.49
+
+//#define OLD_WATER_REFLECT			//old version
+#define NEW_WATER_REFLECT			//Best version to use 95% of bugs gone/ small bug with the sunrise/set when looking down into water
+
+#define Water_Refraction
+
+#define VOLUMETRIC_LIGHT			//True GodRays, not 2D ScreenSpace
+//----------GodRays----------//
+#define GODRAYS
+	#ifdef VOLUMETRIC_LIGHT
+		float exposure = 0.00008;			//godrays intensity 0.0009 is default
+	#else
+		float exposure = 0.0009;
+	#endif
+	const float grdensity = 1.0;
+	const int NUM_SAMPLES = 10;			//increase this for better quality at the cost of performance /8 is default
+	const float Moon_exposure = 0.001;			//Moonrays intensity 0.0009 is default, increase to make brighter
+
+#define MOONRAYS					//Make sure if you enable/disable this to do the same in Composite, PLEASE NOTE Moonrays have a bug at sunset/sunrise
+
 
 //---Volumetric light strength--//
 #define SUNRISEnSET		5.0	//default is 2.0
@@ -27,27 +52,8 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define IN_SIDE_RAYS	2.5		//strength of rays when indoors, daytime
 #define IN_SIDE_RAYS_NIGHT 100.3		//strength of rays when indoors, night
 
-#define CLOUD_PLANE_Cloud			//New 2D clouds!
-#define CLOUD_PLANE_Coverage 0.40f		// CLOUD_PLANE_Coverage. 0.20 = Lowest Cover. 0.60 = Highest Cover [0.20 0.30 0.40 0.50 0.60 0.70]
 
-#define Water_Refraction
-
-#define VOLUMETRIC_LIGHT			//True GodRays, not 2D ScreenSpace
-//----------GodRays----------//
-#define GODRAYS								
-	#ifdef VOLUMETRIC_LIGHT
-		float exposure = 0.00008;			//godrays intensity 0.0009 is default
-	#else
-		float exposure = 0.0009;
-	#endif
-	const float grdensity = 1.0;
-	const int NUM_SAMPLES = 10;			//increase this for better quality at the cost of performance /8 is default
-	const float Moon_exposure = 0.0002;			//Moonrays intensity 0.0009 is default, increase to make brighter
-
-#define MOONRAYS					//Make sure if you enable/disable this to do the same in Composite, PLEASE NOTE this is for 2D godrays not volumetric light
-
-
-#define NO_UNDERWATER_RAYS		//turn this on to remove Godrays from coming through the water, if on there could be bugs 
+#define NO_UNDERWATER_RAYS
 
 
 //----------End CONFIGURABLE GodRays----------//
@@ -59,7 +65,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 const bool gcolorMipmapEnabled = true;
 const bool compositeMipmapEnabled = true;
-const bool gaux3MipmapEnabled = true;
+
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
@@ -126,9 +132,15 @@ varying vec3 colorBouncedSunlight;
 
 #define ANIMATION_SPEED 1.0f
 
+//#define ANIMATE_USING_WORLDTIME
 
+
+
+#ifdef ANIMATE_USING_WORLDTIME
+#define FRAME_TIME worldTime * ANIMATION_SPEED / 20.0f
+#else
 #define FRAME_TIME frameTimeCounter * ANIMATION_SPEED
-
+#endif
 
 
 /////////////////////////FUNCTIONS/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +153,7 @@ float saturate(float x)
 
 vec3 GetNormals(in vec2 coord) {
 	vec3 normal = vec3(0.0f);
-		 normal = texture2DLod(gnormal, coord.st, 0).rgb;
+	normal = texture2DLod(gnormal, coord.st, 0).rgb;
 	normal = normal * 2.0f - 1.0f;
 
 	normal = normalize(normal);
@@ -483,8 +495,7 @@ void 	CalculateMasks(inout MaskStruct mask) {
 	mask.water 			= GetWaterMask(mask.matIDs);
 }
 
-vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface)
-{
+vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface) {
 	float reflectionRange = 2.0f;
     float initialStepAmount = 1.0 - clamp(1.0f / 100.0, 0.0, 0.99);
 		  initialStepAmount *= 1.0f;
@@ -534,17 +545,17 @@ vec4 	ComputeRaytraceReflection(inout SurfaceStruct surface)
         cameraSpaceVectorPosition += cameraSpaceVector;
 		currentPosition = convertCameraSpaceToScreenSpace(cameraSpaceVectorPosition);
         count++;
-   }
+    }
 
-		color = pow(texture2DLod(gcolor, finalSamplePos, 0), vec4(2.2f));
+	color = pow(texture2DLod(gcolor, finalSamplePos, 0), vec4(2.2f));
 
-		#ifdef GODRAYS
-			color.a = 1.0;
-		#endif
+	#ifdef GODRAYS
+		color.a = 1.0;
+	#endif
 
-		#ifdef VOLUMETRIC_LIGHT
-			color.a = 1.0;
-		#endif
+	#ifdef VOLUMETRIC_LIGHT
+		color.a = 1.0;
+	#endif
 
 	if (finalSamplePos.x == 0.0f || finalSamplePos.y == 0.0f) {
 		color.a = 0.0f;
@@ -1109,7 +1120,7 @@ void CloudPlane(inout SurfaceStruct surface)
 	surface.color.rgb = mix(surface.color.rgb, original, surface.cloudAlpha);
 }
 
-
+#ifdef NEW_WATER_REFLECT
 vec4 	ComputeFakeSkyReflection(in SurfaceStruct surface) {
 	float fresnelPower = 4.0f;
 
@@ -1135,9 +1146,35 @@ vec4 	ComputeFakeSkyReflection(in SurfaceStruct surface) {
 
 	return color;
 }
+#endif
 
+#ifdef OLD_WATER_REFLECT
+vec4 	ComputeSkyReflection(in SurfaceStruct surface) {
+	float fresnelPower = 4.0f;
 
+	vec3 cameraSpacePosition = convertScreenSpaceToWorldSpace(texcoord.st);
+	vec3 cameraSpaceNormal = surface.normal;
+	vec3 cameraSpaceViewDir = normalize(cameraSpacePosition);
+	vec4 color = vec4(0.0f);
 
+	color.rgb = ComputeReflectedSkybox(surface) * 0.030f;
+	ReflectedCloudPlane(color.rgb, surface);
+	color.rgb *= 0.0003f;
+	color.rgb *= mix(1.0f, 20000.0f, timeSkyDark);
+	color.rgb *= mix(1.0f, 25.0f, rainStrength/1.5);
+
+	float viewVector = dot(cameraSpaceViewDir, cameraSpaceNormal);
+
+	color.a = pow(clamp(1.0f + viewVector, 0.0f, 1.0f), fresnelPower) * 1.0f + 0.02f;
+
+	if (viewVector > 0.0f) {
+		color.a = 1.0f - pow(clamp(viewVector, 0.0f, 1.0f), 1.0f / fresnelPower) * 1.0f + 0.02f;
+		color.rgb = vec3(0.0f);
+	}
+
+	return color;
+}
+#endif
 
 void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
@@ -1184,18 +1221,22 @@ void 	CalculateSpecularReflections(inout SurfaceStruct surface) {
 
 		surface.normal += noise3 * 0.00f;
 
-
+#ifdef NEW_WATER_REFLECT
 		vec4 reflection = ComputeRaytraceReflection(surface);
+#endif
 
-
-
+#ifdef OLD_WATER_REFLECT
+		vec4 reflection = ComputeWaterReflection(surface);
+#endif
 
 		float surfaceLightmap = GetLightmapSky(texcoord.st);
-
+#ifdef NEW_WATER_REFLECT
 		vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
+#endif
 
-
-
+#ifdef OLD_WATER_REFLECT
+		vec4 fakeSkyReflection = ComputeSkyReflection(surface);
+#endif
 
 
 		vec3 noSkyToReflect = vec3(0.0f);
@@ -1372,56 +1413,6 @@ return abs(fract(sin(dot(pos , vec2(18.9898f,28.633f))) * 4378.5453f));
 
 }
 
-vec3 GetCrepuscularRays(in SurfaceStruct surface)
-{
-if (isEyeInWater > 0.9) {
-    } else if(rainStrength > 0.9){
-    } else {
-
-	float vlSample = texture2DLod( gcolor, texcoord.st, 3.2 ).a;
-
-	float sunglow = 1.0 - CalculateSunglow(surface);
-        sunglow = 1.0 / (pow(sunglow, 1.0) * 9.0 + 0.001);
-		//sunglow = max(0.0, (1.0 / (pow(sunglow, 1.0) * 9.0 + 0.001) - (0.055 + 0.045 * timeNoon)));		//code to make rays fade over distance
-		sunglow += CalculateAntiSunglow(surface) * 0.2;
-
-		vec3 raysSun = vec3(vlSample);
-        vec3 raysSuns = vec3(vlSample);
-        vec3 raysNight = vec3(vlSample);
-		vec3 raysSunIn = vec3(vlSample);
-		vec3 raysAtmosphere = vec3(vlSample);
-
-		raysSunIn.rgb *= sunglow;
-        raysSunIn.rgb *= colorSunlight;
-
-        raysSun.rgb *= sunglow * timeNoon;
-        raysSun.rgb *= colorSunlight * timeNoon;
-
-        raysSuns.rgb *= sunglow * timeSunriseSunset;
-        raysSuns.rgb *= colorSunlight * timeSunriseSunset;
-
-        raysNight.rgb *= colorSunlight * timeMidnight;
-
-        raysAtmosphere *= pow(colorSkylight, vec3(1.3));
-
-		vec3 rays = raysSuns.rgb * SUNRISEnSET + raysAtmosphere.rgb * 0.5 * 0.0;
-             rays += raysSun.rgb * NOON + raysAtmosphere.rgb * 0.5 * 0.0;
-		     rays += raysNight.rgb * NIGHT + raysAtmosphere.rgb * 0.5 * 0.0;
-
-
-		vec3 Inrays = raysSunIn.rgb * IN_SIDE_RAYS + raysAtmosphere.rgb * 0.5 * 0.0;
-			 Inrays += raysNight.rgb * IN_SIDE_RAYS_NIGHT + raysAtmosphere.rgb * 0.5 * 0.0;
-		     Inrays *= mix(1.0f, 0.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
-
-
-        DoNightEye(rays);
-
-		 return ((rays * 0.0058)*0.0049 + Inrays * 0.00001)*pow(1-rainStrength, 2.0f);
-
-  }
-}
-
-
 vec4 textureSmooth(in sampler2D tex, in vec2 coord)
 {
 	vec2 res = vec2(64.0f, 64.0f);
@@ -1457,7 +1448,9 @@ float AlmostIdentity(in float x, in float m, in float n)
 }
 
 float GetWaves(vec3 position) {
-	float speed = 0.9f;
+	float speed = 0.7f;
+
+ // speed = mix(speed, 0.0f, isice);
 
   vec2 p = position.xz / 20.0f;
 
@@ -1465,15 +1458,15 @@ float GetWaves(vec3 position) {
 
   p.x = -p.x;
 
-  p.x += (frameTimeCounter / 40.0f) * speed;
-  p.y -= (frameTimeCounter / 40.0f) * speed;
+  p.x += (FRAME_TIME / 40.0f) * speed;
+  p.y -= (FRAME_TIME / 40.0f) * speed;
 
   float weight = 1.0f;
   float weights = weight;
 
   float allwaves = 0.0f;
 
-  float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x; 			p /= 2.1f; 	/*p *= pow(2.0f, 1.0f);*/ 	p.y -= (FRAME_TIME / 20.0f) * speed; p.x -= (FRAME_TIME / 30.0f) * speed;
+  float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x; 			p /= 2.1f; 	/*p *= pow(2.0f, 1.0f);*/ 	p.y -= (FRAME_TIME / 20.0f) * 0.6; p.x -= (FRAME_TIME / 30.0f) * speed;
   allwaves += wave;
 
   weight = 4.1f;
@@ -1490,7 +1483,7 @@ float GetWaves(vec3 position) {
 
   weight = 15.25f;
   weights += weight;
-      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		p /= 1.9f; 	p.x += (FRAME_TIME / 155.0f) * speed;
+      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		p /= 1.9f; 	p.x += (FRAME_TIME / 155.0f) * 0.8;
       wave *= weight;
   allwaves += wave;
 
@@ -1500,14 +1493,14 @@ float GetWaves(vec3 position) {
       wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
       wave *= weight;
   allwaves += wave;
-
-  weight = 15.25f;
+/*
+  weight = 30.25f;
   weights += weight;
       wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.8f))  + vec2(0.0f,  p.x * 1.7f) ).x * 2.0f - 1.0f);
       wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
       wave *= weight;
   allwaves += wave;
-
+*/
   allwaves /= weights;
 
   return allwaves;
@@ -1575,6 +1568,53 @@ void WaterRefraction(inout SurfaceStruct surface)
 	}
 }
 
+vec3 GetCrepuscularRays (in SurfaceStruct surface) {
+	if (isEyeInWater > 0.9) {
+  } else if (rainStrength > 0.9) {
+  } else {
+
+		float vlSample = texture2DLod(gcolor, texcoord.st, 3.2).a;
+
+		float sunglow = 1.0 - CalculateSunglow(surface);
+    sunglow = 1.0 / (pow(sunglow, 1.0) * 9.0 + 0.001);
+		//sunglow = max(0.0, (1.0 / (pow(sunglow, 1.0) * 9.0 + 0.001) - (0.055 + 0.045 * timeNoon)));		//code to make rays fade over distance
+		sunglow += CalculateAntiSunglow(surface) * 0.2;
+
+		vec3 raysSun = vec3(vlSample);
+    vec3 raysSuns = vec3(vlSample);
+    vec3 raysNight = vec3(vlSample);
+		vec3 raysSunIn = vec3(vlSample);
+		vec3 raysAtmosphere = vec3(vlSample);
+
+		raysSunIn.rgb *= sunglow;
+    raysSunIn.rgb *= colorSunlight;
+
+    raysSun.rgb *= sunglow * timeNoon;
+    raysSun.rgb *= colorSunlight * timeNoon;
+
+    raysSuns.rgb *= sunglow * timeSunriseSunset;
+    raysSuns.rgb *= colorSunlight * timeSunriseSunset;
+
+    raysNight.rgb *= colorSunlight * timeMidnight;
+
+    raysAtmosphere *= pow(colorSkylight, vec3(1.3));
+
+		vec3 rays = raysSuns.rgb * SUNRISEnSET + raysAtmosphere.rgb * 0.5 * 0.0;
+    rays += raysSun.rgb * NOON + raysAtmosphere.rgb * 0.5 * 0.0;
+		rays += raysNight.rgb * NIGHT + raysAtmosphere.rgb * 0.5 * 0.0;
+
+
+		vec3 Inrays = raysSunIn.rgb * IN_SIDE_RAYS + raysAtmosphere.rgb * 0.5 * 0.0;
+		Inrays += raysNight.rgb * IN_SIDE_RAYS_NIGHT + raysAtmosphere.rgb * 0.5 * 0.0;
+		Inrays *= mix(1.0f, 0.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
+
+
+    DoNightEye(rays);
+
+		return ((rays * 0.0058)*0.0049 + Inrays * 0.00001)*pow(1-rainStrength, 2.0f);
+  }
+}
+
 vec3 Get2DGodraysRays(in SurfaceStruct surface)
 {
 	vec4 tpos = vec4(sunPosition,1.0)*gbufferProjection;
@@ -1604,9 +1644,10 @@ vec3 Get2DGodraysRays(in SurfaceStruct surface)
 			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
 			float disty = abs(texcoord.y-lightPos.y);
 			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),7.8);
-		#ifdef VOLUMETRIC_LIGHT
-			illuminationDecay *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
-		#endif
+			#ifdef VOLUMETRIC_LIGHT
+				illuminationDecay *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
+			#endif
+
 			float fallof = 1.0;
 			const int nSteps = 9;
 			const float blurScale = 0.002;
@@ -1621,14 +1662,14 @@ vec3 Get2DGodraysRays(in SurfaceStruct surface)
 			for(int i=0; i < nSteps ; i++) {
 				textCoord += deltaTextCoord*blurScale;
 				float dist = (i-float(center))/center;
-				float weight = A*exp(-(dist*dist)/(2.0*sigma));
+				float weight = A*exp(-(dist*dist)/(4.0*sigma));
 				float sample = texture2D(gcolor, textCoord).a*weight;
 
 				tw += weight;
 				gr += sample;
 			}
 
-			return colorSunlight*exposure*(gr/tw)*pow(1-rainStrength, 2.0f)*illuminationDecay*timeNoon*2;
+			return colorSunlight*exposure*(gr/tw)*pow(1-rainStrength, 2.0f)*illuminationDecay*timeNoon*2 * pow(1-rainStrength, 2.0f);
 		//surface.color.rgb += colorSunlight*exposure*(gr/tw)*(1.0 - rainStrength*0.8)*illuminationDecay*timeNoon*2;
 
 	  }
@@ -1675,9 +1716,9 @@ vec3 Get2DMoonGodraysRays(in SurfaceStruct surface)
 			float distx = abs(texcoord.x*aspectRatio-lightPos.x*aspectRatio);
 			float disty = abs(texcoord.y-lightPos.y);
 			illuminationDecay = pow(max(1.0-sqrt(distx*distx+disty*disty),0.0),5.0);
-		#ifdef VOLUMETRIC_LIGHT
-			illuminationDecay *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
-		#endif
+			#ifdef VOLUMETRIC_LIGHT
+				illuminationDecay *= mix(0.0f, 1.0f, pow(eyeBrightnessSmooth.y / 240.0f, 3.0f));
+			#endif
 			float fallof = 1.0;
 			const int nSteps = 9;
 			const float blurScale = 0.002;
@@ -1698,7 +1739,7 @@ vec3 Get2DMoonGodraysRays(in SurfaceStruct surface)
 				tw += weight;
 				gr += sample;
 			}
-		return 5.0f*colorSunlight*Moon_exposure*(gr/tw)*pow(1-rainStrength, 2.0f)*illuminationDecay/2.5*truepos*timeMidnight;
+		return 5.0f*colorSunlight*Moon_exposure*(gr/tw)*pow(1-rainStrength, 2.0f)*illuminationDecay/2.5*truepos*timeMidnight * pow(1-rainStrength, 2.0f);
 	}
 }
 #ifdef NO_UNDERWATER_RAYS
@@ -1745,11 +1786,10 @@ void main() {
 
 
 
-
-
 #ifdef Water_Refraction
 	WaterRefraction(surface);
 #endif
+
 
 	CalculateSpecularReflections(surface);
 	CalculateSpecularHighlight(surface);

@@ -66,12 +66,6 @@ if (isGlassFix)
 discard;
 }
 
-bool isFireFix = abs(materialIDs - 89224.0f) < 0.1f;
-
-if (isFireFix)
-{
-discard;
-}
 
 
 	gl_FragData[0] = vec4(tex.rgb, tex.a);

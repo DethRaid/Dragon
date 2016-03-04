@@ -23,7 +23,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 #define TILE_RESOLUTION 128
 
 #define PARALLAX			//POM, need supported texture pack to get 3D look to blocks
-	#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
+	//#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
 
 #define SPECULARITY
 	#define SPEC_BRIGHTNESS		0.6f	// default is 1.0f - lower this number to increase the specular brightness for New specular

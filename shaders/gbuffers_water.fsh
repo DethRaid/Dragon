@@ -1,15 +1,21 @@
 #version 120
 
-
+#define Water_DepthFog
 #define PARALLAX_WATER		//Turn on 3D waves in water
 
 #define Color_Red 0.2			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
 #define Color_Green 0.7			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2]
 #define Color_Blue 0.95			//[0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.95 1.0 1.1 1.2]
-#define Transparency 100.0		//[50 70 85 100 110 120 130 140 150 160 170 180 190 200 210 220 230 240 250]
 
-#define WAVE_HEIGHT 0.56f
-#define WAVE_HEIGHT_RAIN 1.7f
+#ifdef Water_DepthFog
+	#define Water_DepthFog_Transparency 100.0		//[50 70 85 100 110 120 130 140 150 160 170 180 190 200 210 220 230 240 250]
+#else
+	#define Transparency 200.0		//[50 70 85 100 110 120 130 140 150 160 170 180 190 200 210 220 230 240 250]
+#endif
+
+#define NEW_WATER_WAVES		//disable to go back to old parallax water waves, these new ones are faster
+#define WAVE_HEIGHT 0.80f
+#define WAVE_HEIGHT_RAIN 1.97f
 
 
 uniform sampler2D texture;
@@ -52,7 +58,7 @@ varying float isice;
 
 //#define RAIN_WATER_SPEED
 
-#define SMOOTH_WATER		//adds a little extra smoothness to the water waves, turn off to save a few fps
+//#define SMOOTH_WATER		//adds a little extra smoothness to the water waves, turn off to save a few fps
 
 #define ANIMATION_SPEED 0.6f
 
@@ -150,7 +156,67 @@ float AlmostIdentity(in float x, in float m, in float n)
 }
 
 float GetWaves(vec3 position, in float scale) {
-	float speed = 0.7f;
+#ifdef NEW_WATER_WAVES
+  float speed = 0.7f;
+
+  speed = mix(speed, 0.0f, isice);
+
+  vec2 p = position.xz / 20.0f;
+
+  p.xy -= position.y / 20.0f;
+
+  p.x = -p.x;
+
+  p.x += (FRAME_TIME / 40.0f) * speed;
+  p.y -= (FRAME_TIME / 40.0f) * speed;
+
+  float weight = 1.0f;
+  float weights = weight;
+
+  float allwaves = 0.0f;
+
+  float wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.2f))  + vec2(0.0f,  p.x * 2.1f) ).x; 			p /= 2.1f; 	/*p *= pow(2.0f, 1.0f);*/ 	p.y -= (FRAME_TIME / 20.0f) * 0.6; p.x -= (FRAME_TIME / 30.0f) * speed;
+  allwaves += wave;
+
+  weight = 4.1f;
+  weights += weight;
+      wave = textureSmooth(noisetex, (p * vec2(2.0f, 1.4f))  + vec2(0.0f,  -p.x * 2.1f) ).x;	p /= 1.5f;/*p *= pow(2.0f, 2.0f);*/ 	p.x += (FRAME_TIME / 20.0f) * speed;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 17.25f;
+  weights += weight;
+      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  p.x * 1.1f) ).x);		p /= 1.5f; 	p.x -= (FRAME_TIME / 55.0f) * speed;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 15.25f;
+  weights += weight;
+      wave = (textureSmooth(noisetex, (p * vec2(1.0f, 0.75f))  + vec2(0.0f,  -p.x * 1.7f) ).x);		p /= 1.9f; 	p.x += (FRAME_TIME / 155.0f) * 0.8;
+      wave *= weight;
+  allwaves += wave;
+
+  weight = 29.25f;
+  weights += weight;
+      wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.8f))  + vec2(0.0f,  -p.x * 1.7f) ).x * 2.0f - 1.0f);		p /= 2.0f; 	p.x += (FRAME_TIME / 155.0f) * speed;
+      wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
+      wave *= weight;
+  allwaves += wave;
+/*
+  weight = 30.25f;
+  weights += weight;
+      wave = abs(textureSmooth(noisetex, (p * vec2(1.0f, 0.8f))  + vec2(0.0f,  p.x * 1.7f) ).x * 2.0f - 1.0f);
+      wave = 1.0f - AlmostIdentity(wave, 0.2f, 0.1f);
+      wave *= weight;
+  allwaves += wave;
+*/
+  allwaves /= weights;
+
+  return allwaves;
+  
+  #else
+  
+  float speed = 0.7f;
 
 	speed = mix(speed, 0.0f, isice);
 
@@ -205,13 +271,14 @@ float GetWaves(vec3 position, in float scale) {
 
 
 	return allwaves;
+#endif
 }
 
 vec3 GetWaterParallaxCoord(in vec3 position, in vec3 viewVector)
 {
 	vec3 parallaxCoord = position.xyz;
 
-	vec3 stepSize = vec3(0.2f * WAVE_HEIGHT, 0.2f * WAVE_HEIGHT, 0.2f);
+	vec3 stepSize = vec3(0.6f * WAVE_HEIGHT, 0.6f * WAVE_HEIGHT, 0.6f);
 		stepSize += vec3(0.2f * WAVE_HEIGHT_RAIN, 0.2f * WAVE_HEIGHT_RAIN, 0.2f)*rainStrength;
 
 	float waveHeight = GetWaves(position, 1.0f);
@@ -252,7 +319,7 @@ vec3 GetWavesNormal(vec3 position, in float scale, in mat3 tbnMatrix) {
 #endif
 
 
-	const float sampleDistance = 2.0f;
+	const float sampleDistance = 4.0f;
 
 	position -= vec3(0.005f, 0.0f, 0.005f) * sampleDistance;
 
@@ -264,11 +331,12 @@ vec3 GetWavesNormal(vec3 position, in float scale, in mat3 tbnMatrix) {
 		 wavesNormal.r = wavesCenter - wavesLeft;
 		 wavesNormal.g = wavesCenter - wavesUp;
 
-		 wavesNormal.r *= 43.0f * WAVE_HEIGHT / sampleDistance;
-		 wavesNormal.g *= 43.0f * WAVE_HEIGHT / sampleDistance;
+		 wavesNormal.r *= 25.0f * WAVE_HEIGHT / sampleDistance;
+		 wavesNormal.g *= 25.0f * WAVE_HEIGHT / sampleDistance;
 
 
 		 wavesNormal.b = sqrt(1.0f - wavesNormal.r * wavesNormal.r - wavesNormal.g * wavesNormal.g);
+		 //wavesNormal.b = 1.0;
 		 wavesNormal.rgb = normalize(wavesNormal.rgb);
 
 
@@ -307,8 +375,11 @@ void main() {
 		vec3 waterColor = color.rgb;
 
 		waterColor = normalize(waterColor);
-
+#ifdef Water_DepthFog
+		tex = vec4(Color_Red, Color_Green, Color_Blue, Water_DepthFog_Transparency/255.0f);
+	#else
 		tex = vec4(Color_Red, Color_Green, Color_Blue, Transparency/255.0f);
+#endif
 		tex.rgb *= 1.0f * waterColor.rgb;
 		tex.rgb *= vec3(lum);
 
