@@ -144,6 +144,7 @@ const int 		noiseTextureResolution  = 64;
 
 const bool gaux1MipmapEnabled = true;
 const bool gaux2MipmapEnabled = true;
+const bool gaux4MipmapEnabled = true;
 
 #define BANDING_FIX_FACTOR 1.0f
 
@@ -2834,8 +2835,8 @@ float ao = 1.0;
 
 	lightmap.underwater 		= vec3(mcLightmap.sky) * colorSkylight;
 
-	vec4 raytraced_light		= texture2D(gaux4, texcoord.st);
-	lightmap.torchlight 		= mix(mcLightmap.torch * colorTorchlight, raytraced_light.rgb / 10, raytraced_light.a);
+	vec4 raytraced_light		= texture2DLod(gaux4, texcoord.st, 0);
+	lightmap.torchlight 		= mix(mcLightmap.torch * colorTorchlight, raytraced_light.rgb, 1.0);
 	lightmap.torchlight 	 	*= surface.ao.constant * surface.ao.constant;
 	lightmap.torchlight 		*= ao;
 
