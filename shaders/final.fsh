@@ -291,13 +291,13 @@ void 	AddRainFogScatter(inout vec3 color, in BloomDataStruct bloomData) {
 			       		 bloomData.blur5 * bloomWeight[1] +
 			       		 bloomData.blur6 * bloomWeight[0];
 
-	float fogTotalWeight = 	1.0f * bloomWeight[0] +
-			       							1.0f * bloomWeight[1] +
-			       							1.0f * bloomWeight[2] +
-			       							1.0f * bloomWeight[3] +
-			       							1.0f * bloomWeight[4] +
-			       							1.0f * bloomWeight[5] +
-			       							1.0f * bloomWeight[6];
+	float fogTotalWeight = 	bloomWeight[0] +
+			       							bloomWeight[1] +
+			       							bloomWeight[2] +
+			       							bloomWeight[3] +
+			       							bloomWeight[4] +
+			       							bloomWeight[5] +
+			       							bloomWeight[6];
 
 	fogBlur /= fogTotalWeight;
 
@@ -322,68 +322,6 @@ void TonemapReinhard05(inout vec3 color, BloomDataStruct bloomData) {
 	color.rgb = min(color.rgb, vec3(1.0f));
 	color.rgb = pow(color.rgb, vec3(1.0f / 2.2f));
 }
-
-float distratio(vec2 pos, vec2 pos2) {
-	float xvect = pos.x * aspectRatio-pos2.x * aspectRatio;
-	float yvect = pos.y - pos2.y;
-	return sqrt(xvect * xvect + yvect*yvect);
-}
-
-float gen_circular_lens(vec2 center, float size) {
-	float dist = distratio(center, texcoord.xy) / size;
-	return exp(-dist * dist);
-}
-
-vec2 noisepattern(vec2 pos) {
-	return vec2(abs(fract(sin(dot(pos, vec2(18.9898f, 28.633f))) * 4378.5453f)), abs(fract(sin(dot(pos.yx, vec2(18.9898f, 28.633f))) * 4378.5453f)));
-}
-
-vec3 nvec3(vec4 pos) {
-    return pos.xyz/pos.w;
-}
-
-vec4 nvec4(vec3 pos) {
-    return vec4(pos.xyz, 1.0);
-}
-
-float waterH(vec3 posxz) {
-	float wave = 0.0;
-
-	float factor = 1.0;
-	float amplitude = 0.2;
-	float speed = 4.0;
-	float size = 0.2;
-
-	float px = posxz.x/50.0 + 250.0;
-	float py = posxz.z/50.0  + 250.0;
-
-	float fpx = abs(fract(px*20.0)-0.5)*2.0;
-	float fpy = abs(fract(py*20.0)-0.5)*2.0;
-
-	float d = length(vec2(fpx,fpy));
-
-	for(int i = 1; i < 8; i++) {
-		wave -= d*factor*cos( (1/factor)*px*py*size + 1.0*frameTimeCounter*speed);
-		factor /= 2;
-	}
-
-	factor = 1.0;
-	px = -posxz.x/50.0 + 250.0;
-	py = -posxz.z/150.0 - 250.0;
-
-	fpx = abs(fract(px*20.0)-0.5)*2.0;
-	fpy = abs(fract(py*20.0)-0.5)*2.0;
-
-	d = length(vec2(fpx,fpy));
-	float wave2 = 0.0;
-
-	for(int i = 1; i < 8; i++) {
-		wave2 -= d*factor*cos( (1/factor)*px*py*size + 1.0*frameTimeCounter*speed);
-		factor /= 2;
-	}
-	return amplitude*wave2+amplitude*wave;
-}
-
 
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
