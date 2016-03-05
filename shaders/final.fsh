@@ -255,21 +255,21 @@ void 	CalculateBloom(inout BloomDataStruct bloomData) {		//Retrieve previously c
 
 	vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
 
-	bloomData.blur0  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	2.0f 	)) + 	vec2(0.0f, 0.0f)		+ vec2(0.000f, 0.000f)	).rgb * bloomWeight[0], vec3(1.0f + 1.2f));
-	bloomData.blur1  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	3.0f 	)) + 	vec2(0.0f, 0.25f)		+ vec2(0.000f, 0.025f)	).rgb * bloomWeight[1], vec3(1.0f + 1.2f));
-	bloomData.blur2  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	4.0f 	)) + 	vec2(0.125f, 0.25f)		+ vec2(0.025f, 0.025f)	).rgb * bloomWeight[2], vec3(1.0f + 1.2f));
-	bloomData.blur3  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	5.0f 	)) + 	vec2(0.1875f, 0.25f)	+ vec2(0.050f, 0.025f)	).rgb * bloomWeight[3], vec3(1.0f + 1.2f));
-	bloomData.blur4  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	6.0f 	)) + 	vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)	).rgb * bloomWeight[4], vec3(1.0f + 1.2f));
-	bloomData.blur5  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	7.0f 	)) + 	vec2(0.25f, 0.25f)		+ vec2(0.100f, 0.025f)	).rgb * bloomWeight[5], vec3(1.0f + 1.2f));
-	bloomData.blur6  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	8.0f 	)) + 	vec2(0.28f, 0.25f)		+ vec2(0.125f, 0.025f)	).rgb * bloomWeight[6], vec3(1.0f + 1.2f));
+	//bloomData.blur0  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	2.0f)) + 	vec2(0.0f, 0.0f) + vec2(0.000f, 0.000f)).rgb * bloomWeight[0], vec3(1.0f + 1.2f));
+	//bloomData.blur1  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	3.0f)) + 	vec2(0.0f, 0.25f)	+ vec2(0.000f, 0.025f)).rgb * bloomWeight[1], vec3(1.0f + 1.2f));
+	//bloomData.blur2  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	4.0f)) + 	vec2(0.125f, 0.25f)	+ vec2(0.025f, 0.025f)).rgb * bloomWeight[2], vec3(1.0f + 1.2f));
+	bloomData.blur3  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	5.0f)) + 	vec2(0.1875f, 0.25f) + vec2(0.050f, 0.025f)).rgb * bloomWeight[3], vec3(1.0f + 1.2f));
+	bloomData.blur4  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	6.0f)) + 	vec2(0.21875f, 0.25f)	+ vec2(0.075f, 0.025f)).rgb * bloomWeight[4], vec3(1.0f + 1.2f));
+	//bloomData.blur5  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	7.0f)) + 	vec2(0.25f, 0.25f) + vec2(0.100f, 0.025f)).rgb * bloomWeight[5], vec3(1.0f + 1.2f));
+	//bloomData.blur6  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	8.0f)) + 	vec2(0.28f, 0.25f) + vec2(0.125f, 0.025f)).rgb * bloomWeight[6], vec3(1.0f + 1.2f));
 
- 	bloomData.bloom  = bloomData.blur0;
- 	bloomData.bloom += bloomData.blur1;
- 	bloomData.bloom += bloomData.blur2;
+ 	//bloomData.bloom  = bloomData.blur0;
+ 	//bloomData.bloom += bloomData.blur1;
+ 	//bloomData.bloom += bloomData.blur2;
  	bloomData.bloom += bloomData.blur3;
  	bloomData.bloom += bloomData.blur4;
- 	bloomData.bloom += bloomData.blur5;
- 	bloomData.bloom += bloomData.blur6;
+ 	//bloomData.bloom += bloomData.blur5;
+ 	//bloomData.bloom += bloomData.blur6;
 
 }
 
