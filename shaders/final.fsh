@@ -263,14 +263,9 @@ void 	CalculateBloom(inout BloomDataStruct bloomData) {		//Retrieve previously c
 	bloomData.blur5  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	7.0f)) + 	vec2(0.25f, 0.25f) + vec2(0.100f, 0.025f)).rgb * bloomWeight[5], vec3(1.0f + 1.2f));
 	bloomData.blur6  =  pow(BicubicTexture(gcolor, (texcoord.st - recipres * 0.5f) * (1.0f / pow(2.0f, 	8.0f)) + 	vec2(0.28f, 0.25f) + vec2(0.125f, 0.025f)).rgb * bloomWeight[6], vec3(1.0f + 1.2f));
 
- 	//bloomData.bloom  = bloomData.blur0;
- 	//bloomData.bloom += bloomData.blur1;
  	bloomData.bloom += bloomData.blur2;
  	bloomData.bloom += bloomData.blur3;
  	bloomData.bloom += bloomData.blur4;
- 	//bloomData.bloom += bloomData.blur5;
- 	//bloomData.bloom += bloomData.blur6;
-
 }
 
 void 	AddRainFogScatter(inout vec3 color, in BloomDataStruct bloomData) {
