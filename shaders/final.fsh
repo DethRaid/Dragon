@@ -387,59 +387,10 @@ float waterH(vec3 posxz) {
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////MAIN//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void main() {
+	vec2 fake_refract = vec2(sin(frameTimeCounter * 1.7 + texcoord.x * 50.0 + texcoord.y * 25.0), cos(frameTimeCounter * 2.5 + texcoord.y * 100.0 + texcoord.x * 25.0)) * isEyeInWater;
+	vec2 Fake_Refract_1 = vec2(sin(frameTimeCounter * 1.7 + texcoord.x * 50.0 + texcoord.y * 25.0), cos(frameTimeCounter + texcoord.y * 100.0 + texcoord.x * 25.0));
 
-	const float pi = 3.14159265359;
-	float rainlens = 0.0;
-	const float lifetime = 8.0;		//water drop lifetime in seconds
-	float ftime = frameTimeCounter*3.0/lifetime;
-	vec2 drop = vec2(0.0,fract(frameTimeCounter/5.0));
-
-	#ifdef RAIN_LENS
-		float gen = 1.0-fract((ftime+0.5)*0.5);
-		vec2 pos = (noisepattern(vec2(-0.94386347*floor(ftime*0.5+0.25),floor(ftime*0.5+0.25))))*0.8+0.1 - drop;
-		rainlens += gen_circular_lens(fract(pos),0.04)*gen*rainStrength;
-
-		gen = 1.0-fract((ftime+1.0)*0.5);
-		pos = (noisepattern(vec2(0.9347*floor(ftime*0.5+0.5),-0.2533282*floor(ftime*0.5+0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.023)*gen*rainStrength;
-
-		gen = 1.0-fract((ftime+1.5)*0.5);
-		pos = (noisepattern(vec2(0.785282*floor(ftime*0.5+0.75),-0.285282*floor(ftime*0.5+0.75))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.03)*gen*rainStrength;
-
-		gen =  1.0-fract(ftime*0.5);
-		pos = (noisepattern(vec2(-0.347*floor(ftime*0.5),0.6847*floor(ftime*0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.05)*gen*rainStrength;
-
-		gen = 1.0-fract((ftime+1.0)*0.5);
-		pos = (noisepattern(vec2(0.8514*floor(ftime*0.5+0.5),-0.456874*floor(ftime*0.5+0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.020)*gen*rainStrength;
-
-		gen = 1.0-fract((ftime+1.5)*0.5);
-		pos = (noisepattern(vec2(0.845156*floor(ftime*0.5+0.75),-0.2457854*floor(ftime*0.5+0.75))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.033)*gen*rainStrength;
-
-		gen =  1.0-fract(ftime*0.5);
-		pos = (noisepattern(vec2(-0.368*floor(ftime*0.5),0.8654*floor(ftime*0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.05)*gen*rainStrength*5;
-
-		gen =  1.0-fract(ftime*0.5);
-		pos = (noisepattern(vec2(-0.458*floor(ftime*0.5),0.7546*floor(ftime*0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.055)*gen*rainStrength*5;
-
-		gen = 1.0-fract((ftime+1.0)*0.5);
-		pos = (noisepattern(vec2(0.7532*floor(ftime*0.5+0.5),-0.54275*floor(ftime*0.5+0.5))))*0.8+0.1- drop;
-		rainlens += gen_circular_lens(fract(pos),0.029)*gen*rainStrength*5;
-
-		rainlens *= clamp((eyeBrightness.y-220)/15.0,0.0,1.0);
-	#endif
-
-	vec2 fake_refract = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter*2.5 + texcoord.y*100.0 + texcoord.x*25.0)) * isEyeInWater;
-	vec2 Fake_Refract_1 = vec2(sin(frameTimeCounter*1.7 + texcoord.x*50.0 + texcoord.y*25.0),cos(frameTimeCounter + texcoord.y*100.0 + texcoord.x*25.0)) ;
-
-	vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.005 + 0.0045 * (rainlens + Fake_Refract_1*0.0045));	//Sample gcolor texture
-	color += rainlens*vec3(0.06,0.08,0.09)/315999*timeNoon;
-	color += rainlens*vec3(0.06,0.08,0.09)/535999*timeMidnight/33;
+	vec3 color = GetColorTexture(texcoord.st + fake_refract * 0.005 + 0.0045 * (Fake_Refract_1 * 0.0045));	//Sample gcolor texture
 
 	mask.matIDs = GetMaterialIDs(texcoord.st);
 	CalculateMasks(mask);
@@ -448,10 +399,6 @@ void main() {
 		color /= mix(1.0f, 15.0f, float(mask.glowstone)* timeMidnight);
 		color /= mix(1.0f, 2.5f, float(mask.glowstone)* timeNoon);
 		color /= mix(1.0f, 7.0f,float(mask.glowstone) * mix(1.0f, 0.0f, pow(eyeBrightnessSmooth.y / 240.0f, 2.0f))* timeNoon);
-	#endif
-
-	#ifdef DOF
-		DepthOfField(color);
 	#endif
 
 	CalculateBloom(bloomData);			//Gather bloom textures
@@ -467,7 +414,6 @@ void main() {
 
 	TonemapReinhard05(color, bloomData);
 
-
 	#ifdef MOON_GLOW
 		MoonGlow(color);
 	#endif
@@ -476,5 +422,4 @@ void main() {
 
 	gl_FragColor = vec4(color.rgb, 1.0f);
 	//gl_FragColor = vec4(texture2D(gaux1, texcoord.st / 2.0).rgb, 1.0f);
-
 }
