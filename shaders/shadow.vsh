@@ -304,16 +304,16 @@ void main() {
     //small scale movement
     if (mc_Entity.x == 106.0 && texcoord.t < 0.20) {
       float speed = 1.1;
-      float magnitude = (sin(((position.y + position.x)/8.0 + worldTime * 3.14159265358979323846264 / ((88.0)))) * 0.15 + 0.05) * 0.22;
+      float magnitude = (sin(((position.y + position.x)/8.0 + worldTime * pi / ((88.0)))) * 0.15 + 0.05) * 0.22;
 
-      float d0 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
-      float d1 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
-      float d2 = sin(worldTime * 3.14159265358979323846264 / (112.0 * speed)) * 3.0 + 0.5;
-      float d3 = sin(worldTime * 3.14159265358979323846264 / (142.0 * speed)) * 3.0 + 0.5;
+      float d0 = sin(worldTime * pi / (112.0 * speed)) * 3.0 + 0.5;
+      float d1 = sin(worldTime * pi / (142.0 * speed)) * 3.0 + 0.5;
+      float d2 = sin(worldTime * pi / (112.0 * speed)) * 3.0 + 0.5;
+      float d3 = sin(worldTime * pi / (142.0 * speed)) * 3.0 + 0.5;
 
-      position.x += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude;
-      position.z += sin((worldTime * 3.14159265358979323846264 / (18.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude;
-      position.y += sin((worldTime * 3.14159265358979323846264 / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/4.0);
+      position.x += sin((worldTime * pi / (18.0 * speed)) + (-position.x + d0)*1.6 + (position.z + d1)*1.6) * magnitude;
+      position.z += sin((worldTime * pi / (18.0 * speed)) + (position.z + d2)*1.6 + (-position.x + d3)*1.6) * magnitude;
+      position.y += sin((worldTime * pi / (11.0 * speed)) + (position.z + d2) + (position.x + d3)) * (magnitude/4.0);
     }
   #endif
 
@@ -343,5 +343,4 @@ void main() {
 
 	gl_FrontColor = gl_Color;
 	color = gl_Color;
-
 }

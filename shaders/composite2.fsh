@@ -1000,16 +1000,16 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 }
 
 void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
-	float specularity = surface.specularity;
-	float roughness = 0.7f;
+	float specularity = surface.specularity * 0.5;
+	float roughness = max(surface.roughness, 0.8);
 	float spread = 0.02f;
 
 	specularity *= 1.0f - float(surface.mask.sky);
 
 	vec4 reflectionSum = vec4(0.0f);
 
-	surface.fresnelPower = 6.0f;
-	surface.baseSpecularity = 0.0f;
+	surface.fresnelPower = 22.0f;
+	surface.baseSpecularity = 0.04f;
 
 	if (surface.mask.ironBlock) {
 		roughness = 0.9f;
@@ -1033,8 +1033,8 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 
 			float r = float(i) + 4.0f;
 			r *= roughness * 0.8f;
-			int 	ri = int(floor(r));
-			float 	rf = fract(r);
+			int ri = int(floor(r));
+			float rf = fract(r);
 
 			vec2 finalCoord = (((texcoord.st * 2.0f - 1.0f) * scaling) * 0.5f + 0.5f) + translation;
 
@@ -1042,7 +1042,7 @@ void CalculateGlossySpecularReflections(inout SurfaceStruct surface) {
 			reflectionSum.rgb += pow(texture2DLod(gcolor, finalCoord, r).rgb, vec3(2.2f));
 		}
 
-		reflectionSum.rgb /= 10.0f;
+		reflectionSum.rgb /= 60.0f;
 
 		fresnel *= 0.9;
 		fresnel = pow(fresnel, surface.fresnelPower);
@@ -1456,9 +1456,9 @@ void main() {
 		WaterRefraction(surface);
 	#endif
 
-	CalculateSpecularReflections(surface);
-	CalculateSpecularHighlight(surface);
-	//CalculateGlossySpecularReflections(surface);
+	//CalculateSpecularReflections(surface);
+	//CalculateSpecularHighlight(surface);
+	CalculateGlossySpecularReflections(surface);
 
 	#ifdef VOLUMETRIC_LIGHT
 		surface.color.rgb += GetCrepuscularRays(surface);
