@@ -1456,8 +1456,8 @@ void main() {
 		WaterRefraction(surface);
 	#endif
 
-	//CalculateSpecularReflections(surface);
-	//CalculateSpecularHighlight(surface);
+	CalculateSpecularReflections(surface);
+	CalculateSpecularHighlight(surface);
 	CalculateGlossySpecularReflections(surface);
 
 	#ifdef VOLUMETRIC_LIGHT
