@@ -2062,14 +2062,12 @@ void main() {
 
 	final.glow.glowstone 		= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
 
-	final.glow.emission			*= surface.albedo;
-
 	//Do night eye effect on outdoor lighting and sky
 	DoNightEye(final.lighting);
 	DoNightEye(surface.sky.albedo);
 	DoNightEye(final.underwater);
 
-	vec3 finalComposite			= mix(final.lighting, final.glow.emission, final.glow.emission);
+	vec3 finalComposite			= mix(final.lighting, vec3(1.0), final.glow.emission) * surface.albedo;
 
 	//Apply sky to final composite
 	surface.sky.albedo *= 0.85f;
