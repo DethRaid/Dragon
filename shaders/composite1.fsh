@@ -1903,6 +1903,10 @@ void main() {
 		surface.albedo *= 1.9;
 	}
 
+	if(surface.mask.goldBlock > 0.5 || surface.mask.ironBlock > 0.5) {
+		surface.albedo *= 0.05;
+	}
+
 	surface.albedo *= 1.0f - float(surface.mask.sky); 						//Remove the sky from surface albedo, because sky will be handled separately
 
 	//Initialize sky surface properties
