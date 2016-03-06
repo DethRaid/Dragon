@@ -273,20 +273,6 @@ void main() {
 
 	float wet = GetModulatedRainSpecular(worldPosition.xyz);
 
-	specs.g += max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (SPEC_BRIGHTNESS_OLD - w) * 1.0f);
-	specs.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
-
-	#ifdef NEW_SPECULAR
-		float wetAngle = dot(worldNormal, vec3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-
-		if (abs(materialIDs - 20.0f) < 0.1f || abs(materialIDs - 21.0f) < 0.1f) {
-			spec.g = 0.0f;
-		} else {
-		 spec.g *= max(0.0f, clamp((wet * 1.0f + 0.2f), 0.0f, 1.0f) - (SPEC_BRIGHTNESS - w) * 1.0f);
-		 spec.b += max(0.0f, (wet) - (1.0f - w) * 1.0f) * w;
-		}
-	#endif
-
 	#ifdef TEMP_UNDERGROUND_LIGHT_FIX
 		//store lightmap in auxilliary texture. r = torch light. g = lightning. b = sky light.
 		vec4 lightmap = vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -333,13 +319,12 @@ void main() {
 		vec3 bump = GetTexture(normals, parallaxCoord.st).rgb * 2.0f - 1.0f;
 
 		float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
-	  bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.75f);
+	  	bumpmult *= 1.0f - (clamp(spec.g * 1.0f - 0.0f, 0.0f, 1.0f) * 0.75f);
 
 		bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
 		frag2 = vec4(bump * tbnMatrix * 0.5 + 0.5, 1.0);
 
 	} else {
-
 		frag2 = vec4((normal) * 0.5f + 0.5f, 1.0f);
 	}
 
@@ -374,7 +359,11 @@ void main() {
 	gl_FragData[2] = frag2;
 
 	#ifdef SPECULARITY
-		gl_FragData[3] = vec4(spec.r + spec.g, spec.b, 0.0f, 1.0f);
+		// red = shininess
+		// green = metallic
+		// blue = emissive
+		// alpha = ao
+		gl_FragData[3] = spec;
 	#endif
 
 	gl_FragData[4] = frag2;
