@@ -44,7 +44,7 @@ void main() {
 		vec3 bump = texture2D(normals, texcoord.st).rgb * 2.0f - 1.0f;
 
 		float bumpmult = clamp(bump_distance * fademult - distance * fademult, 0.0f, 1.0f) * NORMAL_MAP_MAX_ANGLE;
-	  bumpmult *= 1.0f - (spec.g * 0.9f * wetness * wetfactor);
+	  	bumpmult *= 1.0f - (spec.g * 0.9f * wetness * wetfactor);
 
 		bump = bump * vec3(bumpmult, bumpmult, bumpmult) + vec3(0.0f, 0.0f, 1.0f - bumpmult);
 
@@ -64,7 +64,7 @@ void main() {
 
 	float mats_1 = 1.0f;
 	mats_1 += 0.1f;
-	
+
 	//Depth
 	gl_FragData[1] = vec4(mats_1/255.0f, lightmap.r, lightmap.b, 1.0f);
 
