@@ -612,6 +612,7 @@ struct FinalStruct {			//Final textured and lit images sorted by what is illumin
 	vec3 translucent;			//Light on the backside of objects representing thin translucent materials
 	vec3 sky;					//Color and brightness of the sky itself
 	vec3 underwater;			//underwater colors
+	vec3 torchlight;
 
 } final;
 
@@ -2063,10 +2064,15 @@ void main() {
 
 	final.glow.glowstone 		= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
 
+	final.torchlight 			= lightmap.torchlight * (1.0f - float(surface.mask.glowstone)) * (1.0f - float(surface.mask.lava));
 	//Do night eye effect on outdoor lighting and sky
 	DoNightEye(final.lighting);
 	DoNightEye(surface.sky.albedo);
 	DoNightEye(final.underwater);
+
+	final.lighting				= final.lighting
+								+ final.torchlight * 5.0f
+								;
 
 	vec3 finalComposite			= mix(final.lighting, vec3(1.0), final.glow.emission) * surface.albedo;
 
