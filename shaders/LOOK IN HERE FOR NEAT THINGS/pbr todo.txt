@@ -1,0 +1,11 @@
+TODO: GGX Shading Model for metallic surfaces
+TODO: Oren–Nayar for rough surfaces
+TODO: Thinking Blinn-Phong for smooth surfaces?
+TODO: Accurate Fresnel plox?
+
+FIXME: Fix the damned sunspot for the love of god.
+FIXME: Important one here, metals are always reflecting things as if they're gold, they are not using the albedo to determine reflect color.
+
+TODO: Microsurface and energy conservation
+TODO: Allow fully transparent surfaces to reflect (only on glass please)
+TODO: Would like to improve the quality of the ray tracing, have better falloff toward the tops of blocks
