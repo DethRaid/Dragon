@@ -222,6 +222,16 @@ bool GetWaterMask(in vec2 coord) {					//Function that returns "true" if a pixel
 	}
 }
 
+float GetWaterMaskFloat(in vec2 coord) {
+	float matID = floor(GetMaterialIDs(coord) * 255.0f);
+
+	if (matID >= 35.0f && matID <= 51) {
+		return 0.0;
+	} else {
+		return 1.0;
+	}
+}
+
 float GetLightmapSky(in vec2 coord) {
 	return texture2D(gdepth, texcoord.st).b;
 }
@@ -1160,9 +1170,15 @@ void WaterRefraction(inout SurfaceStruct surface) {
 		vec2 refractCoord1 = texcoord.st - wavesNormalView.xy * refractAmount * (refractionAmount + aberration) / (surface.linearDepth + 0.0001);
 		vec2 refractCoord2 = texcoord.st - wavesNormalView.xy * refractAmount * (refractionAmount + aberration * 2.0) / (surface.linearDepth + 0.0001);
 
-		surface.color.r = pow(texture2DLod(gcolor, refractCoord0.xy, 0).r, (2.2));
-		surface.color.g = pow(texture2DLod(gcolor, refractCoord1.xy, 0).g, (2.2));
-		surface.color.b = pow(texture2DLod(gcolor, refractCoord2.xy, 0).b, (2.2));
+		float mask0 = 1 - GetWaterMaskFloat(refractCoord0);
+		float mask1 = 1 - GetWaterMaskFloat(refractCoord1);
+		float mask2 = 1 - GetWaterMaskFloat(refractCoord2);
+
+		vec3 spillSample = pow(texture2D(gcolor, texcoord.xy).rgb, vec3(2.2));
+
+		surface.color.r = pow(texture2DLod(gcolor, refractCoord0.xy, 0).r, (2.2)) * mask0 + spillSample.r * (1 - mask0);
+		surface.color.g = pow(texture2DLod(gcolor, refractCoord1.xy, 0).g, (2.2)) * mask1 + spillSample.g * (1 - mask1);
+		surface.color.b = pow(texture2DLod(gcolor, refractCoord2.xy, 0).b, (2.2)) * mask2 + spillSample.b * (1 - mask2);
 	}
 }
 
