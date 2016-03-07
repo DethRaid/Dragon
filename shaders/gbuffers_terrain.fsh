@@ -23,7 +23,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 
 #define PARALLAX			//POM, need supported texture pack to get 3D look to blocks
 	//#define LQ_POM						//dissable this for High Quality POM at a cost of about 7fps avg
-	#define POM_Offset 64		//[16 32 64 128 512]	//Set this to the Resolution of your texture pack
+	#define POM_Offset 32		//[16 32 64 128 512]	//Set this to the Resolution of your texture pack
 	#define POM_Offset2 32		//[16 32 64 128 512]	//must always be half of what POM_Offset is
 
 #define SPECULARITY		//Please use the Specular ON/OFF function in the shaders menu to turn Specular off to save fps
