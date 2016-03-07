@@ -2046,35 +2046,42 @@ void main() {
 								+ lightmap.scatteredUpLight * 0.001f * sunlightMult
 							#endif
 
-								+ lightmap.heldLight
-								+ lightmap.torchlight * (1.0f - float(surface.mask.glowstone)) * (1.0f - float(surface.mask.lava)) 	* 5.0f
-								+ Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f)) 					* 2.6f
-								+ Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight) 							* 2.1f
-								+ float(surface.mask.fire) 																			* 0.35f
-								+ pow(float(surface.mask.torch), 4.4f)																* 1.15f
-
 							#ifdef HELD_LIGHT
 								+ lightmap.heldLight * 0.05f;
 							#endif
 								;
-	final.lighting 		= mix(final.lighting, lightmap.nolight * CAVE_BRIGHTNESS * 100, surface.specular.metallic);
+	final.lighting 		= mix(final.lighting, final.lighting * 0.05, surface.specular.metallic);
 
 	final.underwater 			= surface.water.albedo * colorWaterBlue;
 	final.underwater 			*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
 
-	final.glow.glowstone 		= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
-
-	final.torchlight 			= lightmap.torchlight * (1.0f - float(surface.mask.glowstone)) * (1.0f - float(surface.mask.lava));
-	//Do night eye effect on outdoor lighting and sky
+		//Do night eye effect on outdoor lighting and sky
 	DoNightEye(final.lighting);
 	DoNightEye(surface.sky.albedo);
 	DoNightEye(final.underwater);
 
+	final.lighting *= surface.albedo;
+
+	final.glow.lava 			= Glowmap(surface.albedo, surface.mask.lava,      3.0f, vec3(1.0f, 0.05f, 0.00f));
+
+	final.glow.glowstone 		= Glowmap(surface.albedo, surface.mask.glowstone, 1.9f, colorTorchlight);
+
+	final.glow.fire 			= surface.albedo * float(surface.mask.fire);
+
+	final.glow.torch 			= pow(surface.albedo * float(surface.mask.torch), vec3(4.4f));
+
+	final.torchlight 			= surface.albedo * lightmap.torchlight * (1.0f - float(surface.mask.glowstone)) * (1.0f - float(surface.mask.lava));
+	final.torchlight 		   *= 1.0f - float(surface.mask.glowstone);
+
 	final.lighting				= final.lighting
-								+ final.torchlight * 5.0f
+								+ final.torchlight 	* 5.0f
+								+ final.glow.lava	* 2.6f
+								+ final.glow.glowstone		* 2.1f
+								+ final.glow.fire			* 0.35f
+								+ final.glow.torch			* 1.15f
 								;
 
-	vec3 finalComposite			= mix(final.lighting, vec3(1.0), final.glow.emission) * surface.albedo;
+	vec3 finalComposite			= mix(final.lighting, vec3(1.0), final.glow.emission);
 
 	//Apply sky to final composite
 	surface.sky.albedo *= 0.85f;
