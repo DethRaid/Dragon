@@ -10,6 +10,7 @@ varying vec4 lmcoord;
 varying vec3 worldPosition;
 
 attribute vec4 mc_Entity;
+attribute vec4 at_tangent;
 
 uniform int worldTime;
 uniform vec3 cameraPosition;
@@ -453,41 +454,10 @@ void main() {
 	  }
 	#endif
 
-  float texFix = -1.0f;
+  tangent   = normalize(gl_NormalMatrix * at_tangent.xyz );
+  binormal  = normalize(gl_NormalMatrix * -cross(gl_Normal, at_tangent.xyz));
 
-	#ifdef TEXTURE_FIX
-	  texFix = 1.0f;
-	#endif
-
-	if(gl_Normal.x > 0.5) {
-		tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  texFix));
-		binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-
-		if(abs(materialIDs - 32.0f) < 0.1f)								//Optifine glowstone fix
-		  color *= 1.75f;
-
-		} else if (gl_Normal.x < -0.5) {
-			tangent  = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-
-			if (abs(materialIDs - 32.0f) < 0.1f)								//Optifine glowstone fix
-				color *= 1.75f;
-
-		} else if (gl_Normal.y > 0.5) {
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  1.0));
-		} else if (gl_Normal.y < -0.5) {
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0,  0.0,  -1.0));
-		} else if (gl_Normal.z > 0.5) {
-			tangent  = normalize(gl_NormalMatrix * vec3( 1.0,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		} else if (gl_Normal.z < -0.5) {
-			tangent  = normalize(gl_NormalMatrix * vec3( texFix,  0.0,  0.0));
-			binormal = normalize(gl_NormalMatrix * vec3( 0.0, -1.0,  0.0));
-		}
-
-	tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
+  tbnMatrix  = mat3(tangent.x, binormal.x, normal.x,
                     tangent.y, binormal.y, normal.y,
                     tangent.z, binormal.z, normal.z);
 
