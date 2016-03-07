@@ -311,7 +311,7 @@ void main() {
 		wetfactor *= w;
 	#endif
 
-	spec.g *= wetfactor;
+	spec.r *= wetfactor;
 
 	vec4 frag2;
 
@@ -363,7 +363,7 @@ void main() {
 		// green = metallic
 		// blue = emissive
 		// alpha = ao
-		gl_FragData[3] = spec;
+		gl_FragData[3] = texture2D(specular, parallaxCoord.st);
 	#endif
 
 	gl_FragData[4] = frag2;

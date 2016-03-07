@@ -94,7 +94,7 @@ Do not modify this code until you have read the LICENSE.txt contained in the roo
 //of the shaders mod. The shaders mod only reads these lines and doesn't actually know the real value assigned to these variables in GLSL.
 //Some of these variables are critical for proper operation. Change at your own risk.
 
-const int   shadowMapResolution  = 2048;		 // Shadow Resolution. 1024 = Lowest Quality. 4096 = Highest Quality [1024 2048 3072 4096]
+const int   	shadowMapResolution  = 2048;		 // Shadow Resolution. 1024 = Lowest Quality. 4096 = Highest Quality [1024 2048 3072 4096]
 const float 	shadowDistance 			= 140;	// shadowDistance. 60 = Lowest Quality. 200 = Highest Quality [60 100 120 160 180 200]
 const float 	shadowIntervalSize 		= 4.0f;
 const bool 		shadowHardwareFiltering0 = true;
@@ -115,7 +115,7 @@ const int 		gcolorFormat 			= RGBA16;
 const int 		gdepthFormat 			= RGBA8;
 const int 		gnormalFormat 			= RGBA16;
 const int 		compositeFormat 		= RGBA8;
-const int     gaux3Format         	= RGBA16;
+const int     	gaux3Format         	= RGBA16;
 
 
 const float 	eyeBrightnessHalflife 	= 10.0f;
@@ -266,7 +266,7 @@ float 	GetMetallic(in vec2 coord) {			//Function that retrieves how reflective a
 }
 
 float 	GetSmoothness(in vec2 coord) {			//Function that retrieves how reflective any surface/pixel is in the scene. Used for reflections and specularity
-	return texture2D(composite, coord.st).r;
+	return pow(texture2D(composite, coord.st).r, 2.2);
 }
 
 float	GetEmission(in vec2 coord) {
@@ -2056,6 +2056,7 @@ void main() {
 								+ lightmap.heldLight * 0.05f;
 							#endif
 								;
+	final.lighting 		= mix(final.lighting, lightmap.nolight * CAVE_BRIGHTNESS * 100, surface.specular.metallic);
 
 	final.underwater 			= surface.water.albedo * colorWaterBlue;
 	final.underwater 			*= (lightmap.sunlight * 0.3f) + (lightmap.skylight * 0.06f) + (lightmap.torchlight * 0.0165) + (lightmap.nolight * 0.002f);
@@ -2140,6 +2141,7 @@ void main() {
 	}
 
 	vec4 finalCompositeCompiled = vec4(finalComposite, 1.0);
+	//finalCompositeCompiled = vec4(vec3(surface.specular.smoothness / 100), 1.0);
 
 	#ifdef GODRAYS
 		finalCompositeCompiled.a = Get2DGodRays;
