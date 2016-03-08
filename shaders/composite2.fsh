@@ -343,7 +343,7 @@ struct SurfaceStruct {
 
 		float 	rDepth;
 		float  	metallic;
-		vec3 	specularColor;
+		vec3 	metallicColor;
 		float 	smoothness;
 		float   fresnelPower;
 		Ray 	viewRay;
@@ -925,8 +925,8 @@ vec4 ComputeFakeSkyReflection(in SurfaceStruct surface) {
 	return color;
 }
 
-void CalculateSpecularReflections(inout SurfaceStruct surface) {
-	surface.specularColor = mix(vec3(0.14f), surface.color * 5000000, surface.metallic);
+void CalculateSmoothnessReflections(inout SurfaceStruct surface) {
+	surface.metallicColor = mix(vec3(0.14f), surface.color * 5000000, surface.metallic);
 
 	bool defaultItself = false;
 
@@ -937,8 +937,7 @@ void CalculateSpecularReflections(inout SurfaceStruct surface) {
 	}
 
 	if(surface.mask.water) {
-		surface.smoothness = 1.0f;
-		surface.fresnelPower = 6.0f;
+		surface.smoothness = 0.99f;
 	}
 
 	vec4 reflection = ComputeRaytraceReflection(surface);
@@ -958,19 +957,19 @@ void CalculateSpecularReflections(inout SurfaceStruct surface) {
 	reflection.a = fakeSkyReflection.a;
 	reflection.a *= surface.smoothness;
 
-	reflection.rgb *= surface.specularColor;
+	reflection.rgb *= surface.metallicColor;
 
 	surface.color.rgb = mix(surface.color.rgb, reflection.rgb, vec3(reflection.a));
 	surface.reflection = reflection;
 }
 
-void CalculateSpecularHighlight(inout SurfaceStruct surface) {
+void CalculateSmoothnessHighlight(inout SurfaceStruct surface) {
 	if (!surface.mask.sky && !surface.mask.water) {
 
 		vec3 halfVector = normalize(lightVector - normalize(surface.viewSpacePosition.xyz));
 		float HdotN = max(0.0f, dot(halfVector, surface.normal.xyz));
 
-		float gloss = pow(surface.smoothness + 0.01f, 4.5f);
+		float gloss = surface.smoothness;
 
 		HdotN = clamp(HdotN * (1.0f + gloss * 0.01f), 0.0f, 1.0f);
 
@@ -984,9 +983,9 @@ void CalculateSpecularHighlight(inout SurfaceStruct surface) {
 		spec *= gloss * 9000.0f + 10.0f;
 		spec *= 1.0f - rainStrength;
 
-		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * surface.specularColor * surface.smoothness;
+		vec3 specularHighlight = spec * mix(colorSunlight, vec3(0.2f, 0.5f, 1.0f) * 0.0005f, vec3(timeMidnight)) * ((surface.color * 50000) + surface.metallicColor) * surface.smoothness;
 
-		surface.color += specularHighlight / 500.0f;
+		surface.color += specularHighlight / 500.0;
 	}
 }
 
@@ -1398,8 +1397,8 @@ void main() {
 		WaterRefraction(surface);
 	#endif
 
-	CalculateSpecularReflections(surface);
-	CalculateSpecularHighlight(surface);
+	CalculateSmoothnessReflections(surface);
+	CalculateSmoothnessHighlight(surface);
 
 	#ifdef VOLUMETRIC_LIGHT
 		surface.color.rgb += GetCrepuscularRays(surface);
