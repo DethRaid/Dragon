@@ -989,6 +989,41 @@ void CalculateSmoothnessHighlight(inout SurfaceStruct surface) {
 	}
 }
 
+void CalculateFullSmoothness(inout SurfaceStruct surface) {
+	//Get Reflection Data
+	vec4 reflection = ComputeRaytraceReflection(surface);
+	float surfaceLightmap = GetLightmapSky(texcoord.st);
+	vec4 fakeSkyReflection = ComputeFakeSkyReflection(surface);
+
+	//General Values
+	float pi = 3.14159265;
+	float roughness = surface.smoothness;
+	float metallic = surface.metallic;
+	vec3 reflectionFinal = vec3(0.0);
+
+	bool BlinnPhong; //Smooth Materials
+	bool OrenNayar; //Rough Materials
+	bool GGX; //Metallic Materials
+
+	//Defining what shading model to use
+	if(roughness > 0.5) BlinnPhong = true;
+	if(roughness < 0.5) OrenNayar = true;
+
+	if(metallic > 0.1) {
+		BlinnPhong = false;
+		OrenNayar = false;
+		GGX = true;
+	}
+
+	vec3 halfVector = normalize(lightVector - normalize(surface.viewSpacePosition.xyz));
+	float energyConservation = (8 + roughness) / (8.0 * pi);
+
+	//Get some preliminary variables
+	float NdotH = saturate(dot(surface.normal.xyz, halfVector));
+
+	surface.color.rgb += reflectionFinal;
+}
+
 vec4 TextureSmooth(in sampler2D tex, in vec2 coord, in int level) {
 	vec2 res = vec2(viewWidth, viewHeight);
 	coord = coord * res + 0.5f;
