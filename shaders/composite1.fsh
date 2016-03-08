@@ -1,4 +1,4 @@
-#version 120
+#version 130
 #extension GL_ARB_shader_texture_lod : enable
 
 //Adjustable variables. Tune these for performance
@@ -10,11 +10,12 @@
 #define RAY_GROWTH              1.0    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
 const bool gdepthMipmapEnabled      = true;
+const bool compositeMipmapEnabled   = true;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -36,10 +37,11 @@ uniform float near;
 uniform float far;
 uniform float viewWidth;
 uniform float viewHeight;
+uniform float rainStrength;
 
 uniform vec3 skyColor;
 
-varying vec2 coord;
+in vec2 coord;
 
 struct Pixel1 {
     vec3 position;
@@ -101,7 +103,7 @@ bool shouldSkipLighting() {
 }
 
 float getSmoothness() {
-    return texture2D(gaux2, coord).a;
+    return pow(texture2D(gaux2, coord).a, 2.2);
 }
 
 vec3 getNormal() {
@@ -192,14 +194,14 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
-        noiseSample = texture2D(noisetex, noiseCoord * (i + 1)).rgb * 2.0 - 1.0;
-        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal);
+        noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2.0 - 1.0;
+        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
         hitUV = castRay(rayStart, rayDir, MAX_RAY_LENGTH);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
-            retColor += texture2D(composite, hitUV.st).rgb;
+            retColor += texture2DLod(composite, hitUV.st, 0).rgb;
         } else {
             retColor += skyColor * pixel.water + pixel.color * (1.0 - pixel.water);
         }
@@ -216,6 +218,7 @@ void main() {
     Pixel1 pixel;
     fillPixelStruct(pixel);
     vec3 hitColor = pixel.color;
+    vec3 reflectedColor = vec3(0);
 #if NUM_RAYS > 0
     if(!pixel.skipLighting) {
         hitColor = doLightBounce(pixel);
@@ -225,24 +228,21 @@ void main() {
         float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
 
         float smoothness = pixel.smoothness;
-        float oneMinusSmoothness = 1 - smoothness;
         float metalness = pixel.metalness;
         float waterness = pixel.water;
 
-        vec3 reflectedColor = doLightBounce(pixel).rgb;
+        reflectedColor = doLightBounce(pixel).rgb;
 
-        smoothness = pow(smoothness, 4);
-        vec3 sColor = (pixel.color * metalness + vec3(smoothness * 0.2) * (1.0 - metalness)) * (1.1 - waterness);
+        //smoothness = pow(smoothness, 4);
+        vec3 sColor = (pixel.color * metalness + vec3(0.14) * (1.0 - metalness)) * (1.1 - waterness);
         vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
-        reflectedColor *= fresnel;
-
-        hitColor = (vec3(1.0) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor;
+        hitColor = (vec3(1.0) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor * fresnel * smoothness;
     }
 #endif
 
     vec4 vlColor = texture2DLod(gdepth, coord, 3);
-    hitColor = mix(hitColor, vlColor.rgb, vlColor.a);
+    hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
 
     hitColor = pow(hitColor, vec3(1.0 / 2.2));
 
@@ -254,5 +254,5 @@ void main() {
     gl_FragData[4] = vec4(hitColor, 1);
 
     gl_FragData[5] = texture2D(gaux2, coord);
-    gl_FragData[6] = texture2D(gaux3, coord);
+    gl_FragData[6] = vec4(reflectedColor, 1.0);
 }

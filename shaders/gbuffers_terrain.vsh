@@ -9,28 +9,12 @@ varying vec2 uvLight;
 varying vec3 normal;
 varying mat3 tbnMatrix;
 
-varying float isEmissive;
-varying float isMetallic;
-
 void main() {
     color = gl_Color;
     uv = gl_MultiTexCoord0.st;// + vec2( 0.005, 0 );
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
 
     gl_Position = ftransform();
-
-    isEmissive = 0.0;
-
-    if( (mc_Entity.x > 9.9 && mc_Entity.x < 11.1) ||
-        (mc_Entity.x > 50.5 && mc_Entity.x < 51.5)) {
-        isEmissive = 1.0;
-    }
-
-    isMetallic = 0.0;
-    if( (mc_Entity.x == 41.0f) ||   // iron
-        (mc_Entity.x == 42.0f)) {   // gold
-        isMetallic = 1.0;
-    }
 
     normal = normalize( gl_NormalMatrix * gl_Normal );
 

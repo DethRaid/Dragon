@@ -21,13 +21,14 @@ varying vec3 normal;
 varying mat3 normalMatrix;
 varying float isWater;
 
+
 void main() {
     color = gl_Color;
 
     uv = gl_MultiTexCoord0.st;
     uvLight = (gl_TextureMatrix[1] * gl_MultiTexCoord1).st;
 
-    isWater = 1.0;
+    isWater = 0.0;
     if(mc_Entity.x == 8 || mc_Entity.x == 9) {
         isWater = 1.0;
     }

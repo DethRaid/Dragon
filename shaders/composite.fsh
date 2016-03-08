@@ -1,7 +1,5 @@
 #version 120
-
-#include "/lib/ss_ray.glsl"
-#include "/lib/wind.glsl"
+#extension GL_ARB_shader_texture_lod : enable
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
@@ -15,7 +13,7 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float sunPathRotation         = 25.0;
+const float	sunPathRotation 		= -40.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
@@ -31,6 +29,8 @@ const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
 const int   gaux2Format             = RGBA8;
+const int   shadowcolor0Format      = RGB8;
+const int   shadowcolor1Format      = RGBA8;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -52,7 +52,7 @@ const int   gaux2Format             = RGBA8;
  * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
  * you'd see if the Earth's sun was as big in the sky as Minecraft's
  */
-#define LIGHT_SIZE                  2
+#define LIGHT_SIZE                  3
 
 /*
  * Defined the minimum about of shadow blur when PCSS is enabled. A value of
@@ -67,7 +67,7 @@ const int   gaux2Format             = RGBA8;
  * The number of samples to use for PCSS's blocker search. A higher value allows
  * for higher quality shadows at the expense of framerate
  */
-#define BLOCKER_SEARCH_SAMPLES_HALF 1
+#define BLOCKER_SEARCH_SAMPLES_HALF 2
 
 /*
  * The number of samples to use for shadow blurring. More samples means blurrier
@@ -93,9 +93,16 @@ const int   gaux2Format             = RGBA8;
 #define SHADOW_BIAS                 0.0065
 
 #define WATER_FOG_DENSITY           0.25
-#define WATER_FOG_COLOR             (vec3(30, 62, 103) / 255.0)
+#define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
 
-#define ATMOSPHERIC_DENSITY         0.1
+#define ATMOSPHERIC_DENSITY         0.005
+
+#define MAX_RAY_LENGTH              10
+#define MAX_DEPTH_DIFFERENCE        0.6     //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH             0.8
+#define NUM_DIFFUSE_RAYS            4
+#define RAY_DEPTH_BIAS              0.05
+#define RAY_GROWTH                  1.04
 
 #define SSAO            true
 #define SSAO_SAMPLES    16               //more samples = prettier
@@ -117,6 +124,9 @@ uniform sampler2D gaux2;
 uniform sampler2D gaux3;
 
 uniform sampler2D shadow;
+uniform sampler2D shadowcolor0;
+uniform sampler2D shadowcolor1;
+uniform sampler2D shadowcolor2;
 
 uniform vec3 cameraPosition;
 
@@ -140,7 +150,11 @@ varying vec2 coord;
 varying vec3 lightVector;
 varying vec3 lightColor;
 varying vec3 fogColor;
+varying vec3 skyColor;
 varying vec3 ambientColor;
+
+#include "/lib/wind.glsl"
+#include "/lib/sky.glsl"
 
 struct Pixel {
     vec4 position;
@@ -150,6 +164,7 @@ struct Pixel {
     float metalness;
     float smoothness;
     float water;
+    float sky;
 
     bool skipLighting;
 
@@ -197,20 +212,32 @@ vec4 getWorldSpacePosition() {
 	return getWorldSpacePosition(pos);
 }
 
+vec3 getColor(in vec2 coord) {
+    return pow(texture2DLod(gcolor, coord, 0).rgb, vec3(2.2));
+}
+
 vec3 getColor() {
-    return pow(texture2D(gcolor, coord).rgb, vec3(2.2));
+    return getColor(coord);
+}
+
+float getEmission(in vec2 coord) {
+    return texture2D(gaux2, coord).r;
 }
 
 bool shouldSkipLighting() {
-    return texture2D(gaux2, coord).r > 0.5;
+    return getEmission(coord) > 0.5;
 }
 
 float getWater() {
     return texture2D(gnormal, coord).a;
 }
 
+float getSky() {
+    return texture2D(gdepth, coord).g;
+}
+
 float getSmoothness() {
-    return texture2D(gaux2, coord).a;
+    return pow(texture2D(gaux2, coord).a, 2.2);
 }
 
 vec3 getNormal() {
@@ -222,7 +249,7 @@ float getMetalness() {
 }
 
 float getSkyLighting() {
-    return max(texture2D(gdepth, coord).r, 0.1);
+    return texture2D(gdepth, coord).r;
 }
 
 vec3 getNoise(in vec2 coord) {
@@ -340,7 +367,7 @@ float calcPenumbraSize(vec3 shadowCoord) {
 
     for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
         for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
-            temp = texture2D(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 12.5 * BLOCKER_SEARCH_SAMPLES_HALF))).r;
+            temp = texture2D(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF))).r;
             if(dFragment - temp > 0.0015) {
                 dBlocker += temp;// * temp;
                 numBlockers += 1.0;
@@ -387,20 +414,31 @@ vec3 calcShadowing(in vec4 fragPosition) {
            );
         #endif
 
+        vec3 shadow_color = vec3(0);
+
     	for(int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++) {
             for(int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++) {
-                vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.5 * PCF_SIZE_HALF);
+                vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.25 * PCF_SIZE_HALF);
                 sampleCoord *= penumbraSize;
+
                 #if USE_RANDOM_ROTATION
                     sampleCoord = kernelRotation * sampleCoord;
                 #endif
+
                 float shadowDepth = texture2D(shadow, shadowCoord.st + sampleCoord).r;
-                numBlockers += step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
+                float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
+
+                vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
+                float transparency = texture2D(shadowcolor1, shadowCoord.st + sampleCoord).a;
+                //transparency = 0;
+                colorSample = mix(vec3(0), colorSample, transparency);
+                shadow_color += mix(colorSample, vec3(1.0), visibility);
+
                 numSamples++;
             }
     	}
 
-        return vec3(max(numBlockers / numSamples, 0));
+        return vec3(shadow_color / numSamples);
     #endif
 }
 
@@ -460,8 +498,129 @@ vec2 texelToScreen(vec2 texel) {
     return vec2(newx, newy);
 }
 
+vec2 getCoordFromCameraSpace(in vec3 position) {
+    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
+}
+
+vec3 getCameraSpacePosition(vec2 uv) {
+    float depth = getDepth(uv);
+    vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
+         fragposition /= fragposition.w;
+    return fragposition.xyz;
+}
+
+float calculateDitherPattern() {
+    const int[64] ditherPattern = int[64] ( 1, 49, 13, 61,  4, 52, 16, 64,
+                                           33, 17, 45, 29, 36, 20, 48, 32,
+                                            9, 57,  5, 53, 12, 60,  8, 56,
+                                           41, 25, 37, 21, 44, 28, 40, 24,
+                                            3, 51, 15, 63,  2, 50, 14, 62,
+                                           35, 19, 47, 31, 34, 18, 46, 30,
+                                           11, 59,  7, 55, 10, 58,  6, 54,
+                                           43, 27, 39, 23, 42, 26, 38, 22);
+
+    vec2 count = vec2(0.0f);
+         count.x = floor(mod(coord.s * viewWidth, 8.0f));
+         count.y = floor(mod(coord.t * viewHeight, 8.0f));
+
+    int dither = ditherPattern[int(count.x) + int(count.y) * 8];
+
+    return float(dither) / 64.0f;
+}
+
+//Determines the UV coordinate where the ray hits
+//If the returned value is not in the range [0, 1] then nothing was hit.
+//NOTHING!
+//Note that origin and direction are assumed to be in screen-space coordinates, such that
+//  -origin.st is the texture coordinate of the ray's origin
+//  -direction.st is of such a length that it moves the equivalent of one texel
+//  -both origin.z and direction.z correspond to values raw from the depth buffer
+vec3 castRay(in vec3 origin, in vec3 rayStep) {
+    float dither = calculateDitherPattern();
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    rayStep = normalize(rayStep) * RAY_STEP_LENGTH;// * calculateDitherPattern() * 0.0625;
+    bool forward = true;
+    float distanceTravelled = 0;
+    float hasResult = 0.0;
+    vec3 retVal = vec3(-1);
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
+        curPos += rayStep;
+        distanceTravelled += sqrt(dot(rayStep, rayStep));
+        curCoord = getCoordFromCameraSpace(curPos);
+
+        float worldDepth = getCameraSpacePosition(curCoord).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = length(rayStep) + RAY_DEPTH_BIAS;
+        if(forward) {
+            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+                //return curCoord;
+                rayStep = -1 * normalize(rayStep) * 0.15;
+                forward = false;
+            }
+        } else {
+            depthDiff *= -1;
+            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+                return vec3(curCoord, distanceTravelled);
+            }
+        }
+        rayStep *= RAY_GROWTH;
+    }
+
+    return retVal;
+}
+
 //calcualtes the lighting from the torches
+vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
+    //Find where the ray hits
+    //get the blur at that point
+    //mix with the color
+    vec3 rayStart = viewSpacePos.xyz;
+    vec2 noiseCoord = vec2(coord.s * viewWidth / 64.0, coord.t * viewHeight / 64.0);
+    vec3 retColor = vec3(0);
+    vec3 noiseSample = vec3(0);
+    vec3 reflectDir = vec3(0);
+    vec3 hitUV = vec3(0);
+    float numHitRays = 0;
+
+    //trace the number of rays defined previously
+    for(int i = 0; i < NUM_DIFFUSE_RAYS; i++) {
+        noiseSample = vec3(
+            rand(noiseCoord * (i + 1)),
+            rand(noiseCoord * (i + 5)),
+            rand(noiseCoord * (i + 32))
+            ) * 2.0 - 1.0;
+        //noiseSample = normalize(noiseSample);
+
+        reflectDir = normalize(noiseSample * 0.5 + normal);
+        reflectDir *= sign(dot(normal, reflectDir));
+
+        //return vec4(reflectDir, 1.0);
+
+        hitUV = castRay(rayStart, reflectDir);
+        if(hitUV.s > 0.0 && hitUV.s < 1.0 && hitUV.t > 0.0 && hitUV.t < 1.0) {
+            float emissive = getEmission(hitUV.st);
+            emissive = clamp(emissive, 0.0, 1.0);
+
+            retColor += getColor(hitUV.st);// / (hitUV.z * hitUV.z) * emissive;
+            numHitRays++;
+        }
+    }
+
+    return vec4(retColor, numHitRays) / float(NUM_DIFFUSE_RAYS);
+}
+
 vec3 calcTorchLighting(in Pixel pixel) {
+    if(pixel.metalness > 0.5) {
+        return vec3(0);
+    }
+
     //determine if there is a gradient in the torch lighting
     float t1 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(1, 0))).g - 0.1;
     float t2 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(0, 1))).g - 0.1;
@@ -471,11 +630,12 @@ vec3 calcTorchLighting(in Pixel pixel) {
     float torchMul = step(t3, 0.1);
 
     float torchFac = texture2D(gaux2, coord).g;
-    vec3 torchColor = vec3(1, 0.6, 0.4) * torchFac;
-    float torchIntensity = length(torchColor);
+    //vec4 bouncedTorchColor = computeRaytracedLight(getCameraSpacePosition(coord).rgb, pixel.normal);
+    vec3 torchColor = vec3(1, 0.6, 0.4); // mix(bouncedTorchColor.rgb, vec3(1, 0.6, 0.4), 0.0);//bouncedTorchColor.a);
+    float torchIntensity = length(torchColor * torchFac);
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
-    return torchColor * (1 - pixel.metalness);
+    return torchColor;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -492,6 +652,7 @@ Pixel fillPixelStruct() {
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
     pixel.water =           getWater();
+    pixel.sky =             getSky();
     pixel.directLighting =  vec3(0);
     pixel.torchLighting =   vec3(0);
 
@@ -546,39 +707,51 @@ vec4 calcSkyScattering(in vec3 worldPosition) {
     vec4 rayPos = getWorldSpacePosition(vec4(coord, 0, 1));
     vec3 rayStart = rayPos.xyz;
     vec3 viewVector = normalize(worldPosition - cameraPosition);
-    vec3 direction =  viewVector * 7 * getNoise(coord).b;
+    vec3 direction =  viewVector * calculateDitherPattern();
     vec3 rayColor = vec3(0);
     float distanceToPixel = length(worldPosition - cameraPosition);
     float numSteps = 0;
 
+    rayColor = vec3(distanceToPixel);
+
     // Calculate VL for the first 70 units
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 7; i++) {
         rayPos.xyz += direction;
-        rayColor += calcShadowing(rayPos);
+
+        vec3 shadowCoord = calcShadowCoordinate(rayPos);
+
+        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
+        float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
+
+        vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st).rgb;
+        float transparency = texture2D(shadowcolor1, shadowCoord.st).a;
+        //transparency = 0;
+        colorSample = mix(vec3(0), colorSample, transparency);
+        rayColor += mix(colorSample, vec3(1.0), visibility);
+
         numSteps += 0.01;
 
-        // If the ray goes behind terrain, stop
         if(length(rayPos.xyz - rayStart) > distanceToPixel) {
+            rayColor = vec3(7, 0, 0);
             i = 11;
         }
     }
 
-    // Rayleigh scattering once we're past the vol light
-    float alpha
-
-    return vec4(rayColor * fogColor * ATMOSPHERIC_DENSITY, numSteps);
+    return /*vec4(vec3(rayColor / 100), 1.0);*/vec4(rayColor * fogColor * ATMOSPHERIC_DENSITY, numSteps);
 }
 
 vec3 calcLitColor(in Pixel pixel) {
-    vec3 ambientColorCorrected = ambientColor + vec3(0.2) * pixel.metalness;
+    vec3 ambientColorCorrected = ambientColor + vec3(0.5) * pixel.metalness;
     ambientColorCorrected *= getSkyLighting();
 
     #if SSAO
-            ambientColorCorrected *= calcSSAO();
+        ambientColorCorrected *= calcSSAO();
     #endif
 
+    //return pixel.torchLighting;
+
     return pixel.color * pixel.directLighting +
-           pixel.color * pixel.torchLighting * (1.0 - length(pixel.directLighting) / length(lightColor)) +
+           pixel.color * pixel.torchLighting +
            pixel.color * ambientColorCorrected;
 }
 
@@ -591,6 +764,12 @@ void main() {
 
     if(curFrag.water > 0.5) {
         calculateWaterFog(curFrag);
+    }
+
+    if(curFrag.sky > 0.5) {
+        vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
+        viewVector = (gbufferModelView * vec4(viewVector, 0)).xyz;
+        curFrag.color = getSkyColor(viewVector, lightVector, skyColor, cameraPosition);
     }
 
     vec3 finalColor = vec3(0);
@@ -610,7 +789,7 @@ void main() {
     gl_FragData[1] = skyScattering;
     gl_FragData[2] = texture2D(gnormal, coord);
 
-    gl_FragData[3] =vec4(finalColor, 1);
+    gl_FragData[3] = vec4(finalColor, 1);
 
     gl_FragData[4] = texture2D(gaux1, coord);
     gl_FragData[5] = texture2D(gaux2, coord);
