@@ -10,7 +10,7 @@
 #define RAY_GROWTH              1.0    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -242,7 +242,7 @@ void main() {
 #endif
 
     vec4 vlColor = texture2DLod(gdepth, coord, 3);
-    hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
+    hitColor = mix(hitColor, vlColor.rgb, vlColor.a * 2);// + (rainStrength * 0.5));
 
     hitColor = pow(hitColor, vec3(1.0 / 2.2));
 

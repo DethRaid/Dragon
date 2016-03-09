@@ -8,13 +8,28 @@ varying vec3 normal;
 varying float isTransparent;
 
 float getIsTransparent(in float materialId) {
-    if(materialId == 160.0) {   // stained glass pane
+    if(materialId > 159.5 && materialId < 160.5) {   // stained glass pane
         return 1.0;
     }
     if(materialId == 95.0) {    // stained glass
         return 1.0;
     }
-    if(materialId == 30.0) {    // ice
+    if(materialId == 79.0) {    // ice
+        return 1.0;
+    }
+    if(materialId == 102.0) {   // Glass pane
+        return 1.0;
+    }
+    if(materialId == 8.0) {     // flowing water
+        return 1.0;
+    }
+    if(materialId == 9.0) {     // water
+        return 1.0;
+    }
+    if(materialId == 20.0) {    // glass
+        return 1.0;
+    }
+    if(materialId == 90.0) {    // portal
         return 1.0;
     }
     return 0.0;

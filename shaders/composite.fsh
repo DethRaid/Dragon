@@ -95,7 +95,7 @@ const int   shadowcolor1Format      = RGBA8;
 #define WATER_FOG_DENSITY           0.25
 #define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
 
-#define ATMOSPHERIC_DENSITY         0.005
+#define ATMOSPHERIC_DENSITY         0.025
 
 #define MAX_RAY_LENGTH              10
 #define MAX_DEPTH_DIFFERENCE        0.6     //How much of a step between the hit pixel and anything else is allowed?
@@ -124,6 +124,7 @@ uniform sampler2D gaux2;
 uniform sampler2D gaux3;
 
 uniform sampler2D shadow;
+uniform sampler2D watershadow;
 uniform sampler2D shadowcolor0;
 uniform sampler2D shadowcolor1;
 uniform sampler2D shadowcolor2;
@@ -428,11 +429,16 @@ vec3 calcShadowing(in vec4 fragPosition) {
                 float shadowDepth = texture2D(shadow, shadowCoord.st + sampleCoord).r;
                 float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
 
+                float waterDepth = texture2D(watershadow, shadowCoord.st + sampleCoord).r;
+                float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
+
                 vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
                 float transparency = texture2D(shadowcolor1, shadowCoord.st + sampleCoord).a;
-                //transparency = 0;
-                colorSample = mix(vec3(0), colorSample, transparency);
-                shadow_color += mix(colorSample, vec3(1.0), visibility);
+
+                colorSample = mix(colorSample, vec3(1.0), waterVisibility);
+                colorSample = mix(vec3(0.0), colorSample, visibility);
+
+                shadow_color += colorSample;
 
                 numSamples++;
             }
@@ -704,40 +710,46 @@ float calcSSAO() {
 vec4 calcSkyScattering(in vec3 worldPosition) {
     // Send a ray through the atmosphere, sampling the shadow at each position
 
-    vec4 rayPos = getWorldSpacePosition(vec4(coord, 0, 1));
-    vec3 rayStart = rayPos.xyz;
+    vec3 rayStart = getWorldSpacePosition(vec4(coord, 0, 1)).xyz;
+    rayStart += vec3(-0.5, 0.0, 1.5);
+    vec4 rayPos = vec4(rayStart, 1.0);
     vec3 viewVector = normalize(worldPosition - cameraPosition);
-    vec3 direction =  viewVector * calculateDitherPattern();
+    vec3 direction =  viewVector * calculateDitherPattern() * 2;
     vec3 rayColor = vec3(0);
     float distanceToPixel = length(worldPosition - cameraPosition);
     float numSteps = 0;
 
     rayColor = vec3(distanceToPixel);
+    float num_hit = 0;
 
     // Calculate VL for the first 70 units
-    for(int i = 0; i < 7; i++) {
+    for(int i = 0; i < 10; i++) {
         rayPos.xyz += direction;
 
         vec3 shadowCoord = calcShadowCoordinate(rayPos);
+        //shadowCoord.st += vec2(0.5 / shadowMapResolution);
 
         float shadowDepth = texture2D(shadow, shadowCoord.st).r;
         float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
 
+        float waterDepth = texture2D(watershadow, shadowCoord.st).r;
+        float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
+
         vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st).rgb;
         float transparency = texture2D(shadowcolor1, shadowCoord.st).a;
-        //transparency = 0;
-        colorSample = mix(vec3(0), colorSample, transparency);
-        rayColor += mix(colorSample, vec3(1.0), visibility);
 
-        numSteps += 0.01;
+        colorSample = mix(colorSample, vec3(1.0), waterVisibility);
+        colorSample = mix(vec3(0.0), colorSample, visibility);
+        rayColor += colorSample;
+
+        numSteps += visibility;
 
         if(length(rayPos.xyz - rayStart) > distanceToPixel) {
-            rayColor = vec3(7, 0, 0);
-            i = 11;
+            break;
         }
     }
 
-    return /*vec4(vec3(rayColor / 100), 1.0);*/vec4(rayColor * fogColor * ATMOSPHERIC_DENSITY, numSteps);
+    return vec4(rayColor * 0.01, numSteps * ATMOSPHERIC_DENSITY * 0.1);
 }
 
 vec3 calcLitColor(in Pixel pixel) {

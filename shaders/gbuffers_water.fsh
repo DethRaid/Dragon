@@ -61,7 +61,7 @@ void main() {
     mat3 nMat = mat3( gbufferModelView );
 
     vec3 wNormal = normal;
-    vec4 matColor = color * texture2D( diffuse, uv ) * texture2D( lightmap, uv ).r;
+    vec4 matColor = color * texture2D( diffuse, uv );
 
     if( isWater > 0.9 ) {
         wNormal = getWaveNormal();

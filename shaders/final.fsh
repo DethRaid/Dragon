@@ -33,6 +33,7 @@
 const bool gaux3MipmapEnabled = true;
 
 uniform sampler2D gcolor;
+uniform sampler2D gdepth;
 uniform sampler2D gdepthtex;
 uniform sampler2D composite;
 uniform sampler2D gaux1;
@@ -242,4 +243,5 @@ color = doToneMapping(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
+    //gl_FragColor = vec4(texture2D(gdepth, coord).rgb, 1.0);
 }
