@@ -1,9 +1,15 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-///////////////////////////////////////////////////////////////////////////////
-//                              Unchangable Variables                        //
-///////////////////////////////////////////////////////////////////////////////
+/*!
+ * \brief Computes GI, storing it to a single buffer
+ */
+
+#define GI_SAMPLE_RADIUS 35
+#define GI_QUALITY 303
+
+#define PI 3.14159
+
 const int   shadowMapResolution     = 4096;
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
@@ -13,798 +19,119 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -40.0f;
-const float ambientOcclusionLevel   = 0.2;
-
-const int 	R8 						= 0;
-const int 	RG8 					= 0;
-const int 	RGB8 					= 1;
-const int 	RGB16 					= 2;
-const int   RGBA16                  = 3;
-const int   RGBA8                   = 4;
-const int   RGB32F                  = 5;
-const int 	gcolorFormat 			= RGB16;
-const int 	gdepthFormat 			= RGBA8;
-const int 	gnormalFormat 			= RGBA16;
-const int 	compositeFormat 		= RGB32F;
-const int   gaux1Format             = RGBA16;
-const int   gaux2Format             = RGBA8;
-const int   shadowcolor0Format      = RGB8;
-const int   shadowcolor1Format      = RGBA8;
-
-///////////////////////////////////////////////////////////////////////////////
-//                              Changable Variables                          //
-///////////////////////////////////////////////////////////////////////////////
-
-#define OFF            -1
-#define HARD            0
-#define SOFT            1
-#define REALISTIC       2
-
-#define PCF_FIXED       0
-#define PCF_VARIABLE    1
-
-#define PI              3.14159265
-#define E               2.71828183
-
-/*
- * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
- * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
- * you'd see if the Earth's sun was as big in the sky as Minecraft's
- */
-#define LIGHT_SIZE                  3
-
-/*
- * Defined the minimum about of shadow blur when PCSS is enabled. A value of
- * 0.175 allows for reasonably hard shadows with a very minimal amount of
- * aliasing, a value of 0.45 almost completely removes aliasing but doesn't
- * allow hard shadows when the distance from the shadow caster to the shadow
- * receiver is very small
- */
-#define MIN_PENUMBRA_SIZE           0.175
-
-/*
- * The number of samples to use for PCSS's blocker search. A higher value allows
- * for higher quality shadows at the expense of framerate
- */
-#define BLOCKER_SEARCH_SAMPLES_HALF 2
-
-/*
- * The number of samples to use for shadow blurring. More samples means blurrier
- * shadows at the expense of framerate. A value of 5 is recommended
- */
-#define PCF_SIZE_HALF               2
-
-/*
- * If set to 1, a random rotation will be applied to the shadow filter to reduce
- * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
- * resulting in ugly banding but giving you a few more frames per second.
- */
-#define USE_RANDOM_ROTATION         1
-
-/*
- * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
- * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
- * shadows with a variable-size blur. PCSS is the most realistic option but also
- * the slowest, HARD is the fastest at the expense of realism.
- */
-#define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
-
-#define SHADOW_BIAS                 0.0065
-
-#define WATER_FOG_DENSITY           0.25
-#define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
-
-#define ATMOSPHERIC_DENSITY         0.025
-
-#define MAX_RAY_LENGTH              10
-#define MAX_DEPTH_DIFFERENCE        0.6     //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH             0.8
-#define NUM_DIFFUSE_RAYS            4
-#define RAY_DEPTH_BIAS              0.05
-#define RAY_GROWTH                  1.04
-
-#define SSAO            true
-#define SSAO_SAMPLES    16               //more samples = prettier
-#define SSAO_STRENGTH   3.0             //bigger number = more SSAO
-#define SSAO_RADIUS     250.0
-#define SSAO_MAX_DEPTH  1.0
-
-///////////////////////////////////////////////////////////////////////////////
-//                              I need these                                 //
-///////////////////////////////////////////////////////////////////////////////
-
-uniform sampler2D gcolor;
-uniform sampler2D gdepth;
 uniform sampler2D gdepthtex;
-uniform sampler2D depthtex1;
-uniform sampler2D gnormal;
-uniform sampler2D gaux1;
-uniform sampler2D gaux2;
-uniform sampler2D gaux3;
+uniform sampler2D colortex2;
 
-uniform sampler2D shadow;
-uniform sampler2D watershadow;
-uniform sampler2D shadowcolor0;
+uniform sampler2D shadowtex1;
+uniform sampler2D shadowcolor;
 uniform sampler2D shadowcolor1;
-uniform sampler2D shadowcolor2;
 
-uniform vec3 cameraPosition;
+uniform sampler2D noisetex;
 
 uniform float viewWidth;
 uniform float viewHeight;
-uniform float far;
-uniform float near;
 
-uniform mat4 gbufferModelView;
-uniform mat4 gbufferProjection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
-uniform mat4 shadowModelViewInverse;
-uniform mat4 shadowProjectionInverse;
 
 varying vec2 coord;
-
 varying vec3 lightVector;
 varying vec3 lightColor;
-varying vec3 fogColor;
-varying vec3 skyColor;
 varying vec3 ambientColor;
 
-#include "/lib/wind.glsl"
-#include "/lib/sky.glsl"
+varying vec3 fogColor;
+varying vec3 skyColor;
 
-struct Pixel {
-    vec4 position;
-    vec4 screenPosition;
-    vec3 color;
-    vec3 normal;
-    float metalness;
-    float smoothness;
-    float water;
-    float sky;
+/* DRAWBUFFERS:7 */
 
-    bool skipLighting;
-
-    vec3 directLighting;
-    vec3 torchLighting;
-} curFrag;
-
-struct World {
-    vec3 lightDirection;
-    vec3 lightColor;
-};
-
-///////////////////////////////////////////////////////////////////////////////
-//                              Helper Functions                             //
-///////////////////////////////////////////////////////////////////////////////
-//Credit to Sonic Ether for depth, normal, and positions
-
-float getDepth( vec2 coord) {
-    return texture2D(gdepthtex, coord).r;
+vec3 get_normal(in vec2 coord) {
+	return texture2DLod(colortex2, coord, 0).xyz * 2.0 - 1.0;
 }
 
-float getDepthLinear(in sampler2D depthtex, in vec2 coord) {
-    return 2.0 * near * far / (far + near - (2.0 * texture2D(depthtex, coord).r - 1.0) * (far - near));
+float get_depth(in vec2 coord) {
+	return texture2D(gdepthtex, coord.st).x;
 }
 
-float getDepthLinear(vec2 coord) {
-    return getDepthLinear(gdepthtex, coord);
+vec4 get_viewspace_position(in vec2 coord) {
+    float depth = get_depth(coord);
+    vec4 pos = gbufferProjectionInverse * vec4(vec3(coord.st, depth) * 2.0 - 1.0, 1.0);
+	return pos / pos.w;
 }
 
-vec4 getScreenSpacePosition() {
-	float depth = getDepth(coord);
-	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition /= fragposition.w;
-	return fragposition;
+vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
+	vec4 pos = gbufferModelViewInverse * position_viewspace;
+	return pos / pos.w;
 }
 
-vec4 getWorldSpacePosition(in vec4 screenSpacePosition) {
-    vec4 pos = gbufferModelViewInverse * screenSpacePosition;
-	pos.xyz += cameraPosition.xyz;
-	return pos;
+vec4 worldspace_to_shadowspace(in vec4 powition_worldspace) {
+	vec4 pos = shadowProjection * shadowModelView * powition_worldspace;
+	return pos /= pos.w;
 }
 
-vec4 getWorldSpacePosition() {
-	vec4 pos = getScreenSpacePosition();
-	return getWorldSpacePosition(pos);
+vec3 get_3d_noise(in vec2 coord) {
+    coord *= vec2(viewWidth, viewHeight);
+    coord /= noiseTextureResolution;
+
+    return texture2D(noisetex, coord).xyz;
 }
 
-vec3 getColor(in vec2 coord) {
-    return pow(texture2DLod(gcolor, coord, 0).rgb, vec3(2.2));
-}
+vec3 calculate_gi(in vec2 coord, in vec4 position_viewspace, in vec3 normal) {
+ 	float NdotL = dot(normal, lightVector);
 
-vec3 getColor() {
-    return getColor(coord);
-}
+ 	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
 
-float getEmission(in vec2 coord) {
-    return texture2D(gaux2, coord).r;
-}
+ 	vec4 position = viewspace_to_worldspace(position_viewspace);
+ 		 position = worldspace_to_shadowspace(position);
+ 		 position = position * 0.5 + 0.5;
 
-bool shouldSkipLighting() {
-    return getEmission(coord) > 0.5;
-}
+ 	float fademult 	= 0.15;
 
-float getWater() {
-    return texture2D(gnormal, coord).a;
-}
+ 	vec3 light = vec3(0.0);
+ 	int samples	= 0;
 
-float getSky() {
-    return texture2D(gdepth, coord).g;
-}
+ 	for(int i = 0; i < GI_QUALITY; i++) {
+ 		float percentage_done = float(i) / float(GI_QUALITY);
+ 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
 
-float getSmoothness() {
-    return pow(texture2D(gaux2, coord).a, 2.2);
-}
+ 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
+ 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
+ 		offset += get_3d_noise(coord * 1.3).xy * 3;
+ 		offset /= shadowMapResolution;
 
-vec3 getNormal() {
-    return normalize(texture2D(gnormal, coord).xyz * 2.0 - 1.0);
-}
+ 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
+ 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0.0).x;
 
-float getMetalness() {
-    return texture2D(gaux2, coord).b;
-}
+ 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
+ 		vec3 normal_shadow	 = texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0;
 
-float getSkyLighting() {
-    return texture2D(gdepth, coord).r;
-}
+        vec3 light_strength              = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1)));
+ 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, -sample_dir));
+ 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
 
-vec3 getNoise(in vec2 coord) {
-    return texture2D(noisetex, coord.st * vec2(viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution)).rgb;
-}
+ 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
+        falloff = pow(falloff, 4);
+		falloff = max(1.0, falloff);
 
-///////////////////////////////////////////////////////////////////////////////
-//                              Lighting Functions                           //
-///////////////////////////////////////////////////////////////////////////////
+ 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
+        vec3 flux = sample_color * light_strength;
 
-//from SEUS v8
-vec3 calcShadowCoordinate(in vec4 pixelPos) {
-    vec4 shadowCoord = pixelPos;
-    shadowCoord.xyz -= cameraPosition;
-    shadowCoord = shadowModelView * shadowCoord;
-    shadowCoord = shadowProjection * shadowCoord;
-    shadowCoord /= shadowCoord.w;
+ 		light += flux * transmitted_light_strength * received_light_strength / falloff;
+        //light += flux * received_light_strength;
+ 	}
 
-    shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
-    float dFrag = (1 + shadowCoord.z) * 0.5 + 0.005;
+ 	light /= GI_QUALITY;
 
-    return vec3(shadowCoord.st, dFrag);
-}
-
-//I'm sorry this is so long, OSX doesn't support GLSL 120 arrays
-vec2 poisson(int i) {
-    if(i == 0) {
-        return vec2(0.680375, -0.211234);
-    } else if(i == 1) {
-        return vec2(0.566198, 0.596880);
-    } else if(i == 2) {
-        return vec2(0.823295, -0.604897);
-    } else if(i == 3) {
-        return vec2(-0.329554, 0.536459);
-
-    } else if(i == 4) {
-        return vec2(-0.444451, 0.107940);
-    } else if(i == 5) {
-        return vec2(-0.045206, 0.257742);
-    } else if(i == 6) {
-        return vec2(-0.270431, 0.026802);
-    } else if(i == 7) {
-        return vec2(0.904459, 0.832390);
-
-    } else if(i == 8) {
-        return vec2(0.271423, 0.434594);
-    } else if(i == 9) {
-        return vec2(-0.716795, 0.213938);
-    } else if(i == 10) {
-        return vec2(-0.967399, -0.514226);
-    } else if(i == 11) {
-        return vec2(-0.725537, 0.608354);
-
-    } else if(i == 12) {
-        return vec2(-0.686642, -0.198111);
-    } else if(i == 13) {
-        return vec2(-0.740419, -0.782382);
-    } else if(i == 14) {
-        return vec2(0.997849, -0.563486);
-    } else if(i == 15) {
-        return vec2(0.025865, 0.678224);
-
-    } else if(i == 16) {
-        return vec2(0.225280, -0.407937);
-    } else if(i == 17) {
-        return vec2(0.275105, 0.048574);
-    } else if(i == 18) {
-        return vec2(-0.012834, 0.945550);
-    } else if(i == 19) {
-        return vec2(-0.414966, 0.542715);
-
-    } else if(i == 20) {
-        return vec2(0.053490, 0.539828);
-    } else if(i == 21) {
-        return vec2(-0.199543, 0.783059);
-    } else if(i == 22) {
-        return vec2(-0.433371, -0.295083);
-    } else if(i == 23) {
-        return vec2(0.615449, 0.838053);
-
-    } else if(i == 24) {
-        return vec2(-0.860489, 0.898654);
-    } else if(i == 25) {
-        return vec2(0.051991, -0.827888);
-    } else if(i == 26) {
-        return vec2(-0.615572, 0.326454);
-    } else if(i == 27) {
-        return vec2(0.780465, -0.302214);
-
-    } else if(i == 28) {
-        return vec2(-0.871657, -0.959954);
-    } else if(i == 29) {
-        return vec2(-0.084597, -0.873808);
-    } else if(i == 30) {
-        return vec2(-0.523440, 0.941268);
-    } else if(i == 31) {
-        return vec2(0.804416, 0.701840);
-    }
-}
-
-int rand(vec2 seed) {
-    return int(32 * fract(sin(dot(vec2(12.9898, 72.233), seed)) * 43758.5453));
-}
-
-//Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
-//Implemented by DethRaid - github.com/DethRaid
-float calcPenumbraSize(vec3 shadowCoord) {
-	float dFragment = shadowCoord.z;
-	float dBlocker = 0;
-	float penumbra = 0;
-
-	float temp;
-	float numBlockers = 0;
-    float searchSize = LIGHT_SIZE * (dFragment - 9.5) / dFragment;
-
-    for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
-        for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
-            temp = texture2D(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF))).r;
-            if(dFragment - temp > 0.0015) {
-                dBlocker += temp;// * temp;
-                numBlockers += 1.0;
-            }
-        }
-	}
-
-    if(numBlockers > 0.1) {
-		dBlocker /= numBlockers;
-		penumbra = (dFragment - dBlocker) * LIGHT_SIZE / dFragment;
-	}
-
-    return max(penumbra, MIN_PENUMBRA_SIZE);
-}
-
-vec3 calcShadowing(in vec4 fragPosition) {
-    vec3 shadowCoord = calcShadowCoordinate(fragPosition);
-
-    if(shadowCoord.x > 1 || shadowCoord.x < 0 ||
-        shadowCoord.y > 1 || shadowCoord.y < 0) {
-        return vec3(1.0);
-    }
-
-    #if SHADOW_MODE == HARD
-        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
-        return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
-
-    #else
-        float penumbraSize = 0.5;    // whoo magic number!
-
-        #if SHADOW_MODE == REALISTIC
-            penumbraSize = calcPenumbraSize(shadowCoord.xyz);
-        #endif
-
-        float numBlockers = 0.0;
-        float numSamples = 0.0;
-
-        #if USE_RANDOM_ROTATION
-            float rotateAmount = getNoise(coord).r * 2.0f - 1.0f;
-
-            mat2 kernelRotation = mat2(
-                cos(rotateAmount), -sin(rotateAmount),
-                sin(rotateAmount), cos(rotateAmount)
-           );
-        #endif
-
-        vec3 shadow_color = vec3(0);
-
-    	for(int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++) {
-            for(int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++) {
-                vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.25 * PCF_SIZE_HALF);
-                sampleCoord *= penumbraSize;
-
-                #if USE_RANDOM_ROTATION
-                    sampleCoord = kernelRotation * sampleCoord;
-                #endif
-
-                float shadowDepth = texture2D(shadow, shadowCoord.st + sampleCoord).r;
-                float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
-
-                float waterDepth = texture2D(watershadow, shadowCoord.st + sampleCoord).r;
-                float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
-
-                vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
-                float transparency = texture2D(shadowcolor1, shadowCoord.st + sampleCoord).a;
-
-                colorSample = mix(colorSample, vec3(1.0), waterVisibility);
-                colorSample = mix(vec3(0.0), colorSample, visibility);
-
-                shadow_color += colorSample;
-
-                numSamples++;
-            }
-    	}
-
-        return vec3(shadow_color / numSamples);
-    #endif
-}
-
-vec3 fresnel(vec3 specularColor, float hdotl) {
-    return specularColor + (vec3(1.0) - specularColor) * pow(1.0f - hdotl, 5);
-}
-
-vec3 calcDirectLighting(in Pixel pixel) {
-    //data that's super important to the shading algorithm
-    vec3 albedo = pixel.color;
-    vec3 normal = pixel.normal;
-    float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
-    float metalness = pixel.metalness;
-    vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3(0.2);
-    specularColor *= pixel.smoothness;
-
-    //Other useful value
-    vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
-    viewVector = (gbufferModelView * vec4(viewVector, 0)).xyz;
-    vec3 halfVector = normalize(lightVector + viewVector);
-    float specularNormalization = (specularPower + 2.0) / 8.0;
-
-
-    float ndotl = dot(normal, lightVector);
-    float ndoth = dot(normal, halfVector);
-    float vdoth = dot(viewVector, halfVector);
-
-    ndotl = max(0, ndotl);
-    ndoth = max(0, ndoth);
-
-    //calculate diffuse lighting
-    vec3 lambert = albedo * ndotl;
-
-    vec3 fresnel = fresnel(specularColor, vdoth);
-
-    //microfacet slope distribution
-    //Or, how likely is it that microfacets are oriented toward the half vector
-    float d = pow(ndoth, specularPower);
-
-    vec3 specular = fresnel * specularNormalization * d * ndotl;
-
-    lambert = (vec3(1.0) - specular) * lambert * (1 - metalness);
-
-    //use skyLighting as a maximum amount of direct lighting
-    vec3 directLighting = (lambert + specular) * lightColor * getSkyLighting();
-
-    #if SHADOW_QUALITY != OFF
-        directLighting *= calcShadowing(pixel.position);
-    #endif
-    //return vec3(getSkyLighting());
-    return directLighting;
-}
-
-vec2 texelToScreen(vec2 texel) {
-    float newx = texel.x / viewWidth;
-    float newy = texel.y / viewHeight;
-    return vec2(newx, newy);
-}
-
-vec2 getCoordFromCameraSpace(in vec3 position) {
-    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
-    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
-    return ndcSpacePosition * 0.5 + 0.5;
-}
-
-vec3 getCameraSpacePosition(vec2 uv) {
-    float depth = getDepth(uv);
-    vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-         fragposition /= fragposition.w;
-    return fragposition.xyz;
-}
-
-float calculateDitherPattern() {
-    const int[64] ditherPattern = int[64] ( 1, 49, 13, 61,  4, 52, 16, 64,
-                                           33, 17, 45, 29, 36, 20, 48, 32,
-                                            9, 57,  5, 53, 12, 60,  8, 56,
-                                           41, 25, 37, 21, 44, 28, 40, 24,
-                                            3, 51, 15, 63,  2, 50, 14, 62,
-                                           35, 19, 47, 31, 34, 18, 46, 30,
-                                           11, 59,  7, 55, 10, 58,  6, 54,
-                                           43, 27, 39, 23, 42, 26, 38, 22);
-
-    vec2 count = vec2(0.0f);
-         count.x = floor(mod(coord.s * viewWidth, 8.0f));
-         count.y = floor(mod(coord.t * viewHeight, 8.0f));
-
-    int dither = ditherPattern[int(count.x) + int(count.y) * 8];
-
-    return float(dither) / 64.0f;
-}
-
-//Determines the UV coordinate where the ray hits
-//If the returned value is not in the range [0, 1] then nothing was hit.
-//NOTHING!
-//Note that origin and direction are assumed to be in screen-space coordinates, such that
-//  -origin.st is the texture coordinate of the ray's origin
-//  -direction.st is of such a length that it moves the equivalent of one texel
-//  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec3 castRay(in vec3 origin, in vec3 rayStep) {
-    float dither = calculateDitherPattern();
-    vec3 curPos = origin;
-    vec2 curCoord = getCoordFromCameraSpace(curPos);
-    rayStep = normalize(rayStep) * RAY_STEP_LENGTH;// * calculateDitherPattern() * 0.0625;
-    bool forward = true;
-    float distanceTravelled = 0;
-    float hasResult = 0.0;
-    vec3 retVal = vec3(-1);
-
-    //The basic idea here is the the ray goes forward until it's behind something,
-    //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
-        curPos += rayStep;
-        distanceTravelled += sqrt(dot(rayStep, rayStep));
-        curCoord = getCoordFromCameraSpace(curPos);
-
-        float worldDepth = getCameraSpacePosition(curCoord).z;
-        float rayDepth = curPos.z;
-        float depthDiff = (worldDepth - rayDepth);
-        float maxDepthDiff = length(rayStep) + RAY_DEPTH_BIAS;
-        if(forward) {
-            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                //return curCoord;
-                rayStep = -1 * normalize(rayStep) * 0.15;
-                forward = false;
-            }
-        } else {
-            depthDiff *= -1;
-            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                return vec3(curCoord, distanceTravelled);
-            }
-        }
-        rayStep *= RAY_GROWTH;
-    }
-
-    return retVal;
-}
-
-//calcualtes the lighting from the torches
-vec4 computeRaytracedLight(in vec3 viewSpacePos, in vec3 normal) {
-    //Find where the ray hits
-    //get the blur at that point
-    //mix with the color
-    vec3 rayStart = viewSpacePos.xyz;
-    vec2 noiseCoord = vec2(coord.s * viewWidth / 64.0, coord.t * viewHeight / 64.0);
-    vec3 retColor = vec3(0);
-    vec3 noiseSample = vec3(0);
-    vec3 reflectDir = vec3(0);
-    vec3 hitUV = vec3(0);
-    float numHitRays = 0;
-
-    //trace the number of rays defined previously
-    for(int i = 0; i < NUM_DIFFUSE_RAYS; i++) {
-        noiseSample = vec3(
-            rand(noiseCoord * (i + 1)),
-            rand(noiseCoord * (i + 5)),
-            rand(noiseCoord * (i + 32))
-            ) * 2.0 - 1.0;
-        //noiseSample = normalize(noiseSample);
-
-        reflectDir = normalize(noiseSample * 0.5 + normal);
-        reflectDir *= sign(dot(normal, reflectDir));
-
-        //return vec4(reflectDir, 1.0);
-
-        hitUV = castRay(rayStart, reflectDir);
-        if(hitUV.s > 0.0 && hitUV.s < 1.0 && hitUV.t > 0.0 && hitUV.t < 1.0) {
-            float emissive = getEmission(hitUV.st);
-            emissive = clamp(emissive, 0.0, 1.0);
-
-            retColor += getColor(hitUV.st);// / (hitUV.z * hitUV.z) * emissive;
-            numHitRays++;
-        }
-    }
-
-    return vec4(retColor, numHitRays) / float(NUM_DIFFUSE_RAYS);
-}
-
-vec3 calcTorchLighting(in Pixel pixel) {
-    if(pixel.metalness > 0.5) {
-        return vec3(0);
-    }
-
-    //determine if there is a gradient in the torch lighting
-    float t1 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(1, 0))).g - 0.1;
-    float t2 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(0, 1))).g - 0.1;
-    t1 = max(t1, 0);
-    t2 - max(t2, 0);
-    float t3 = max(t1, t2);
-    float torchMul = step(t3, 0.1);
-
-    float torchFac = texture2D(gaux2, coord).g;
-    //vec4 bouncedTorchColor = computeRaytracedLight(getCameraSpacePosition(coord).rgb, pixel.normal);
-    vec3 torchColor = vec3(1, 0.6, 0.4); // mix(bouncedTorchColor.rgb, vec3(1, 0.6, 0.4), 0.0);//bouncedTorchColor.a);
-    float torchIntensity = length(torchColor * torchFac);
-    torchIntensity = pow(torchIntensity, 2);
-    torchColor *= torchIntensity;
-    return torchColor;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//                              Main Functions                               //
-///////////////////////////////////////////////////////////////////////////////
-
-Pixel fillPixelStruct() {
-    Pixel pixel;
-    pixel.position =        getWorldSpacePosition();
-    pixel.screenPosition =  getScreenSpacePosition();
-    pixel.normal =          getNormal();
-    pixel.color =           getColor();
-    pixel.metalness =       getMetalness();
-    pixel.smoothness =      getSmoothness();
-    pixel.skipLighting =    shouldSkipLighting();
-    pixel.water =           getWater();
-    pixel.sky =             getSky();
-    pixel.directLighting =  vec3(0);
-    pixel.torchLighting =   vec3(0);
-
-    return pixel;
-}
-
-/*!
- * \brief Calculates the amount of water fog at the given location
- */
-void calculateWaterFog(inout Pixel pixel) {
-    float water_distance = getDepthLinear(depthtex1, coord) - getDepthLinear(gdepthtex, coord);//getDepthLinear(coord, gdepthtex) - getDepthLinear(coord, depthtex1);
-
-    float fog_amount = water_distance * WATER_FOG_DENSITY;
-    fog_amount = clamp(fog_amount, 0.0, 1.0);
-
-    pixel.color = mix(pixel.color, WATER_FOG_COLOR, fog_amount);
-}
-
-float calcSSAO() {
-    float ssaoFac = SSAO_STRENGTH;
-    float compareDepth = getDepthLinear(coord);
-
-    float radiusx = SSAO_RADIUS / (viewWidth * compareDepth);
-    float radiusy = SSAO_RADIUS / (viewHeight * compareDepth);
-    vec2 sampleScale = vec2(radiusx, radiusy);
-
-    float occlusionPerSample = ssaoFac / float(SSAO_SAMPLES);
-
-    vec3 colorAccum = vec3(0);
-
-    vec2 sampleCoord;
-    vec3 normal = getNormal();
-    for(int i = 0; i < SSAO_SAMPLES; i++) {
-        sampleCoord = poisson(rand(coord * 1));
-        sampleCoord *= sign(dot(sampleCoord, normal.xy));
-        sampleCoord = sampleCoord * sampleScale + coord;
-        float depthDiff = compareDepth - getDepthLinear(sampleCoord);
-        if(depthDiff > 0.05 && depthDiff < SSAO_MAX_DEPTH) {
-            ssaoFac -= occlusionPerSample * (1 - (depthDiff / SSAO_MAX_DEPTH));
-        }
-    }
-
-    ssaoFac = max(ssaoFac, 0);
-
-    colorAccum /= SSAO_SAMPLES;
-    return ssaoFac;
-}
-
-vec4 calcSkyScattering(in vec3 worldPosition) {
-    // Send a ray through the atmosphere, sampling the shadow at each position
-
-    vec3 rayStart = getWorldSpacePosition(vec4(coord, 0, 1)).xyz;
-    rayStart += vec3(-0.5, 0.0, 1.5);
-    vec4 rayPos = vec4(rayStart, 1.0);
-    vec3 viewVector = normalize(worldPosition - cameraPosition);
-    vec3 direction =  viewVector * calculateDitherPattern() * 2;
-    vec3 rayColor = vec3(0);
-    float distanceToPixel = length(worldPosition - cameraPosition);
-    float numSteps = 0;
-
-    rayColor = vec3(distanceToPixel);
-    float num_hit = 0;
-
-    // Calculate VL for the first 70 units
-    for(int i = 0; i < 10; i++) {
-        rayPos.xyz += direction;
-
-        vec3 shadowCoord = calcShadowCoordinate(rayPos);
-        //shadowCoord.st += vec2(0.5 / shadowMapResolution);
-
-        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
-        float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
-
-        float waterDepth = texture2D(watershadow, shadowCoord.st).r;
-        float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
-
-        vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st).rgb;
-        float transparency = texture2D(shadowcolor1, shadowCoord.st).a;
-
-        colorSample = mix(colorSample, vec3(1.0), waterVisibility);
-        colorSample = mix(vec3(0.0), colorSample, visibility);
-        rayColor += colorSample;
-
-        numSteps += visibility;
-
-        if(length(rayPos.xyz - rayStart) > distanceToPixel) {
-            break;
-        }
-    }
-
-    return vec4(rayColor * 0.01, numSteps * ATMOSPHERIC_DENSITY * 0.1);
-}
-
-vec3 calcLitColor(in Pixel pixel) {
-    vec3 ambientColorCorrected = ambientColor + vec3(0.5) * pixel.metalness;
-    ambientColorCorrected *= getSkyLighting();
-
-    #if SSAO
-        ambientColorCorrected *= calcSSAO();
-    #endif
-
-    //return pixel.torchLighting;
-
-    return pixel.color * pixel.directLighting +
-           pixel.color * pixel.torchLighting +
-           pixel.color * ambientColorCorrected;
-}
-
-float luma(in vec3 color) {
-    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+ 	return light / 15;
 }
 
 void main() {
-    curFrag = fillPixelStruct();
+    vec4 position_viewspace = get_viewspace_position(coord);
+    vec3 normal = get_normal(coord);
 
-    if(curFrag.water > 0.5) {
-        calculateWaterFog(curFrag);
-    }
+    vec3 gi = calculate_gi(coord, position_viewspace, normal);
 
-    if(curFrag.sky > 0.5) {
-        vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        viewVector = (gbufferModelView * vec4(viewVector, 0)).xyz;
-        curFrag.color = getSkyColor(viewVector, lightVector, skyColor, cameraPosition);
-    }
-
-    vec3 finalColor = vec3(0);
-
-    if(!curFrag.skipLighting) {
-        curFrag.directLighting = calcDirectLighting(curFrag);
-        curFrag.torchLighting = calcTorchLighting(curFrag);
-
-        finalColor = calcLitColor(curFrag);
-    } else {
-        finalColor = curFrag.color;
-    }
-
-    vec4 skyScattering = calcSkyScattering(curFrag.position.xyz);
-
-    gl_FragData[0] = texture2D(gcolor, coord);
-    gl_FragData[1] = skyScattering;
-    gl_FragData[2] = texture2D(gnormal, coord);
-
-    gl_FragData[3] = vec4(finalColor, 1);
-
-    gl_FragData[4] = texture2D(gaux1, coord);
-    gl_FragData[5] = texture2D(gaux2, coord);
-    gl_FragData[6] = texture2D(gaux3, coord);
-
+    gl_FragData[0] = vec4(pow(gi, vec3(1 / 2.2)), 1.0);
 }

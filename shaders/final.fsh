@@ -4,12 +4,8 @@
 #define SATURATION 0.9
 #define CONTRAST 1.0
 
-//#define FXAA
-#define EDGE_LUMA_THRESHOLD 0.5
-
 //#define FILM_GRAIN
 #define FILM_GRAIN_STRENGTH 0.075
-
 
 //#define BLOOM
 #define BLOOM_RADIUS 9
@@ -34,11 +30,13 @@ const bool gaux3MipmapEnabled = true;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
+uniform sampler2D gnormal;
 uniform sampler2D gdepthtex;
 uniform sampler2D composite;
 uniform sampler2D gaux1;
 uniform sampler2D gaux2;
 uniform sampler2D gaux3;
+uniform sampler2D gaux4;
 
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
@@ -57,10 +55,9 @@ float getSmoothness(in vec2 coord) {
 }
 
 vec3 getColorSample(in vec2 coord) {
-    float roughness = 1.0 - getSmoothness(coord);
-    roughness *= roughness;
+    //float roughness = 1.0 - getSmoothness(coord);
     vec3 diffuse = texture2D(gaux1, coord).rgb;
-    vec3 specular = texture2DLod(gaux3, coord, roughness).rgb;
+    //vec3 specular = texture2DLod(gaux3, coord, roughness).rgb;
     return diffuse;
 }
 
@@ -71,61 +68,6 @@ float luma(vec3 color) {
 //actually texel to uv. Oops.
 vec2 uvToTexel(int s, int t) {
     return vec2(s / viewWidth, t / viewHeight);
-}
-
-//Written by DethRaid, dirty implementation of http://developer.download.nvidia.com/assets/gamedev/files/sdk/11/FXAA_WhitePaper.pdf
-void fxaa(inout vec3 color) {
-    //Are we on an edge? If so, which way is the edge going?
-    vec2 coordN = coord + uvToTexel( 0,  1);
-    vec2 coordS = coord + uvToTexel( 0, -1);
-    vec2 coordE = coord + uvToTexel( 1,  0);
-    vec2 coordW = coord + uvToTexel(-1,  0);
-
-    vec3 colorN = texture2D(gcolor, coordN).rgb;
-    vec3 colorS = texture2D(gcolor, coordS).rgb;
-    vec3 colorE = texture2D(gcolor, coordE).rgb;
-    vec3 colorW = texture2D(gcolor, coordW).rgb;
-
-    float lumaM = luma(color);
-    float lumaN = luma(colorN);
-    float lumaS = luma(colorS);
-    float lumaE = luma(colorE);
-    float lumaW = luma(colorW);
-
-    float diffN = abs(lumaM - lumaN);
-    float diffS = abs(lumaM - lumaS);
-    float diffE = abs(lumaM - lumaE);
-    float diffW = abs(lumaM - lumaW);
-
-    float diffH = max(diffN, diffS);
-    float diffV = max(diffE, diffW);
-
-    if(max(diffH, diffV) < EDGE_LUMA_THRESHOLD) {
-        //If there's not enough luma difference surrounding this pixel, go home
-        return;
-    }
-
-    int edgeDir;
-    int edgeSide;
-
-    if(diffE > diffV) {
-        edgeDir = EAST;
-    }
-    if(diffW > diffV) {
-        edgeDir = WEST;
-    }
-    if(diffN > diffH) {
-        edgeDir = NORTH;
-    }
-    if(diffS > diffH) {
-        edgeDir = SOUTH;
-    }
-
-    if(edgeDir == EAST || edgeDir == WEST) {
-        edgeSide = (diffN > diffS ? NORTH : SOUTH);
-    } else if(edgeDir == NORTH || edgeDir == SOUTH) {
-        edgeSide = (diffE > diffW ? EAST : WEST);
-    }
 }
 
 void doBloom(inout vec3 color) {
@@ -206,9 +148,9 @@ vec3 doMotionBlur() {
 vec3 doToneMapping(in vec3 color) {
     //return unchartedTonemap(color);
     float lumac = luma(color);
-    float lWhite = 1.1;
+    float lWhite = 15;
 
-    float lumat = (lumac * (1.0 + (lumac / (lWhite * lWhite)))) / (1.0 + lumac);
+    float lumat = (lumac * (15 + (lumac / (lWhite * lWhite)))) / (15 + lumac);
     float scale = lumat / lumac;
     return color * scale;
 }
@@ -243,5 +185,5 @@ color = doToneMapping(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gdepth, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gaux4, coord).rgb, 1.0);
 }
