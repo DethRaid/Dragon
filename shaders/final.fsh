@@ -1,8 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 0.9
-#define CONTRAST 1.0
+#define SATURATION 1.1
+#define CONTRAST 0.8
 
 //#define FILM_GRAIN
 #define FILM_GRAIN_STRENGTH 0.075
@@ -56,7 +56,7 @@ float getSmoothness(in vec2 coord) {
 
 vec3 getColorSample(in vec2 coord) {
     //float roughness = 1.0 - getSmoothness(coord);
-    vec3 diffuse = texture2D(gaux1, coord).rgb;
+    vec3 diffuse = texture2D(composite, coord).rgb;
     //vec3 specular = texture2DLod(gaux3, coord, roughness).rgb;
     return diffuse;
 }
@@ -169,12 +169,8 @@ void main() {
 
 color = doToneMapping(color);
 
-#ifdef FXAA
-    fxaa(color);
-#endif
-
-    //correctColor(color);
-    contrastEnhance(color);
+//correctColor(color);
+contrastEnhance(color);
 
 #ifdef FILM_GRAIN
     doFilmGrain(color);
@@ -185,5 +181,5 @@ color = doToneMapping(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gaux4, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gaux3, coord).rgb, 1.0);
 }

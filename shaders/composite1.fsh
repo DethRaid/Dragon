@@ -27,7 +27,7 @@ const int   RGB32F                  = 6;
 const int 	gcolorFormat 			= RGB16;
 const int 	gdepthFormat 			= RGBA8;
 const int 	gnormalFormat 			= RGBA16;
-const int 	compositeFormat 		= RGB16F;
+const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
 const int   gaux2Format             = RGBA8;
 const int   shadowcolor0Format      = RGB8;
@@ -121,6 +121,7 @@ uniform sampler2D gdepthtex;
 uniform sampler2D depthtex1;
 uniform sampler2D gnormal;
 uniform sampler2D gaux2;
+uniform sampler2D gaux3;
 uniform sampler2D gaux4;
 
 uniform sampler2D shadow;
@@ -154,10 +155,9 @@ varying vec3 fogColor;
 varying vec3 skyColor;
 varying vec3 ambientColor;
 
-/* DRAWBUFFERS:13 */
+/* DRAWBUFFERS:34 */
 
 #include "/lib/wind.glsl"
-#include "/lib/sky.glsl"
 
 struct Pixel {
     vec4 position;
@@ -215,6 +215,11 @@ vec4 getWorldSpacePosition() {
 	return getWorldSpacePosition(pos);
 }
 
+vec4 worldspace_to_viewspace(in vec4 position_viewspace) {
+	vec4 pos = gbufferModelView * position_viewspace;
+	return pos;
+}
+
 vec3 getColor(in vec2 coord) {
     return pow(texture2DLod(gcolor, coord, 0).rgb, vec3(2.2));
 }
@@ -261,6 +266,21 @@ vec3 get_gi(in vec2 coord) {
 
 vec3 getNoise(in vec2 coord) {
     return texture2D(noisetex, coord.st * vec2(viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution)).rgb;
+}
+
+vec3 get_sky_color(in vec3 direction) {
+    float lon = atan(direction.z, direction.x);
+    if(direction.z < 0) {
+        lon = 2 * PI - atan(-direction.z, direction.x);
+    }
+
+    float lat = acos(direction.y);
+
+    const vec2 rads = vec2(1.0 / (PI * 2.0), 1.0 / PI);
+    vec2 sphereCoords = vec2(lon, lat) * rads;
+    sphereCoords.y = 1.0 - sphereCoords.y;
+
+    return texture2D(gaux3, sphereCoords).rgb;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -495,13 +515,20 @@ vec3 calcDirectLighting(in Pixel pixel) {
     lambert = (vec3(1.0) - specular) * lambert * (1 - metalness);
 
     //use skyLighting as a maximum amount of direct lighting
-    vec3 directLighting = (lambert + specular) * lightColor * getSkyLighting();
+    vec3 sun_lighting = (lambert + specular) * lightColor;
 
     #if SHADOW_QUALITY != OFF
-        directLighting *= calcShadowing(pixel.position);
+        sun_lighting *= calcShadowing(pixel.position);
     #endif
-    //return vec3(getSkyLighting());
-    return directLighting;
+
+    vec3 sky_vector = worldspace_to_viewspace(vec4(0, 1, 0, 0)).xyz;    // Assume the sky always shines straight down
+    float sky_strength = dot(normal, sky_vector) * 0.5 + 0.5;
+    sky_strength = max(0, sky_strength);
+    sky_strength = min(sky_strength, getSkyLighting());
+
+    vec3 sky_lighting = get_sky_color(-viewVector) * sky_strength * albedo;
+
+    return sun_lighting + sky_lighting;
 }
 
 vec2 texelToScreen(vec2 texel) {
@@ -653,8 +680,7 @@ void main() {
 
     if(curFrag.sky > 0.5) {
         vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        viewVector = (gbufferModelView * vec4(viewVector, 0)).xyz;
-        curFrag.color = getSkyColor(viewVector, lightVector, skyColor, cameraPosition);
+        curFrag.color = get_sky_color(viewVector);
     }
 
     vec3 finalColor = vec3(0);
@@ -670,7 +696,7 @@ void main() {
 
     vec4 skyScattering = calc_volumetric_lighting(curFrag.position.xyz);
 
-    gl_FragData[0] = skyScattering;
-    gl_FragData[1] = vec4(finalColor, 1);
+    gl_FragData[0] = vec4(finalColor, 1);
+    gl_FragData[1] = skyScattering;
 
 }

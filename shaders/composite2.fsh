@@ -10,14 +10,16 @@
 #define RAY_GROWTH              1.0    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+
+#define PI 3.14159
 
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
-/* DRAWBUFFERS:46 */
+/* DRAWBUFFERS:3 */
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -25,6 +27,7 @@ uniform sampler2D gdepth;
 uniform sampler2D gaux2;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
+uniform sampler2D gaux1;
 uniform sampler2D gaux3;
 
 uniform sampler2D noisetex;
@@ -49,6 +52,7 @@ struct Pixel1 {
     vec3 position;
     vec3 color;
     vec3 normal;
+    vec3 specular_color;
     bool skipLighting;
     float metalness;
     float smoothness;
@@ -83,10 +87,8 @@ vec3 getWorldSpacePosition(vec2 uv) {
 	return pos.xyz;
 }
 
-vec3 cameraToWorldSpace(vec3 cameraPos) {
-    vec4 pos = vec4(cameraPos, 1);
-    pos = gbufferModelViewInverse * pos;
-    pos.xyz /= pos.w;
+vec3 cameraToWorldSpace(vec4 cameraPos) {
+    vec4 pos = gbufferModelViewInverse * cameraPos;
     return pos.xyz;
 }
 
@@ -121,6 +123,23 @@ float getWater() {
     return texture2D(gnormal, coord).a;
 }
 
+vec3 get_sky_color(in vec3 direction, in float smoothness) {
+    float lon = atan(direction.z, direction.x);
+    if(direction.z < 0) {
+        lon = 2 * PI - atan(-direction.z, direction.x);
+    }
+
+    float lat = acos(direction.y); // Remove divide if a_coords is normalized
+
+    const vec2 rads = vec2(1.0 / (PI * 2.0), 1.0 / PI);
+    vec2 sphereCoords = vec2(lon, lat) * rads;
+    sphereCoords.y = 1.0 - sphereCoords.y;
+
+    float lod = (1.0 - smoothness) * 6;
+
+    return texture2DLod(gaux3, sphereCoords, lod).rgb;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,6 +152,7 @@ void fillPixelStruct(inout Pixel1 pixel) {
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
     pixel.water =           getWater();
+    pixel.specular_color    = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
 }
 
 //Determines the UV coordinate where the ray hits
@@ -184,6 +204,18 @@ vec2 castRay(in vec3 origin, in vec3 direction, in float maxDist) {
     return vec2(-1);
 }
 
+vec3 get_reflected_sky(in Pixel1 pixel) {
+    vec3 reflect_dir = reflect(pixel.position, pixel.normal);
+    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness);
+
+    float vdotn = dot(pixel.normal, pixel.position);
+    vdotn = max(0, vdotn);
+
+    vec3 fresnel = pixel.specular_color + (vec3(1.0) - pixel.specular_color) * pow(1.0 - vdotn, 5);
+
+    return (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + sky_sample * fresnel * pixel.smoothness;
+}
+
 vec3 doLightBounce(in Pixel1 pixel) {
     //Find where the ray hits
     //get the blur at that point
@@ -196,6 +228,8 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 rayDir = vec3(0);
     vec2 hitUV = vec2(0);
 
+    vec3 reflected_sky = get_reflected_sky(pixel);
+
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2.0 - 1.0;
@@ -205,9 +239,18 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
         hitUV = castRay(rayStart, rayDir, MAX_RAY_LENGTH);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
-            retColor += texture2DLod(composite, hitUV.st, 0).rgb;
+            vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
+
+            vec3 viewVector = normalize(getCameraSpacePosition(coord));
+
+            float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
+
+            vec3 sColor = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
+            vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
+
+            retColor += (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + reflection_sample * fresnel * pixel.smoothness;
         } else {
-            retColor += skyColor * pixel.water + pixel.color * (1.0 - pixel.water);
+            retColor += reflected_sky * pixel.water + pixel.color * (1.0 - pixel.water);
         }
     }
 
@@ -245,11 +288,14 @@ void main() {
     }
 #endif
 
-    vec4 vlColor = texture2DLod(gdepth, coord, 3);
-    hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
+    vec3 normal_world = cameraToWorldSpace(vec4(pixel.normal, 0.0));
+    //hitColor = get_sky_color(pixel.normal, pixel.smoothness);
+    //hitColor = normal_world;
+
+    vec4 vlColor = texture2DLod(gaux1, coord, 3);
+    //hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
 
     hitColor = pow(hitColor, vec3(1.0 / 2.2));
 
     gl_FragData[0] = vec4(hitColor, 1);
-    gl_FragData[1] = vec4(reflectedColor, 1.0);
 }
