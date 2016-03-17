@@ -25,13 +25,15 @@ const int   RGBA8                   = 4;
 const int   RGB16F                  = 5;
 const int   RGB32F                  = 6;
 const int 	gcolorFormat 			= RGB16;
-const int 	gdepthFormat 			= RGBA8;
+const int 	gdepthFormat 			= RGB32F;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
 const int   gaux2Format             = RGBA8;
 const int   shadowcolor0Format      = RGB8;
 const int   shadowcolor1Format      = RGBA8;
+
+const bool gdepthMipmapEnabled      = true;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
@@ -91,7 +93,7 @@ const int   shadowcolor1Format      = RGBA8;
  */
 #define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
 
-#define SHADOW_BIAS                 0.0065
+#define SHADOW_BIAS                 0.0055
 
 #define WATER_FOG_DENSITY           0.25
 #define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
@@ -215,8 +217,13 @@ vec4 getWorldSpacePosition() {
 	return getWorldSpacePosition(pos);
 }
 
-vec4 worldspace_to_viewspace(in vec4 position_viewspace) {
-	vec4 pos = gbufferModelView * position_viewspace;
+vec4 worldspace_to_viewspace(in vec4 position_worldspace) {
+	vec4 pos = gbufferModelView * position_worldspace;
+	return pos;
+}
+
+vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
+	vec4 pos = gbufferModelViewInverse * position_viewspace;
 	return pos;
 }
 
@@ -241,7 +248,7 @@ float getWater() {
 }
 
 float getSky() {
-    return texture2D(gdepth, coord).g;
+    return texture2D(gaux3, coord).g;
 }
 
 float getSmoothness() {
@@ -257,7 +264,7 @@ float getMetalness() {
 }
 
 float getSkyLighting() {
-    return texture2D(gdepth, coord).r;
+    return texture2D(gaux3, coord).r;
 }
 
 vec3 get_gi(in vec2 coord) {
@@ -268,7 +275,7 @@ vec3 getNoise(in vec2 coord) {
     return texture2D(noisetex, coord.st * vec2(viewWidth / noiseTextureResolution, viewHeight / noiseTextureResolution)).rgb;
 }
 
-vec3 get_sky_color(in vec3 direction) {
+vec3 get_sky_color(in vec3 direction, in float lod) {
     float lon = atan(direction.z, direction.x);
     if(direction.z < 0) {
         lon = 2 * PI - atan(-direction.z, direction.x);
@@ -280,7 +287,7 @@ vec3 get_sky_color(in vec3 direction) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return texture2D(gaux3, sphereCoords).rgb;
+    return pow(texture2DLod(gdepth, sphereCoords, lod).rgb, vec3(2.2));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -521,12 +528,7 @@ vec3 calcDirectLighting(in Pixel pixel) {
         sun_lighting *= calcShadowing(pixel.position);
     #endif
 
-    vec3 sky_vector = worldspace_to_viewspace(vec4(0, 1, 0, 0)).xyz;    // Assume the sky always shines straight down
-    float sky_strength = dot(normal, sky_vector) * 0.5 + 0.5;
-    sky_strength = max(0, sky_strength);
-    sky_strength = min(sky_strength, getSkyLighting());
-
-    vec3 sky_lighting = get_sky_color(-viewVector) * sky_strength * albedo;
+    vec3 sky_lighting = get_sky_color(viewspace_to_worldspace(vec4(pixel.normal, 0.0)).xyz, 5) * getSkyLighting() * 0.01 * albedo;
 
     return sun_lighting + sky_lighting;
 }
@@ -658,9 +660,6 @@ vec4 calc_volumetric_lighting(in vec3 worldPosition) {
 
 vec3 calcLitColor(in Pixel pixel) {
     vec3 ambientColorCorrected = get_gi(coord) * (1.0 - pixel.metalness);
-    ambientColorCorrected *= getSkyLighting();
-
-    //return pixel.torchLighting;
 
     return pixel.color * pixel.directLighting +
            pixel.color * pixel.torchLighting +
@@ -680,7 +679,7 @@ void main() {
 
     if(curFrag.sky > 0.5) {
         vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        curFrag.color = get_sky_color(viewVector);
+        curFrag.color = get_sky_color(viewVector, 0);
     }
 
     vec3 finalColor = vec3(0);

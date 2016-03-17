@@ -10,7 +10,7 @@
 #define RAY_GROWTH              1.0    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -18,6 +18,9 @@
 
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
+
+const int   RGB32F                  = 0;
+const int 	gdepthFormat 			= RGB32F;
 
 /* DRAWBUFFERS:3 */
 
@@ -137,7 +140,7 @@ vec3 get_sky_color(in vec3 direction, in float smoothness) {
 
     float lod = (1.0 - smoothness) * 6;
 
-    return texture2DLod(gaux3, sphereCoords, lod).rgb;
+    return texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

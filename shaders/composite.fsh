@@ -12,10 +12,10 @@
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			33
 #define MIE_BRIGHTNESS 				100
-#define MIE_DISTRIBUTION 			63
+#define MIE_DISTRIBUTION 			-0.75
 #define STEP_COUNT 					15.0
 #define SCATTER_STRENGTH			28
-#define INTENSITY					1.8
+#define INTENSITY					0.09
 #define RAYLEIGH_STRENGTH			139
 #define MIE_STRENGTH				264
 #define RAYLEIGH_COLLECTION_POWER	1
@@ -27,7 +27,7 @@
 
 #define PI 3.14159
 
-const int RGB16F					= 0;
+const int RGB32F					= 0;
 
 const int   shadowMapResolution     = 4096;
 const float shadowDistance          = 120.0;
@@ -37,7 +37,7 @@ const bool  shadowHardwareFiltering = false;
 const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
-const int 	gaux3format				= RGB16F;
+const int 	gdepthFormat			= RGB32F;
 
 uniform sampler2D gdepthtex;
 uniform sampler2D colortex2;
@@ -66,7 +66,7 @@ varying vec3 ambientColor;
 varying vec3 fogColor;
 varying vec3 skyColor;
 
-/* DRAWBUFFERS:76 */
+/* DRAWBUFFERS:71 */
 
 vec3 get_normal(in vec2 coord) {
 	return texture2DLod(colortex2, coord, 0).xyz * 2.0 - 1.0;
@@ -213,6 +213,7 @@ float horizon_extinction(vec3 position, vec3 dir, float radius) {
 }
 
 vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);	// Color of nitrogen
+vec3 MieColor = vec3(1.0) - Kr;
 
 vec3 absorb(float dist, vec3 color, float factor) {
 	return color - color * pow(Kr, vec3(factor / dist));
@@ -288,17 +289,17 @@ vec3 get_sky_color(in vec2 coord) {
 		float extinction = horizon_extinction(position, light_vector_worldspace, SURFACE_HEIGHT - 0.35);
 		float sample_depth = atmospheric_depth(position, light_vector_worldspace);
 
-		vec3 influx = absorb(sample_depth, vec3(INTENSITY), SCATTER_STRENGTH) * extinction;
-		rayleigh_collected += max(absorb(sample_distance, Kr * influx, RAYLEIGH_STRENGTH), 0.0);
+		vec3 influx = absorb(sample_depth, lightColor * INTENSITY, SCATTER_STRENGTH) * extinction;
+		rayleigh_collected += absorb(sample_distance, Kr * influx, RAYLEIGH_STRENGTH);
 		mie_collected += absorb(sample_distance, influx, MIE_STRENGTH);
 	}
 
 	rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / float(STEP_COUNT);
 	mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / float(STEP_COUNT);
 
-	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected * 0) + (rayleigh_factor * rayleigh_collected);
+	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 
-	return (color);
+	return color;
 }
 
 void main() {

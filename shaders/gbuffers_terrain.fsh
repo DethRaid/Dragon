@@ -30,7 +30,7 @@ void main() {
     gl_FragData[0] = texColor;//vec4(vec3(sData.a), 1.0);
 
     //sky lighting, isSky, 0, 1
-    gl_FragData[1] = vec4(uvLight.g, 0, 0, 1);
+    gl_FragData[6] = vec4(uvLight.g, 0, 0, 1);
 
     vec3 texnormal = texture2D(normals, uv).xyz * 2.0 - 1.0;
     texnormal = tbnMatrix * texnormal;

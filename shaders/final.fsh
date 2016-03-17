@@ -26,7 +26,10 @@
 #define WEST    2
 #define EAST    3
 
-const bool gaux3MipmapEnabled = true;
+const bool gdepthMipmapEnabled = true;
+
+const int   RGB32F                  = 0;
+const int 	gdepthFormat 			= RGB32F;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
@@ -181,5 +184,5 @@ contrastEnhance(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gaux3, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gdepth, coord).rgb, 1.0);
 }
