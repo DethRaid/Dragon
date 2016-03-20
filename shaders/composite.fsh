@@ -15,7 +15,7 @@
 #define MIE_DISTRIBUTION 			-0.75
 #define STEP_COUNT 					15.0
 #define SCATTER_STRENGTH			28
-#define INTENSITY					0.09
+#define INTENSITY					1.8
 #define RAYLEIGH_STRENGTH			139
 #define MIE_STRENGTH				264
 #define RAYLEIGH_COLLECTION_POWER	1
@@ -282,6 +282,11 @@ vec3 get_sky_color(in vec2 coord) {
 
 	vec3 rayleigh_collected = vec3(0);
 	vec3 mie_collected = vec3(0);
+	float light_depth = atmospheric_depth(eye_position, light_vector_worldspace);
+	float toward_light_factor = dot(light_vector_worldspace, eye_vector) * 0.5 + 0.5;
+	vec3 light_color = lightColor - (Kr * light_depth * 150 * toward_light_factor);	// As more and more light goes to Rayleigh, less and less should go to the sun
+
+	vec3 influx_collected = vec3(0);
 
 	for(int i = 0; i < STEP_COUNT; i++) {
 		float sample_distance = step_length * float(i);
@@ -289,13 +294,20 @@ vec3 get_sky_color(in vec2 coord) {
 		float extinction = horizon_extinction(position, light_vector_worldspace, SURFACE_HEIGHT - 0.35);
 		float sample_depth = atmospheric_depth(position, light_vector_worldspace);
 
-		vec3 influx = absorb(sample_depth, lightColor * INTENSITY, SCATTER_STRENGTH) * extinction;
+		vec3 influx = absorb(sample_depth, light_color * INTENSITY, SCATTER_STRENGTH) * extinction * (toward_light_factor);
+		influx_collected += influx;
+
+		// rayleigh will make the nice blue band around the bottom of the sky
 		rayleigh_collected += absorb(sample_distance, Kr * influx, RAYLEIGH_STRENGTH);
 		mie_collected += absorb(sample_distance, influx, MIE_STRENGTH);
 	}
 
+	//return influx_collected / float(STEP_COUNT);
+
 	rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / float(STEP_COUNT);
 	mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / float(STEP_COUNT);
+
+	//return mie_collected;
 
 	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 

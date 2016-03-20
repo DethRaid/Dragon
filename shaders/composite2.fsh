@@ -3,14 +3,13 @@
 
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          50.0
-#define MAX_DEPTH_DIFFERENCE    0.1 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.35
-#define MAX_REFLECTIVITY        1.0 //As this value approaches 1, so do all reflections
+#define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.5
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
-#define RAY_GROWTH              1.0    //Make this number smaller to get more accurate reflections at the cost of performance
+#define RAY_GROWTH              1.25    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -20,7 +19,6 @@ const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
 const int   RGB32F                  = 0;
-const int 	gdepthFormat 			= RGB32F;
 
 /* DRAWBUFFERS:3 */
 
@@ -70,6 +68,10 @@ float rayLen;
 
 float getDepth(vec2 coord) {
     return texture2D(gdepthtex, coord).r;
+}
+
+float make_depth_linear(in float depth) {
+    return 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
 }
 
 float getDepthLinear(vec2 coord) {
@@ -230,13 +232,15 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 reflectDir = vec3(0);
     vec3 rayDir = vec3(0);
     vec2 hitUV = vec2(0);
+    int hitLayer = 0;
+    vec3 hitColor = vec3(0);
 
     vec3 reflected_sky = get_reflected_sky(pixel);
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2.0 - 1.0;
-        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal);
+        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 

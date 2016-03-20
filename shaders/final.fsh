@@ -29,7 +29,6 @@
 const bool gdepthMipmapEnabled = true;
 
 const int   RGB32F                  = 0;
-const int 	gdepthFormat 			= RGB32F;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepth;
@@ -184,5 +183,5 @@ contrastEnhance(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gdepth, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2DLod(gdepth, coord, 0).rgb / 10, 1.0);
 }

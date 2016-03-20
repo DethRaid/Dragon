@@ -25,7 +25,6 @@ const int   RGBA8                   = 4;
 const int   RGB16F                  = 5;
 const int   RGB32F                  = 6;
 const int 	gcolorFormat 			= RGB16;
-const int 	gdepthFormat 			= RGB32F;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
@@ -287,7 +286,7 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return pow(texture2DLod(gdepth, sphereCoords, lod).rgb, vec3(2.2));
+    return texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -466,7 +465,6 @@ vec3 calcShadowing(in vec4 fragPosition) {
                 float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
 
                 vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
-                float transparency = texture2D(shadowcolor1, shadowCoord.st + sampleCoord).a;
 
                 colorSample = mix(colorSample, vec3(1.0), waterVisibility);
                 colorSample = mix(vec3(0.0), colorSample, visibility);
@@ -528,7 +526,7 @@ vec3 calcDirectLighting(in Pixel pixel) {
         sun_lighting *= calcShadowing(pixel.position);
     #endif
 
-    vec3 sky_lighting = get_sky_color(viewspace_to_worldspace(vec4(pixel.normal, 0.0)).xyz, 5) * getSkyLighting() * 0.01 * albedo;
+    vec3 sky_lighting = get_sky_color(viewspace_to_worldspace(vec4(pixel.normal, 0.0)).xyz, 5) * getSkyLighting() * albedo;
 
     return sun_lighting + sky_lighting;
 }
@@ -679,7 +677,7 @@ void main() {
 
     if(curFrag.sky > 0.5) {
         vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        curFrag.color = get_sky_color(viewVector, 0);
+        curFrag.color = get_sky_color(viewVector, 0) / 100;
     }
 
     vec3 finalColor = vec3(0);
