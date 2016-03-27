@@ -14,7 +14,7 @@
 #define MIE_BRIGHTNESS 				100
 #define MIE_DISTRIBUTION 			-0.75
 #define STEP_COUNT 					15.0
-#define SCATTER_STRENGTH			28
+#define SCATTER_STRENGTH			100
 #define INTENSITY					1.8
 #define RAYLEIGH_STRENGTH			139
 #define MIE_STRENGTH				264
@@ -105,7 +105,7 @@ vec3 get_3d_noise(in vec2 coord) {
  * Calculates bounces diffuse light
  */
 
-vec3 calculate_gi(in vec2 coord, in vec4 position_viewspace, in vec3 normal) {
+vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
  	float NdotL = dot(normal, lightVector);
 
  	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
@@ -125,7 +125,7 @@ vec3 calculate_gi(in vec2 coord, in vec4 position_viewspace, in vec3 normal) {
 
  		float theta = percentage_done * (GI_QUALITY / 16) * PI;
  		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(coord * 1.3).xy * 3;
+ 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
  		offset /= shadowMapResolution;
 
  		vec3 sample_pos = vec3(position.xy + offset, 0.0);
@@ -146,7 +146,6 @@ vec3 calculate_gi(in vec2 coord, in vec4 position_viewspace, in vec3 normal) {
         vec3 flux = sample_color * light_strength;
 
  		light += flux * transmitted_light_strength * received_light_strength / falloff;
-        //light += flux * received_light_strength;
  	}
 
  	light /= GI_QUALITY;
@@ -284,7 +283,7 @@ vec3 get_sky_color(in vec2 coord) {
 	vec3 mie_collected = vec3(0);
 	float light_depth = atmospheric_depth(eye_position, light_vector_worldspace);
 	float toward_light_factor = dot(light_vector_worldspace, eye_vector) * 0.5 + 0.5;
-	vec3 light_color = lightColor - (Kr * light_depth * 150 * toward_light_factor);	// As more and more light goes to Rayleigh, less and less should go to the sun
+	vec3 spot_color = lightColor - (Kr * light_depth * 150 * toward_light_factor);	// As more and more light goes to Rayleigh, less and less should go to the sun
 
 	vec3 influx_collected = vec3(0);
 
@@ -294,7 +293,7 @@ vec3 get_sky_color(in vec2 coord) {
 		float extinction = horizon_extinction(position, light_vector_worldspace, SURFACE_HEIGHT - 0.35);
 		float sample_depth = atmospheric_depth(position, light_vector_worldspace);
 
-		vec3 influx = absorb(sample_depth, light_color * INTENSITY, SCATTER_STRENGTH) * extinction * (toward_light_factor);
+		vec3 influx = absorb(sample_depth, spot_color * INTENSITY, SCATTER_STRENGTH) * extinction;
 		influx_collected += influx;
 
 		// rayleigh will make the nice blue band around the bottom of the sky
@@ -302,10 +301,11 @@ vec3 get_sky_color(in vec2 coord) {
 		mie_collected += absorb(sample_distance, influx, MIE_STRENGTH);
 	}
 
-	//return influx_collected / float(STEP_COUNT);
+	//return influx_collected / STEP_COUNT;
 
-	rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / float(STEP_COUNT);
-	mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / float(STEP_COUNT);
+	rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / STEP_COUNT;
+	mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / STEP_COUNT;
+	//mie_collected *= spot_color;
 
 	//return mie_collected;
 
@@ -315,10 +315,14 @@ vec3 get_sky_color(in vec2 coord) {
 }
 
 void main() {
-    vec4 position_viewspace = get_viewspace_position(coord);
-    vec3 normal = get_normal(coord);
+    vec3 gi = vec3(0);
 
-    vec3 gi = calculate_gi(coord, position_viewspace, normal);
+	vec2 gi_coord = coord * 2.0;
+	if(gi_coord.x < 1 && gi_coord.y < 1) {
+	    vec4 position_viewspace = get_viewspace_position(gi_coord);
+	    vec3 normal = get_normal(gi_coord);
+		gi = calculate_gi(gi_coord, position_viewspace, normal);
+	}
 
 	vec3 sky_color = get_sky_color(coord);
 

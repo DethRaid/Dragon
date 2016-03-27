@@ -2,7 +2,7 @@
 #extension GL_ARB_shader_texture_lod : enable
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          50.0
+#define MAX_RAY_LENGTH          25.0
 #define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.5
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
@@ -299,7 +299,7 @@ void main() {
     //hitColor = get_sky_color(pixel.normal, pixel.smoothness);
     //hitColor = normal_world;
 
-    vec4 vlColor = texture2DLod(gaux1, coord, 3);
+    vec4 vlColor = texture2DLod(gaux1, coord / 2, 3);
     //hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
 
     hitColor = pow(hitColor, vec3(1.0 / 2.2));

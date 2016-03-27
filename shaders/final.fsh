@@ -4,8 +4,8 @@
 #define SATURATION 1.1
 #define CONTRAST 0.8
 
-//#define FILM_GRAIN
-#define FILM_GRAIN_STRENGTH 0.075
+#define FILM_GRAIN
+#define FILM_GRAIN_STRENGTH 0.045
 
 //#define BLOOM
 #define BLOOM_RADIUS 9
@@ -109,7 +109,7 @@ void contrastEnhance(inout vec3 color) {
 }
 
 void doFilmGrain(inout vec3 color) {
-    float noise = fract(sin(dot(coord + vec2(frameTimeCounter), vec2(12.8989, 78.233))) * 43758.5453);
+    float noise = fract(sin(dot(coord * frameTimeCounter, vec2(12.8989, 78.233))) * 43758.5453);
 
     color += vec3(noise) * FILM_GRAIN_STRENGTH;
     color /= 1.0 + FILM_GRAIN_STRENGTH;
@@ -183,5 +183,5 @@ contrastEnhance(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2DLod(gdepth, coord, 0).rgb / 10, 1.0);
+    //gl_FragColor = vec4(texture2DLod(gaux1, coord, 0).rgb, 1.0);
 }

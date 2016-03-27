@@ -33,15 +33,17 @@ const int   shadowcolor0Format      = RGB8;
 const int   shadowcolor1Format      = RGBA8;
 
 const bool gdepthMipmapEnabled      = true;
+const bool shadowMipmapEnabled      = true;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              Changable Variables                          //
 ///////////////////////////////////////////////////////////////////////////////
 
 #define OFF            -1
-#define HARD            0
-#define SOFT            1
-#define REALISTIC       2
+#define ON              0
+#define HARD            1
+#define SOFT            2
+#define REALISTIC       3
 
 #define PCF_FIXED       0
 #define PCF_VARIABLE    1
@@ -69,7 +71,7 @@ const bool gdepthMipmapEnabled      = true;
  * The number of samples to use for PCSS's blocker search. A higher value allows
  * for higher quality shadows at the expense of framerate
  */
-#define BLOCKER_SEARCH_SAMPLES_HALF 2
+#define BLOCKER_SEARCH_SAMPLES_HALF 1
 
 /*
  * The number of samples to use for shadow blurring. More samples means blurrier
@@ -97,7 +99,9 @@ const bool gdepthMipmapEnabled      = true;
 #define WATER_FOG_DENSITY           0.25
 #define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
 
-#define ATMOSPHERIC_DENSITY         0.025
+#define VOLUMETRIC_LIGHTING         OFF
+
+#define ATMOSPHERIC_DENSITY         0.5
 
 #define MAX_RAY_LENGTH              10
 #define MAX_DEPTH_DIFFERENCE        0.6     //How much of a step between the hit pixel and anything else is allowed?
@@ -106,11 +110,6 @@ const bool gdepthMipmapEnabled      = true;
 #define RAY_DEPTH_BIAS              0.05
 #define RAY_GROWTH                  1.04
 
-#define SSAO            true
-#define SSAO_SAMPLES    16               //more samples = prettier
-#define SSAO_STRENGTH   3.0             //bigger number = more SSAO
-#define SSAO_RADIUS     250.0
-#define SSAO_MAX_DEPTH  1.0
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              I need these                                 //
@@ -267,7 +266,7 @@ float getSkyLighting() {
 }
 
 vec3 get_gi(in vec2 coord) {
-    return pow(texture2DLod(gaux4, coord, 2.0).rgb, vec3(2.2));
+    return pow(texture2DLod(gaux4, coord / 2.0, 2.0).rgb, vec3(2.2));
 }
 
 vec3 getNoise(in vec2 coord) {
@@ -286,7 +285,7 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return texture2DLod(gdepth, sphereCoords, lod).rgb;
+    return vec3(0);//texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -302,7 +301,7 @@ vec3 calcShadowCoordinate(in vec4 pixelPos) {
     shadowCoord /= shadowCoord.w;
 
     shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
-    float dFrag = (1 + shadowCoord.z) * 0.5 + 0.005;
+    float dFrag = shadowCoord.z * 0.5 + 0.505;
 
     return vec3(shadowCoord.st, dFrag);
 }
@@ -400,7 +399,7 @@ float calcPenumbraSize(vec3 shadowCoord) {
 
     for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
         for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
-            temp = texture2D(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF))).r;
+            temp = texture2DLod(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF)), 2).r;
             if(dFragment - temp > 0.0015) {
                 dBlocker += temp;// * temp;
                 numBlockers += 1.0;
@@ -611,16 +610,18 @@ void calculateWaterFog(inout Pixel pixel) {
     pixel.color = mix(pixel.color, WATER_FOG_COLOR, fog_amount);
 }
 
-vec4 calc_volumetric_lighting(in vec3 worldPosition) {
+#if VOLUMETRIC_LIGHTING == ON
+vec4 calc_volumetric_lighting(in vec2 vl_coord) {
     // Send a ray through the atmosphere, sampling the shadow at each position
 
-    vec3 rayStart = getWorldSpacePosition(vec4(coord, 0, 1)).xyz;
+    vec3 world_position = getWorldSpacePosition(vec4(vl_coord, getDepthLinear(vl_coord), 1)).xyz;
+    vec3 rayStart = getWorldSpacePosition(vec4(vl_coord, 0, 1)).xyz;
     rayStart += vec3(-0.5, 0.0, 1.5);
     vec4 rayPos = vec4(rayStart, 1.0);
-    vec3 viewVector = normalize(worldPosition - cameraPosition);
-    vec3 direction =  viewVector * calculateDitherPattern() * 2;
+    vec3 viewVector = normalize(world_position - cameraPosition);
+    float distanceToPixel = length(viewVector);
+    vec3 direction = viewVector * calculateDitherPattern() * 2;
     vec3 rayColor = vec3(0);
-    float distanceToPixel = length(worldPosition - cameraPosition);
     float numSteps = 0;
 
     rayColor = vec3(distanceToPixel);
@@ -655,6 +656,7 @@ vec4 calc_volumetric_lighting(in vec3 worldPosition) {
 
     return vec4(rayColor * 0.01, numSteps * ATMOSPHERIC_DENSITY * 0.1);
 }
+#endif
 
 vec3 calcLitColor(in Pixel pixel) {
     vec3 ambientColorCorrected = get_gi(coord) * (1.0 - pixel.metalness);
@@ -677,7 +679,7 @@ void main() {
 
     if(curFrag.sky > 0.5) {
         vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        curFrag.color = get_sky_color(viewVector, 0) / 100;
+        curFrag.color = get_sky_color(viewVector, 0) * 0.1;
     }
 
     vec3 finalColor = vec3(0);
@@ -691,7 +693,13 @@ void main() {
         finalColor = curFrag.color;
     }
 
-    vec4 skyScattering = calc_volumetric_lighting(curFrag.position.xyz);
+    vec2 vl_coord = coord * 2.0;
+    vec4 skyScattering = vec4(0);
+    #if VOLUMETRIC_LIGHTING == ON
+    if(vl_coord.x < 1 && vl_coord.y < 1) {
+        skyScattering = calc_volumetric_lighting(vl_coord);
+    }
+    #endif
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;
