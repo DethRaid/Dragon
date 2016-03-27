@@ -150,9 +150,9 @@ vec3 doMotionBlur() {
 vec3 doToneMapping(in vec3 color) {
     //return unchartedTonemap(color);
     float lumac = luma(color);
-    float lWhite = 15;
+    float lWhite = 5;
 
-    float lumat = (lumac * (15 + (lumac / (lWhite * lWhite)))) / (15 + lumac);
+    float lumat = (lumac * (1 + (lumac / (lWhite * lWhite)))) / (1 + lumac);
     float scale = lumat / lumac;
     return color * scale;
 }

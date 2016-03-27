@@ -1,6 +1,13 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
+// 970 performance:
+// extrems: 0 - 3
+// low 50 - 65
+// medium 47 - 50
+// high 35 - 40
+// ultra 10 - 30
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
@@ -502,28 +509,6 @@ vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in vec3 spe
     vec3 sky_lambert = ndotl * sky_light_diffuse;
 
     return sky_lambert;
-
-    // Calculate specular light from the sky
-    // Get the specular component blurred by the pixel's roughness
-    vec3 sky_light_specular = get_sky_color(direction, roughness * 10);
-
-    vec3 half_vector = normalize(direction + eye_vector);
-    float vdoth = dot(eye_vector, half_vector);
-    vdoth = max(0, vdoth);
-    vec3 fresnel_color = fresnel(specular_color, vdoth);
-
-    float ndoth = dot(normal, half_vector);
-    ndoth = max(0, ndoth);
-
-    float d = pow(ndoth, specular_power);
-
-    float specular_normalization = specular_power * 0.125 + 0.25;
-    vec3 sky_specular = fresnel_color * specular_normalization * d;
-
-    // Mix the specular and diffuse light together
-    vec3 sky_lighting = (vec3(1.0) - sky_specular) * sky_lambert * (1.0 - metalness);
-
-    return vec3(0);
 }
 
 vec3 calcDirectLighting(in Pixel pixel) {
@@ -533,9 +518,6 @@ vec3 calcDirectLighting(in Pixel pixel) {
     specularColor *= pixel.smoothness;
 
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
-    //light_vector_worldspace = (shadowModelViewInverse * vec4(0, 0, 1, 0)).xyz;
-
-    vec3 sky_lighting = vec3(0);
 
     // Calculate the main light lighting from the light position and whatnot
     vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
@@ -543,21 +525,24 @@ vec3 calcDirectLighting(in Pixel pixel) {
         sun_lighting *= calcShadowing(pixel.position);
     #endif
 
-    sky_lighting += sun_lighting;
+    // Calculate specular light from the sky
+    // Get the specular component blurred by the pixel's roughness
+    vec3 specular_direction = reflect(viewVector, pixel.normal);
+    specular_direction *= -1;
+    vec3 sky_light_specular = get_sky_color(specular_direction, (1.0 - pixel.smoothness) * 4);
 
-    // Add in lighting from the parts around the sun
-    vec3 sky_sample_1_pos = (shadowModelViewInverse * vec4(1, 0, 0, 0)).xyz;
-    sky_lighting += calc_lighting_from_direction(sky_sample_1_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
-    vec3 sky_sample_2_pos = (shadowModelViewInverse * vec4(-1, 0, 0, 0)).xyz;
-    sky_lighting += calc_lighting_from_direction(sky_sample_2_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
-    vec3 sky_sample_3_pos = (shadowModelViewInverse * vec4(0, 1, 0, 0)).xyz;
-    sky_lighting += calc_lighting_from_direction(sky_sample_3_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
-    vec3 sky_sample_4_pos = (shadowModelViewInverse * vec4(0, -1, 0, 0)).xyz;
-    sky_lighting += calc_lighting_from_direction(sky_sample_4_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
-    vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
-    sky_lighting += calc_lighting_from_direction(sky_sample_5_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 half_vector = normalize(specular_direction + viewVector);
+    float vdoth = dot(viewVector, half_vector);
+    vdoth = max(0, vdoth);
+    vec3 fresnel_color = fresnel(specularColor, vdoth);
 
-    return sky_lighting * pixel.color * 0.1666666;
+    float specular_normalization = specularPower * 0.125 + 0.25;
+    vec3 sky_specular = fresnel_color * specular_normalization * pixel.smoothness;
+
+    // Mix the specular and diffuse light together
+    sun_lighting = (vec3(1.0) - sky_specular) * sun_lighting * (1.0 - pixel.metalness);
+
+    return (sun_lighting * pixel.color) + (sky_light_specular * sky_specular);
 }
 
 vec2 texelToScreen(vec2 texel) {
@@ -605,6 +590,28 @@ vec3 calcTorchLighting(in Pixel pixel) {
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
     return torchColor;
+}
+
+vec3 get_ambient_lighting(in Pixel pixel) {vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
+    float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
+    vec3 specularColor = pixel.color * pixel.metalness + (1 - pixel.metalness) * vec3(0.2);
+    specularColor *= pixel.smoothness;
+
+    vec3 sky_diffuse = vec3(0);
+    // Add in lighting from the parts around the sun
+    // Fade it out by the amount of sky lighting
+    vec3 sky_sample_1_pos = (shadowModelViewInverse * vec4(1, 0, 0, 0)).xyz;
+    sky_diffuse += calc_lighting_from_direction(sky_sample_1_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_2_pos = (shadowModelViewInverse * vec4(-1, 0, 0, 0)).xyz;
+    sky_diffuse += calc_lighting_from_direction(sky_sample_2_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_3_pos = (shadowModelViewInverse * vec4(0, 1, 0, 0)).xyz;
+    sky_diffuse += calc_lighting_from_direction(sky_sample_3_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_4_pos = (shadowModelViewInverse * vec4(0, -1, 0, 0)).xyz;
+    sky_diffuse += calc_lighting_from_direction(sky_sample_4_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
+    sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+
+    return sky_diffuse * 0.2 * getSkyLighting();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -689,11 +696,10 @@ vec4 calc_volumetric_lighting(in vec2 vl_coord) {
 #endif
 
 vec3 calcLitColor(in Pixel pixel) {
-    vec3 ambientColorCorrected = get_gi(coord) * (1.0 - pixel.metalness);
+    vec3 gi = get_gi(coord) * (1.0 - pixel.metalness);
+    vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    return pixel.color * pixel.directLighting +
-           pixel.color * pixel.torchLighting +
-           pixel.color * ambientColorCorrected;
+    return pixel.directLighting + (pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
 
 float luma(in vec3 color) {
@@ -709,7 +715,7 @@ void main() {
 
     if(curFrag.sky > 0.5) {
         vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
-        curFrag.color = get_sky_color(viewVector, 0) * 0.1;
+        curFrag.color = get_sky_color(viewVector, 0);
     }
 
     vec3 finalColor = vec3(0);
