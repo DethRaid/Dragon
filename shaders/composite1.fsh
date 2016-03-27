@@ -285,7 +285,7 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return vec3(0);//texture2DLod(gdepth, sphereCoords, lod).rgb;
+    return texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -482,52 +482,82 @@ vec3 fresnel(vec3 specularColor, float hdotl) {
     return specularColor + (vec3(1.0) - specularColor) * pow(1.0f - hdotl, 5);
 }
 
-vec3 calcDirectLighting(in Pixel pixel) {
-    //data that's super important to the shading algorithm
-    vec3 albedo = pixel.color;
-    vec3 normal = pixel.normal;
-    float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
-    float metalness = pixel.metalness;
-    vec3 specularColor = pixel.color * metalness + (1 - metalness) * vec3(0.2);
-    specularColor *= pixel.smoothness;
+/*!
+ * \brief Calculates the lighting from the sky cubemap in the given direction. Considers both specular and diffuse terms
+ *
+ * \param direction The normalized direction to get the lighting from. Should be in world space
+ * \param specular_color The fragment's specular color
+ * \param normal The normalized world-space normal vector
+ * \param eye_vector The normalized world-space eye vector
+ * \param specular_power The specular power, unpacked from the roughness
+ */
+vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in vec3 specular_color, in vec3 eye_vector, in float roughness, in float specular_power, in float metalness) {
+    // Get the diffuse component blurred so we get lighting from a large part of the cubemap. This isn't super accurate but it should be good enough for Minecraft
+    vec3 sky_light_diffuse = get_sky_color(direction, 3);
 
-    //Other useful value
-    vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
-    viewVector = (gbufferModelView * vec4(viewVector, 0)).xyz;
-    vec3 halfVector = normalize(lightVector + viewVector);
-    float specularNormalization = (specularPower + 2.0) / 8.0;
-
-
-    float ndotl = dot(normal, lightVector);
-    float ndoth = dot(normal, halfVector);
-    float vdoth = dot(viewVector, halfVector);
-
+    // Calculate diffuse light from sky
+    float ndotl = dot(normal, direction);
     ndotl = max(0, ndotl);
+
+    vec3 sky_lambert = ndotl * sky_light_diffuse;
+
+    return sky_lambert;
+
+    // Calculate specular light from the sky
+    // Get the specular component blurred by the pixel's roughness
+    vec3 sky_light_specular = get_sky_color(direction, roughness * 10);
+
+    vec3 half_vector = normalize(direction + eye_vector);
+    float vdoth = dot(eye_vector, half_vector);
+    vdoth = max(0, vdoth);
+    vec3 fresnel_color = fresnel(specular_color, vdoth);
+
+    float ndoth = dot(normal, half_vector);
     ndoth = max(0, ndoth);
 
-    //calculate diffuse lighting
-    vec3 lambert = albedo * ndotl;
+    float d = pow(ndoth, specular_power);
 
-    vec3 fresnel = fresnel(specularColor, vdoth);
+    float specular_normalization = specular_power * 0.125 + 0.25;
+    vec3 sky_specular = fresnel_color * specular_normalization * d;
 
-    //microfacet slope distribution
-    //Or, how likely is it that microfacets are oriented toward the half vector
-    float d = pow(ndoth, specularPower);
+    // Mix the specular and diffuse light together
+    vec3 sky_lighting = (vec3(1.0) - sky_specular) * sky_lambert * (1.0 - metalness);
 
-    vec3 specular = fresnel * specularNormalization * d * ndotl;
+    return vec3(0);
+}
 
-    lambert = (vec3(1.0) - specular) * lambert * (1 - metalness);
+vec3 calcDirectLighting(in Pixel pixel) {
+    vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
+    float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
+    vec3 specularColor = pixel.color * pixel.metalness + (1 - pixel.metalness) * vec3(0.2);
+    specularColor *= pixel.smoothness;
 
-    //use skyLighting as a maximum amount of direct lighting
-    vec3 sun_lighting = (lambert + specular) * lightColor;
+    vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
+    //light_vector_worldspace = (shadowModelViewInverse * vec4(0, 0, 1, 0)).xyz;
 
+    vec3 sky_lighting = vec3(0);
+
+    // Calculate the main light lighting from the light position and whatnot
+    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
     #if SHADOW_QUALITY != OFF
         sun_lighting *= calcShadowing(pixel.position);
     #endif
 
-    vec3 sky_lighting = get_sky_color(viewspace_to_worldspace(vec4(pixel.normal, 0.0)).xyz, 5) * getSkyLighting() * albedo;
+    sky_lighting += sun_lighting;
 
-    return sun_lighting + sky_lighting;
+    // Add in lighting from the parts around the sun
+    vec3 sky_sample_1_pos = (shadowModelViewInverse * vec4(1, 0, 0, 0)).xyz;
+    sky_lighting += calc_lighting_from_direction(sky_sample_1_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_2_pos = (shadowModelViewInverse * vec4(-1, 0, 0, 0)).xyz;
+    sky_lighting += calc_lighting_from_direction(sky_sample_2_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_3_pos = (shadowModelViewInverse * vec4(0, 1, 0, 0)).xyz;
+    sky_lighting += calc_lighting_from_direction(sky_sample_3_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_4_pos = (shadowModelViewInverse * vec4(0, -1, 0, 0)).xyz;
+    sky_lighting += calc_lighting_from_direction(sky_sample_4_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+    vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
+    sky_lighting += calc_lighting_from_direction(sky_sample_5_pos, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
+
+    return sky_lighting * pixel.color * 0.1666666;
 }
 
 vec2 texelToScreen(vec2 texel) {
@@ -585,7 +615,7 @@ Pixel fillPixelStruct() {
     Pixel pixel;
     pixel.position =        getWorldSpacePosition();
     pixel.screenPosition =  getScreenSpacePosition();
-    pixel.normal =          getNormal();
+    pixel.normal =          viewspace_to_worldspace(vec4(getNormal(), 0.0)).xyz;
     pixel.color =           getColor();
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();

@@ -169,6 +169,8 @@ void main() {
     doBloom(color);
 #endif
 
+//color = texture2DLod(gdepth, coord, 0).rgb;
+
 color = doToneMapping(color);
 
 //correctColor(color);
@@ -183,5 +185,5 @@ contrastEnhance(color);
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2DLod(gaux1, coord, 0).rgb, 1.0);
+    //gl_FragColor = vec4(, 1.0);
 }

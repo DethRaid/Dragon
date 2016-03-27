@@ -10,8 +10,8 @@
 #define GI_QUALITY 203
 
 // Sky parameters
-#define RAYLEIGH_BRIGHTNESS			33
-#define MIE_BRIGHTNESS 				100
+#define RAYLEIGH_BRIGHTNESS			3.3
+#define MIE_BRIGHTNESS 				10
 #define MIE_DISTRIBUTION 			-0.75
 #define STEP_COUNT 					15.0
 #define SCATTER_STRENGTH			100
