@@ -27,7 +27,7 @@ main_light get_main_light(in int world_time, in vec3 sun_position, in vec3 moon_
 
     //if(world_time > 100 && world_time < 13000) {
         light_params.direction = normalize(sun_position);
-        light_params.color = vec3(1, 0.98, 0.95) * 15.0;
+        light_params.color = vec3(1, 0.98, 0.95) * 25.0;
     /*}
     if(world_time < 100 || world_time > 13000) {
         light_params.direction = normalize(moon_position);

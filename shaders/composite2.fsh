@@ -18,8 +18,6 @@
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
-const int   RGB32F                  = 0;
-
 /* DRAWBUFFERS:3 */
 
 uniform sampler2D gcolor;
@@ -235,8 +233,6 @@ vec3 doLightBounce(in Pixel1 pixel) {
     int hitLayer = 0;
     vec3 hitColor = vec3(0);
 
-    vec3 reflected_sky = get_reflected_sky(pixel);
-
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2.0 - 1.0;
@@ -257,7 +253,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
             retColor += (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + reflection_sample * fresnel * pixel.smoothness;
         } else {
-            retColor += reflected_sky * pixel.water + pixel.color * (1.0 - pixel.water);
+            retColor += pixel.color * (1.0 - pixel.water);
         }
     }
 

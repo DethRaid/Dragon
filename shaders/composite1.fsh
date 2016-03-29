@@ -31,7 +31,7 @@ const int   RGBA16                  = 3;
 const int   RGBA8                   = 4;
 const int   RGB16F                  = 5;
 const int   RGB32F                  = 6;
-const int 	gcolorFormat 			= RGB16;
+const int 	gcolorFormat 			= RGB32F;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
@@ -192,7 +192,7 @@ struct World {
 ///////////////////////////////////////////////////////////////////////////////
 //Credit to Sonic Ether for depth, normal, and positions
 
-float getDepth( vec2 coord) {
+float getDepth(vec2 coord) {
     return texture2D(gdepthtex, coord).r;
 }
 
@@ -204,7 +204,7 @@ float getDepthLinear(vec2 coord) {
     return getDepthLinear(gdepthtex, coord);
 }
 
-vec4 getScreenSpacePosition() {
+vec4 get_viewspace_position() {
 	float depth = getDepth(coord);
 	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
 		 fragposition /= fragposition.w;
@@ -218,7 +218,7 @@ vec4 getWorldSpacePosition(in vec4 screenSpacePosition) {
 }
 
 vec4 getWorldSpacePosition() {
-	vec4 pos = getScreenSpacePosition();
+	vec4 pos = get_viewspace_position();
 	return getWorldSpacePosition(pos);
 }
 
@@ -506,7 +506,7 @@ vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in vec3 spe
     float ndotl = dot(normal, direction);
     ndotl = max(0, ndotl);
 
-    vec3 sky_lambert = ndotl * sky_light_diffuse;
+    vec3 sky_lambert = ndotl * sky_light_diffuse * (1.0 - metalness);
 
     return sky_lambert;
 }
@@ -521,9 +521,6 @@ vec3 calcDirectLighting(in Pixel pixel) {
 
     // Calculate the main light lighting from the light position and whatnot
     vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, specularColor, viewVector, 1.0 - pixel.smoothness, specularPower, pixel.metalness);
-    #if SHADOW_QUALITY != OFF
-        sun_lighting *= calcShadowing(pixel.position);
-    #endif
 
     // Calculate specular light from the sky
     // Get the specular component blurred by the pixel's roughness
@@ -539,10 +536,27 @@ vec3 calcDirectLighting(in Pixel pixel) {
     float specular_normalization = specularPower * 0.125 + 0.25;
     vec3 sky_specular = fresnel_color * specular_normalization * pixel.smoothness;
 
-    // Mix the specular and diffuse light together
-    sun_lighting = (vec3(1.0) - sky_specular) * sun_lighting * (1.0 - pixel.metalness);
+    // Don't reflect the sky on surfaces that are facing down
+    float sky_specular_cancallation = dot(pixel.normal, vec3(0, 1, 0));
+    sky_specular_cancallation = sky_specular_cancallation * 0.5 + 0.5;
 
-    return (sun_lighting * pixel.color) + (sky_light_specular * sky_specular);
+    #if SHADOW_QUALITY != OFF
+        vec3 shadow_color = calcShadowing(pixel.position);
+        sun_lighting *= shadow_color;
+
+        // Cancel out the specularity when the specular ray is in the same direction as the light
+        float spec_toward_light = pow(dot(light_vector_worldspace, specular_direction), 100);
+        spec_toward_light = max(0, spec_toward_light);
+
+        vec3 specular_shadow = mix(vec3(1.0), shadow_color, spec_toward_light);
+
+        sky_specular *= specular_shadow;
+    #endif
+
+    // Mix the specular and diffuse light together
+    //sun_lighting = (vec3(1.0) - sky_specular);// * sun_lighting * (1.0 - pixel.metalness);
+
+    return (sun_lighting * pixel.color) + (sky_light_specular * sky_specular * sky_specular_cancallation);
 }
 
 vec2 texelToScreen(vec2 texel) {
@@ -621,7 +635,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {vec3 viewVector = normalize(cameraPos
 Pixel fillPixelStruct() {
     Pixel pixel;
     pixel.position =        getWorldSpacePosition();
-    pixel.screenPosition =  getScreenSpacePosition();
+    pixel.screenPosition =  get_viewspace_position();
     pixel.normal =          viewspace_to_worldspace(vec4(getNormal(), 0.0)).xyz;
     pixel.color =           getColor();
     pixel.metalness =       getMetalness();

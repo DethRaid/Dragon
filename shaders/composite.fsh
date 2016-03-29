@@ -9,6 +9,8 @@
 #define GI_SAMPLE_RADIUS 35
 #define GI_QUALITY 203
 
+#define LEAF_SS_QUALITY 16
+
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			3.3
 #define MIE_BRIGHTNESS 				10
@@ -21,7 +23,8 @@
 #define RAYLEIGH_COLLECTION_POWER	1
 #define MIE_COLLECTION_POWER		1
 
-#define SUNSPOT_BRIGHTNESS			1000
+#define SUNSPOT_BRIGHTNESS			100
+#define MOONSPOT_BRIGHTNESS			1
 
 #define SURFACE_HEIGHT				0.99
 
@@ -41,6 +44,7 @@ const int 	gdepthFormat			= RGB32F;
 
 uniform sampler2D gdepthtex;
 uniform sampler2D colortex2;
+uniform sampler2D gaux3;
 
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor;
@@ -54,6 +58,9 @@ uniform float viewHeight;
 uniform vec3 cameraPosition;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
+
+uniform vec3 sunPosition;
+uniform vec3 moonPosition;
 
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
@@ -99,6 +106,10 @@ vec3 get_3d_noise(in vec2 coord) {
     return texture2D(noisetex, coord).xyz;
 }
 
+float get_leaf(in vec2 coord) {
+	return texture2D(gaux3, coord).b;
+}
+
 /*
  * Global Illumination
  *
@@ -139,6 +150,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
  		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
 
  		float falloff = length(sample_pos.xyz - position.xyz) * 50;
+		falloff = max(falloff, 1.0);
         falloff = pow(falloff, 4);
 		falloff = max(1.0, falloff);
 
@@ -151,6 +163,46 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
  	light /= GI_QUALITY;
 
  	return light / 15;
+}
+
+vec3 calc_leaf_scattering(in vec2 coord) {
+
+	// Get shadow depth at coord, get shadow space depth at coord. Based on that, add in lighting from the GI calculation or whatever, doing a blur maybe
+	vec4 position = viewspace_to_worldspace(get_viewspace_position(coord));
+
+	// Project position into shadow space
+	vec4 position_shadowspace = shadowProjection * shadowModelView * position;
+	position_shadowspace /= position_shadowspace.w;
+	position_shadowspace.z = position_shadowspace.z * 0.5 + 0.5;
+
+	// Get depth from the shadow map
+	vec2 shadow_coord = position_shadowspace.xy * 0.5 + 0.5;
+	float shadow_depth = texture2D(shadowtex1, shadow_coord).r;
+	vec3 shadow_position = vec3(shadow_coord, shadow_depth);
+	//return vec3(position_shadowspace.z);
+
+	float depth_through_leaves = length(shadow_position - position_shadowspace.xyz);
+	depth_through_leaves = max(1, depth_through_leaves);
+	return vec3(depth_through_leaves * 0.1);
+
+	vec3 normal_shadow = texture2DLod(shadowcolor1, shadow_coord, 0).xyz * 2.0 - 1.0;
+	vec3 received_light = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1)));
+	received_light /= pow(depth_through_leaves, 2);
+
+	vec3 leaf_color = texture2DLod(shadowcolor, shadow_coord, 0).xyz;
+	received_light -= received_light * leaf_color;
+
+	return received_light * 0.1;
+
+	for(int i = 0; i < LEAF_SS_QUALITY; i++) {
+		float percentage_done = float(i) / float(LEAF_SS_QUALITY);
+ 		float dist_from_center = depth_through_leaves * percentage_done * 50;
+
+ 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
+ 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
+ 		offset += get_3d_noise(coord * 1.3).xy * 3;
+ 		offset /= shadowMapResolution;
+	}
 }
 
 /*
@@ -262,16 +314,16 @@ float pNoise(vec2 p, int res){
  *
  * \param coord The UV coordinate to render to
  */
-vec3 get_sky_color(in vec2 coord) {
+vec3 get_sky_color(in vec2 coord, in vec3 light_vector, in float light_intensity) {
 	vec3 eye_vector = get_eye_vector(coord).xzy;
 
-	vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(lightVector, 0.0)).xyz);
+	vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(light_vector, 0.0)).xyz);
 
 	float alpha = max(dot(eye_vector, light_vector_worldspace), 0.0);
 
 	float rayleigh_factor = phase(alpha, -0.01) * RAYLEIGH_BRIGHTNESS;
 	float mie_factor = phase(alpha, MIE_DISTRIBUTION) * MIE_BRIGHTNESS;
-	float spot = smoothstep(0.0, 15.0, phase(alpha, 0.9995)) * SUNSPOT_BRIGHTNESS;
+	float spot = smoothstep(0.0, 15.0, phase(alpha, 0.9995)) * light_intensity;
 
 	vec3 eye_position = vec3(0.0, SURFACE_HEIGHT, 0.0);
 	float eye_depth = atmospheric_depth(eye_position, eye_vector);
@@ -283,7 +335,7 @@ vec3 get_sky_color(in vec2 coord) {
 	vec3 mie_collected = vec3(0);
 	float light_depth = atmospheric_depth(eye_position, light_vector_worldspace);
 	float toward_light_factor = dot(light_vector_worldspace, eye_vector) * 0.5 + 0.5;
-	vec3 spot_color = lightColor - (Kr * light_depth * 150 * toward_light_factor);	// As more and more light goes to Rayleigh, less and less should go to the sun
+	vec3 spot_color = lightColor - (Kr * light_depth * 150 * toward_light_factor) * light_intensity;	// As more and more light goes to Rayleigh, less and less should go to the sun
 
 	vec3 influx_collected = vec3(0);
 
@@ -293,7 +345,7 @@ vec3 get_sky_color(in vec2 coord) {
 		float extinction = horizon_extinction(position, light_vector_worldspace, SURFACE_HEIGHT - 0.35);
 		float sample_depth = atmospheric_depth(position, light_vector_worldspace);
 
-		vec3 influx = absorb(sample_depth, spot_color * INTENSITY, SCATTER_STRENGTH) * extinction;
+		vec3 influx = absorb(sample_depth, vec3(light_intensity), SCATTER_STRENGTH) * extinction;
 		influx_collected += influx;
 
 		// rayleigh will make the nice blue band around the bottom of the sky
@@ -301,13 +353,8 @@ vec3 get_sky_color(in vec2 coord) {
 		mie_collected += absorb(sample_distance, influx, MIE_STRENGTH);
 	}
 
-	//return influx_collected / STEP_COUNT;
-
 	rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / STEP_COUNT;
 	mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / STEP_COUNT;
-	//mie_collected *= spot_color;
-
-	//return mie_collected;
 
 	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 
@@ -322,9 +369,15 @@ void main() {
 	    vec4 position_viewspace = get_viewspace_position(gi_coord);
 	    vec3 normal = get_normal(gi_coord);
 		gi = calculate_gi(gi_coord, position_viewspace, normal);
+
+		if(get_leaf(gi_coord) > 0.5) {
+			gi = calc_leaf_scattering(gi_coord);
+		}
 	}
 
-	vec3 sky_color = get_sky_color(coord);
+	vec3 sky_color = vec3(0);
+	sky_color += get_sky_color(coord, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
+	sky_color += get_sky_color(coord, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
 
     gl_FragData[0] = vec4(pow(gi, vec3(1 / 2.2)), 1.0);
 	gl_FragData[1] = vec4(sky_color, 1.0);

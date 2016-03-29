@@ -9,6 +9,8 @@ varying vec2 uvLight;
 varying vec3 normal;
 varying mat3 tbnMatrix;
 
+varying float is_leaf;
+
 void main() {
     color = gl_Color;
     uv = gl_MultiTexCoord0.st;// + vec2( 0.005, 0 );
@@ -17,6 +19,11 @@ void main() {
     gl_Position = ftransform();
 
     normal = normalize( gl_NormalMatrix * gl_Normal );
+
+    is_leaf = 0;
+    if(mc_Entity.x == 18) {
+        is_leaf = 1.0;
+    }
 
     vec3 tangent = vec3( 0 );
     vec3 binormal = vec3( 0 );

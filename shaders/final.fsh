@@ -1,32 +1,30 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.1
+#define SATURATION 1.25
 #define CONTRAST 0.8
 
-#define FILM_GRAIN
+#define OFF     0
+#define ON      1
+
+#define FILM_GRAIN ON
 #define FILM_GRAIN_STRENGTH 0.045
 
-//#define BLOOM
-#define BLOOM_RADIUS 9
+#define BLOOM               OFF
+#define BLOOM_RADIUS        2
 
-//#define VINGETTE
+#define VINGETTE            OFF
 #define VINGETTE_MIN        0.4
 #define VINGETTE_MAX        0.65
 #define VINGETTE_STRENGTH   0.15
 
 
-//#define MOTION_BLUR
+#define MOTION_BLUR         OFF
 #define MOTION_BLUR_SAMPLES 16
 #define MOTION_BLUR_SCALE   0.25
 
-//Some defines to make my life easier
-#define NORTH   0
-#define SOUTH   1
-#define WEST    2
-#define EAST    3
-
 const bool gdepthMipmapEnabled = true;
+const bool gcolorMipmapEnabled = true;
 
 const int   RGB32F                  = 0;
 
@@ -72,29 +70,25 @@ vec2 uvToTexel(int s, int t) {
     return vec2(s / viewWidth, t / viewHeight);
 }
 
+#if BLOOM == ON
 void doBloom(inout vec3 color) {
     vec3 colorAccum = vec3(0);
-    int numSamples = 0;
+    float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
 
-    for(int i = 1; i < 4; i++) {
-        colorAccum += texture2DLod(gaux1, coord, i).rgb;
-    }
-
-    vec2 halfTexel = vec2(0.5 / viewWidth, 0.5 / viewHeight);
-    for(float i = -BLOOM_RADIUS; i <= BLOOM_RADIUS; i += 4) {
-        for(float j = -BLOOM_RADIUS; j <= BLOOM_RADIUS; j += 4) {
-            vec2 samplePos = coord + uvToTexel(int(j), int(i)) + halfTexel;
-            vec3 sampledColor = getColorSample(samplePos).rgb;
-            float emission = texture2D(gaux2, samplePos).r;
-            float lumaSample = sampledColor.r;
-            float bloomPow = float(abs(i) * abs(j));
-            lumaSample = pow(lumaSample, bloomPow);
-            colorAccum += sampledColor * (lumaSample * emission);
-            numSamples++;
+    for(int i = -BLOOM_RADIUS; i <= BLOOM_RADIUS; i++) {
+        for(int j = -BLOOM_RADIUS; j <= BLOOM_RADIUS; j++) {
+            vec2 offset = vec2(j / viewWidth, i / viewHeight);
+            colorAccum += texture2D(composite, coord + offset).rgb / length(offset);
         }
     }
-    color += colorAccum / numSamples;
+
+    //for(int i = 1; i < 4; i++) {
+    //    colorAccum += texture2DLod(gcolor, coord, i).rgb;// * log2(float(i));// * 0.25;
+    //}
+
+    color += colorAccum;
 }
+#endif
 
 void correctColor(inout vec3 color) {
     color *= vec3(1.2, 1.2, 1.2);
@@ -115,13 +109,13 @@ void doFilmGrain(inout vec3 color) {
     color /= 1.0 + FILM_GRAIN_STRENGTH;
 }
 
-#ifdef VINGETTE
+#if VINGETTE == ON
 float vingetteAmt(in vec2 coord) {
     return smoothstep(VINGETTE_MIN, VINGETTE_MAX, length(coord - vec2(0.5, 0.5))) * VINGETTE_STRENGTH;
 }
 #endif
 
-#ifdef MOTION_BLUR
+#if MOTION_BLUR == ON
 vec2 getBlurVector() {
     mat4 curToPreviousMat = gbufferModelViewInverse * gbufferPreviousModelView * gbufferPreviousProjection;
     float depth = texture2D(gdepthtex, coord).x;
@@ -147,25 +141,56 @@ vec3 doMotionBlur() {
 }
 #endif
 
-vec3 doToneMapping(in vec3 color) {
-    //return unchartedTonemap(color);
+vec3 reinhard_tonemap(in vec3 color, in float lWhite) {
     float lumac = luma(color);
-    float lWhite = 5;
 
     float lumat = (lumac * (1 + (lumac / (lWhite * lWhite)))) / (1 + lumac);
     float scale = lumat / lumac;
+
     return color * scale;
+}
+
+vec3 burgess_tonemap(in vec3 color, in float exposure) {
+    color /= exposure;  // Hardcoded Exposure Adjustment
+    vec3 x = max(vec3(0), color - 0.004);
+    return (x * (6.2 * x + .5)) / (x * (6.2 * x + 1.7) + 0.06);
+}
+
+vec3 uncharted_tonemap_math(in vec3 color) {
+    const float A = 0.15;
+    const float B = 0.50;
+    const float C = 0.10;
+    const float D = 0.20;
+    const float E = 0.02;
+    const float F = 0.30;
+
+    return ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+}
+
+vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
+    const float W = 11.2;
+
+    vec3 curr = uncharted_tonemap_math(color * exposure_bias);
+    vec3 white_scale = vec3(1.0) / uncharted_tonemap_math(vec3(W));
+
+    return curr * white_scale;
+}
+
+vec3 doToneMapping(in vec3 color) {
+    //return uncharted_tonemap(color, 1);
+    return reinhard_tonemap(color, 5.5);
+    //return burgess_tonemap(color, 25);
 }
 
 void main() {
     vec3 color = vec3(0);
-#ifdef MOTION_BLUR
+#if MOTION_BLUR == ON
     color = doMotionBlur();
 #else
     color = getColorSample(coord);
 #endif
 
-#ifdef BLOOM
+#if BLOOM == ON
     doBloom(color);
 #endif
 
@@ -176,14 +201,14 @@ color = doToneMapping(color);
 //correctColor(color);
 contrastEnhance(color);
 
-#ifdef FILM_GRAIN
+#if FILM_GRAIN == ON
     doFilmGrain(color);
 #endif
 
-#ifdef VINGETTE
+#if VINGETTE == ON
     color -= vec3(vingetteAmt(coord));
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(, 1.0);
+    //gl_FragColor = vec4(texture2D(gaux4, coord / 2).rgb, 1.0);
 }
