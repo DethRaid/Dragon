@@ -298,7 +298,7 @@ void main() {
     vec4 vlColor = texture2DLod(gaux1, coord / 2, 3);
     //hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
 
-    hitColor = pow(hitColor, vec3(1.0 / 2.2));
+    //hitColor = pow(hitColor, vec3(1.0 / 2.2));
 
     gl_FragData[0] = vec4(hitColor, 1);
 }
