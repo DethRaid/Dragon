@@ -100,8 +100,11 @@ const bool shadowMipmapEnabled      = true;
  * the slowest, HARD is the fastest at the expense of realism.
  */
 #define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
+#define HYBRID_RAYTRACED_SHADOWS    ON
+#define HRS_RANGE                   0.5
+#define NUM_HRS_STEPS               5
 
-#define SHADOW_BIAS                 0.0055
+#define SHADOW_BIAS                 0.0155
 
 #define WATER_FOG_DENSITY           0.25
 #define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
@@ -110,9 +113,8 @@ const bool shadowMipmapEnabled      = true;
 
 #define ATMOSPHERIC_DENSITY         0.5
 
-#define MAX_RAY_LENGTH              10
-#define MAX_DEPTH_DIFFERENCE        0.6     //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH             0.8
+#define MAX_RAY_LENGTH              1.0
+#define NUM_RAY_STEPS               512
 #define NUM_DIFFUSE_RAYS            4
 #define RAY_DEPTH_BIAS              0.05
 #define RAY_GROWTH                  1.04
@@ -206,7 +208,7 @@ float getDepthLinear(vec2 coord) {
 
 vec4 get_viewspace_position() {
 	float depth = getDepth(coord);
-	vec4 fragposition = gbufferProjectionInverse * vec4(coord.s * 2.0 - 1.0, coord.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
+	vec4 fragposition = gbufferProjectionInverse * vec4(coord * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
 		 fragposition /= fragposition.w;
 	return fragposition;
 }
@@ -393,6 +395,46 @@ int rand(vec2 seed) {
     return int(32 * fract(sin(dot(vec2(12.9898, 72.233), seed)) * 43758.5453));
 }
 
+vec2 getCoordFromCameraSpace(in vec3 position) {
+    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
+}
+
+vec3 getCameraSpacePosition(vec2 uv) {
+	float depth = getDepth(uv);
+	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
+		 fragposition /= fragposition.w;
+	return fragposition.xyz;
+}
+
+vec3 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    direction = normalize(direction) * (MAX_RAY_LENGTH / NUM_RAY_STEPS);
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for(int i = 0; i < NUM_RAY_STEPS; i++) {
+        curPos += direction;
+        curCoord = getCoordFromCameraSpace(curPos);
+        if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
+            //If we're here, the ray has gone off-screen so we can't reflect anything
+            return vec3(1);
+        }
+        float worldDepth = getCameraSpacePosition(curCoord).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = length(direction) + RAY_DEPTH_BIAS;
+        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+            return vec3(0);
+        }
+        direction *= RAY_GROWTH;
+    }
+    //If we're here, we couldn't find anything to reflect within the alloted number of steps
+    return vec3(1);
+}
+
 //Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
 //Implemented by DethRaid - github.com/DethRaid
 float calcPenumbraSize(vec3 shadowCoord) {
@@ -481,7 +523,12 @@ vec3 calcShadowing(in vec4 fragPosition) {
             }
     	}
 
-        return vec3(shadow_color / numSamples);
+        shadow_color /= numSamples;
+
+        vec3 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
+        shadow_color = min(shadow_color, raytraced_shadow);
+
+        return shadow_color;
     #endif
 }
 
@@ -542,6 +589,7 @@ vec3 calcDirectLighting(in Pixel pixel) {
 
     #if SHADOW_QUALITY != OFF
         vec3 shadow_color = calcShadowing(pixel.position);
+        return shadow_color;
         sun_lighting *= shadow_color;
 
         // Cancel out the specularity when the specular ray is in the same direction as the light
@@ -713,7 +761,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    return pixel.directLighting + (pixel.torchLighting + ambient_lighting + gi) * pixel.color;
+    return pixel.directLighting;// + (pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
 
 float luma(in vec3 color) {

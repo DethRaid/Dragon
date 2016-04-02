@@ -178,8 +178,11 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 
 vec3 doToneMapping(in vec3 color) {
     //return uncharted_tonemap(color, 1);
-    return reinhard_tonemap(color, 5.5);
+    vec3 ret_color = reinhard_tonemap(color, 5.5);
+    ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return burgess_tonemap(color, 25);
+
+    return ret_color;
 }
 
 void main() {
@@ -194,12 +197,12 @@ void main() {
     doBloom(color);
 #endif
 
-//color = texture2DLod(gdepth, coord, 0).rgb;
+    //color = texture2DLod(gdepth, coord, 0).rgb;
 
-color = doToneMapping(color);
+    //color = doToneMapping(color);
 
-//correctColor(color);
-contrastEnhance(color);
+    //correctColor(color);
+    contrastEnhance(color);
 
 #if FILM_GRAIN == ON
     doFilmGrain(color);
