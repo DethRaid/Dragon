@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.25    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                3   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -189,18 +189,18 @@ vec2 castRay(in vec3 origin, in vec3 direction, in float maxDist) {
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = length(direction) + RAY_DEPTH_BIAS;
-        if(forward) {
+        //if(forward) {
             if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                //return curCoord;
+                return curCoord;
                 direction = -1 * normalize(direction) * 0.15;
                 forward = false;
             }
-        } else {
-            depthDiff *= -1;
-            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                return curCoord;
-            }
-        }
+        //} else {
+        //    depthDiff *= -1;
+        //    if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+        //        return curCoord;
+        //    }
+        //}
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
@@ -240,20 +240,22 @@ vec3 doLightBounce(in Pixel1 pixel) {
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
+        vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness);
+
+        vec3 viewVector = normalize(getCameraSpacePosition(coord));
+
+        float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
+
+        vec3 sColor = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
+        vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
+
         hitUV = castRay(rayStart, rayDir, MAX_RAY_LENGTH);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
 
-            vec3 viewVector = normalize(getCameraSpacePosition(coord));
-
-            float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
-
-            vec3 sColor = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
-            vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
-
-            retColor += (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + reflection_sample * fresnel * pixel.smoothness;
+            retColor += reflection_sample;
         } else {
-            retColor += pixel.color * (1.0 - pixel.water);
+            retColor += reflected_sky_color;
         }
     }
 
@@ -287,7 +289,7 @@ void main() {
         vec3 sColor = (pixel.color * metalness + vec3(0.14) * (1.0 - metalness)) * (1.1 - waterness);
         vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
-        hitColor = (vec3(1.0) - fresnel) * pixel.color * (1.0 - metalness) + reflectedColor * fresnel * smoothness;
+        hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
     }
 #endif
 

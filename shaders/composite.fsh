@@ -267,7 +267,7 @@ vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);	// 
 vec3 MieColor = vec3(1.0) - Kr;
 
 vec3 absorb(float dist, vec3 color, float factor) {
-	return color - color * pow(Kr, vec3(factor / dist));
+	return color - color * pow(Kr, vec3(factor / (dist * 500)));
 }
 
 float rand(vec2 c){

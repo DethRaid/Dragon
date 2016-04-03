@@ -213,5 +213,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gaux4, coord / 2).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(composite, coord).rgb, 1.0);
 }

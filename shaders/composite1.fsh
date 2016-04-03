@@ -24,6 +24,7 @@ const float	sunPathRotation 		= -40.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
+const int   R32                     = 0;
 const int 	RG8 					= 0;
 const int 	RGB8 					= 1;
 const int 	RGB16 					= 2;
@@ -32,6 +33,7 @@ const int   RGBA8                   = 4;
 const int   RGB16F                  = 5;
 const int   RGB32F                  = 6;
 const int 	gcolorFormat 			= RGB32F;
+const int   gdepthtexFormat         = R32;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
@@ -63,7 +65,7 @@ const bool shadowMipmapEnabled      = true;
  * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
  * you'd see if the Earth's sun was as big in the sky as Minecraft's
  */
-#define LIGHT_SIZE                  3
+#define LIGHT_SIZE                  5
 
 /*
  * Defined the minimum about of shadow blur when PCSS is enabled. A value of
@@ -72,7 +74,7 @@ const bool shadowMipmapEnabled      = true;
  * allow hard shadows when the distance from the shadow caster to the shadow
  * receiver is very small
  */
-#define MIN_PENUMBRA_SIZE           0.175
+#define MIN_PENUMBRA_SIZE           0.15
 
 /*
  * The number of samples to use for PCSS's blocker search. A higher value allows
@@ -101,6 +103,10 @@ const bool shadowMipmapEnabled      = true;
  */
 #define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
 #define HYBRID_RAYTRACED_SHADOWS    ON
+#define HRS_RAY_LENGTH              0.8
+#define HRS_RAY_STEPS               100
+#define HRS_BIAS                    0.01
+#define HRS_DEPTH_CORRECTION        0.005
 
 #define SHADOW_BIAS                 0.00755
 
@@ -110,12 +116,6 @@ const bool shadowMipmapEnabled      = true;
 #define VOLUMETRIC_LIGHTING         OFF
 
 #define ATMOSPHERIC_DENSITY         0.5
-
-#define MAX_RAY_LENGTH              1.0
-#define NUM_RAY_STEPS               128
-#define RAY_DEPTH_BIAS              0.05
-#define RAY_GROWTH                  1.00
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              I need these                                 //
@@ -192,7 +192,7 @@ struct World {
 //Credit to Sonic Ether for depth, normal, and positions
 
 float getDepth(vec2 coord) {
-    return texture2D(gdepthtex, coord).r;
+    return texture2DLod(gdepthtex, coord, 0).r;
 }
 
 float getDepthLinear(in sampler2D depthtex, in vec2 coord) {
@@ -409,12 +409,13 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace(curPos);
     vec3 noise = getNoise(coord);
-    //direction = normalize(direction + noise * 0.05);
-    direction = normalize(direction) * (MAX_RAY_LENGTH / NUM_RAY_STEPS);
+    direction = normalize(direction + noise * 0.025);
+    //return direction;
+    direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
 
     //The basic idea here is the the ray goes forward until it's behind something,
     //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < NUM_RAY_STEPS; i++) {
+    for(int i = 0; i < HRS_RAY_STEPS; i++) {
         curPos += direction;
         curCoord = getCoordFromCameraSpace(curPos);
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
@@ -422,13 +423,14 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
             return vec2(1);
         }
         float worldDepth = getCameraSpacePosition(curCoord).z;
-        float rayDepth = curPos.z;
-        float depthDiff = (worldDepth - rayDepth);
-        float maxDepthDiff = length(direction) + RAY_DEPTH_BIAS;
+        worldDepth -= HRS_DEPTH_CORRECTION * getDepth(curCoord);
+        float depthDiff = (worldDepth - curPos.z);
+        //return vec2(depthDiff * far);
+        float maxDepthDiff = length(direction) + HRS_BIAS;
+        maxDepthDiff *= getDepth(curCoord);
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-            return vec2(0, length(curPos - origin) / MAX_RAY_LENGTH);
+            return vec2(0, length(curPos - origin) / HRS_RAY_LENGTH);
         }
-        direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
     return vec2(1);
@@ -524,9 +526,10 @@ vec3 calcShadowing(in vec4 fragPosition) {
 
         shadow_color /= numSamples;
 
-        vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
-        //return raytraced_shadow;
-        shadow_color = min(raytraced_shadow.xxx, shadow_color);///, raytraced_shadow.yyy);
+        if(length(fragPosition.xyz - cameraPosition) < 10) {
+            vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
+            shadow_color = min(raytraced_shadow.xxx, shadow_color);///, raytraced_shadow.yyy);
+        }
 
         return shadow_color;
     #endif
@@ -573,7 +576,6 @@ vec3 calcDirectLighting(in Pixel pixel) {
     // Get the specular component blurred by the pixel's roughness
     vec3 specular_direction = reflect(viewVector, pixel.normal);
     specular_direction *= -1;
-    vec3 sky_light_specular = get_sky_color(specular_direction, (1.0 - pixel.smoothness) * 4);
 
     vec3 half_vector = normalize(specular_direction + viewVector);
     float vdoth = dot(viewVector, half_vector);
@@ -581,30 +583,18 @@ vec3 calcDirectLighting(in Pixel pixel) {
     vec3 fresnel_color = fresnel(specularColor, vdoth);
 
     float specular_normalization = specularPower * 0.125 + 0.25;
-    vec3 sky_specular = fresnel_color * specular_normalization * pixel.smoothness;
-
-    // Don't reflect the sky on surfaces that are facing down
-    float sky_specular_cancallation = dot(pixel.normal, vec3(0, 1, 0));
-    sky_specular_cancallation = sky_specular_cancallation * 0.5 + 0.5;
+    vec3 sky_specular = fresnel_color * pixel.smoothness;
 
     #if SHADOW_QUALITY != OFF
         vec3 shadow_color = calcShadowing(pixel.position);
         //return shadow_color;
         sun_lighting *= shadow_color;
-
-        // Cancel out the specularity when the specular ray is in the same direction as the light
-        float spec_toward_light = pow(dot(light_vector_worldspace, specular_direction), 100);
-        spec_toward_light = max(0, spec_toward_light);
-
-        vec3 specular_shadow = mix(vec3(1.0), shadow_color, spec_toward_light);
-
-        sky_specular *= specular_shadow;
     #endif
 
     // Mix the specular and diffuse light together
-    //sun_lighting = (vec3(1.0) - sky_specular);// * sun_lighting * (1.0 - pixel.metalness);
+    sun_lighting = (vec3(1.0) - sky_specular) * sun_lighting * (1.0 - pixel.metalness);
 
-    return (sun_lighting * pixel.color) + (sky_light_specular * sky_specular * sky_specular_cancallation);
+    return (sun_lighting * pixel.color);
 }
 
 vec2 texelToScreen(vec2 texel) {
