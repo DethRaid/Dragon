@@ -140,14 +140,16 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
  		offset /= shadowMapResolution;
 
  		vec3 sample_pos = vec3(position.xy + offset, 0.0);
- 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0.0).x;
+ 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
 
  		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
  		vec3 normal_shadow	 = texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0;
 
-        vec3 light_strength              = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1))) * 100;
- 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, -sample_dir));
- 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
+        vec3 light_strength              = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1)));
+ 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
+ 		float transmitted_light_strength = max(0.0, dot(normal_shadow, -sample_dir));
+
+		//return vec3(received_light_strength);
 
  		float falloff = length(sample_pos.xyz - position.xyz) * 50;
 		falloff = max(falloff, 1.0);
@@ -370,9 +372,9 @@ void main() {
 	    vec3 normal = get_normal(gi_coord);
 		gi = calculate_gi(gi_coord, position_viewspace, normal);
 
-		if(get_leaf(gi_coord) > 0.5) {
-			gi = calc_leaf_scattering(gi_coord);
-		}
+		//if(get_leaf(gi_coord) > 0.5) {
+		//	gi = calc_leaf_scattering(gi_coord);
+		//}
 	}
 
 	vec3 sky_color = vec3(0);

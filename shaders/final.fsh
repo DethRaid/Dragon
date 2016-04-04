@@ -1,8 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.25
-#define CONTRAST 0.8
+#define SATURATION 2.25
+#define CONTRAST 0.75
 
 #define OFF     0
 #define ON      1
@@ -142,6 +142,7 @@ vec3 doMotionBlur() {
 #endif
 
 vec3 reinhard_tonemap(in vec3 color, in float lWhite) {
+    return (color * (1 + (color / (lWhite * lWhite)))) / (1 + color);
     float lumac = luma(color);
 
     float lumat = (lumac * (1 + (lumac / (lWhite * lWhite)))) / (1 + lumac);
@@ -178,11 +179,12 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 
 vec3 doToneMapping(in vec3 color) {
     //return uncharted_tonemap(color, 1);
-    vec3 ret_color = reinhard_tonemap(color, 15);
-    ret_color = pow(ret_color, vec3(1.0 / 2.2));
-    //return burgess_tonemap(color, 25);
+    //vec3 ret_color = reinhard_tonemap(color, 10);
+    //ret_color = pow(ret_color, vec3(1.0 / 2.2));
+    //return ret_color;
 
-    return ret_color;
+    return burgess_tonemap(color, 15);
+
 }
 
 void main() {
@@ -213,5 +215,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(composite, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gaux4, coord / 2).rgb, 1.0);
 }

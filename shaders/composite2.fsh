@@ -101,6 +101,10 @@ vec2 getCoordFromCameraSpace(in vec3 position) {
     return ndcSpacePosition * 0.5 + 0.5;
 }
 
+vec3 get_specular_color() {
+    return texture2D(gcolor, coord).rgb;
+}
+
 vec3 getColor() {
     return texture2D(composite, coord).rgb;
 }
@@ -126,6 +130,10 @@ float getWater() {
     return texture2D(gnormal, coord).a;
 }
 
+float getSkyLighting() {
+    return texture2D(gaux3, coord).r;
+}
+
 vec3 get_sky_color(in vec3 direction, in float smoothness) {
     float lon = atan(direction.z, direction.x);
     if(direction.z < 0) {
@@ -140,7 +148,7 @@ vec3 get_sky_color(in vec3 direction, in float smoothness) {
 
     float lod = (1.0 - smoothness) * 6;
 
-    return texture2DLod(gdepth, sphereCoords, lod).rgb;
+    return texture2DLod(gdepth, sphereCoords, lod).rgb * getSkyLighting();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -242,13 +250,6 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
         vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness);
 
-        vec3 viewVector = normalize(getCameraSpacePosition(coord));
-
-        float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
-
-        vec3 sColor = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
-        vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
-
         hitUV = castRay(rayStart, rayDir, MAX_RAY_LENGTH);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
@@ -285,8 +286,7 @@ void main() {
 
         reflectedColor = doLightBounce(pixel).rgb;
 
-        //smoothness = pow(smoothness, 4);
-        vec3 sColor = (pixel.color * metalness + vec3(0.14) * (1.0 - metalness)) * (1.1 - waterness);
+        vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness)) * (1.1 - waterness);
         vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
         hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
@@ -294,13 +294,8 @@ void main() {
 #endif
 
     vec3 normal_world = cameraToWorldSpace(vec4(pixel.normal, 0.0));
-    //hitColor = get_sky_color(pixel.normal, pixel.smoothness);
-    //hitColor = normal_world;
 
     vec4 vlColor = texture2DLod(gaux1, coord / 2, 3);
-    //hitColor = mix(hitColor, vlColor.rgb, vlColor.a);// + (rainStrength * 0.5));
-
-    //hitColor = pow(hitColor, vec3(1.0 / 2.2));
 
     gl_FragData[0] = vec4(hitColor, 1);
 }

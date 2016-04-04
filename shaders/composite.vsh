@@ -25,14 +25,14 @@ struct main_light {
 main_light get_main_light(in int world_time, in vec3 sun_position, in vec3 moon_position) {
     main_light light_params;
 
-    //if(world_time > 100 && world_time < 13000) {
+    if(world_time > 100 && world_time < 13000) {
         light_params.direction = normalize(sun_position);
-        light_params.color = vec3(1, 0.98, 0.95) * 25.0;
-    /*}
+        light_params.color = vec3(1, 0.98, 0.95) * 100.0;
+    }
     if(world_time < 100 || world_time > 13000) {
         light_params.direction = normalize(moon_position);
         light_params.color = vec3(1, 0.98, 0.95) * 0.25;
-    }*/
+    }
 
     return light_params;
 }
@@ -45,10 +45,6 @@ void main() {
 
     main_light light = get_main_light(worldTime, sunPosition, moonPosition);
 
-    if(worldTime > 100 && worldTime < 13000) {
-        ambientColor = vec3(0.2, 0.2, 0.2) * 0.5;
-        fogColor = vec3(0.529, 0.808, 0.980);
-    }
     if(rainStrength > 0.1) {
         //load up the rain fog profile
         fogColor = vec3(0.5, 0.5, 0.5);

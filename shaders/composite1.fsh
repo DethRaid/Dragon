@@ -106,7 +106,7 @@ const bool shadowMipmapEnabled      = true;
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100
 #define HRS_BIAS                    0.01
-#define HRS_DEPTH_CORRECTION        0.005
+#define HRS_DEPTH_CORRECTION        0.01
 
 #define SHADOW_BIAS                 0.00755
 
@@ -398,8 +398,7 @@ vec2 getCoordFromCameraSpace(in vec3 position) {
     return ndcSpacePosition * 0.5 + 0.5;
 }
 
-vec3 getCameraSpacePosition(vec2 uv) {
-	float depth = getDepth(uv);
+vec3 getCameraSpacePosition(vec2 uv, float depth) {
 	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
 		 fragposition /= fragposition.w;
 	return fragposition.xyz;
@@ -409,7 +408,7 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace(curPos);
     vec3 noise = getNoise(coord);
-    direction = normalize(direction + noise * 0.025);
+    direction = normalize(direction + noise * 0.05);
     //return direction;
     direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
 
@@ -422,12 +421,13 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
             return vec2(1);
         }
-        float worldDepth = getCameraSpacePosition(curCoord).z;
-        worldDepth -= HRS_DEPTH_CORRECTION * getDepth(curCoord);
+        float raw_depth = getDepth(curCoord);
+        float worldDepth = getCameraSpacePosition(curCoord, raw_depth).z;
+        worldDepth -= HRS_DEPTH_CORRECTION * raw_depth;
         float depthDiff = (worldDepth - curPos.z);
         //return vec2(depthDiff * far);
         float maxDepthDiff = length(direction) + HRS_BIAS;
-        maxDepthDiff *= getDepth(curCoord);
+        //maxDepthDiff *= raw_depth;
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             return vec2(0, length(curPos - origin) / HRS_RAY_LENGTH);
         }
@@ -526,10 +526,12 @@ vec3 calcShadowing(in vec4 fragPosition) {
 
         shadow_color /= numSamples;
 
+        #if HYBRID_RAYTRACED_SHADOWS == ON
         if(length(fragPosition.xyz - cameraPosition) < 10) {
             vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
             shadow_color = min(raytraced_shadow.xxx, shadow_color);///, raytraced_shadow.yyy);
         }
+        #endif
 
         return shadow_color;
     #endif
