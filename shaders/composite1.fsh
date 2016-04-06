@@ -105,7 +105,7 @@ const bool shadowMipmapEnabled      = true;
 #define HYBRID_RAYTRACED_SHADOWS    ON
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100
-#define HRS_BIAS                    0.01
+#define HRS_BIAS                    0.02
 #define HRS_DEPTH_CORRECTION        0.01
 
 #define SHADOW_BIAS                 0.00755
@@ -408,7 +408,7 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace(curPos);
     vec3 noise = getNoise(coord);
-    direction = normalize(direction + noise * 0.05);
+    direction = normalize(direction + noise * 0.04);
     //return direction;
     direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
 

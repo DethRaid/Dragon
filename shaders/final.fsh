@@ -1,8 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 2.25
-#define CONTRAST 0.75
+#define SATURATION 1.5
+#define CONTRAST 0.9
 
 #define OFF     0
 #define ON      1
@@ -183,7 +183,7 @@ vec3 doToneMapping(in vec3 color) {
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return ret_color;
 
-    return burgess_tonemap(color, 15);
+    return burgess_tonemap(color, 5);
 
 }
 
@@ -215,5 +215,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gaux4, coord / 2).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gdepth, coord / 2).rgb, 1.0);
 }

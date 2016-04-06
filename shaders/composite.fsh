@@ -23,7 +23,7 @@
 #define RAYLEIGH_COLLECTION_POWER	1
 #define MIE_COLLECTION_POWER		1
 
-#define SUNSPOT_BRIGHTNESS			100
+#define SUNSPOT_BRIGHTNESS			25
 #define MOONSPOT_BRIGHTNESS			1
 
 #define SURFACE_HEIGHT				0.99
@@ -269,7 +269,7 @@ vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);	// 
 vec3 MieColor = vec3(1.0) - Kr;
 
 vec3 absorb(float dist, vec3 color, float factor) {
-	return color - color * pow(Kr, vec3(factor / (dist * 500)));
+	return color - color * pow(Kr, vec3(factor / dist));
 }
 
 float rand(vec2 c){
