@@ -29,6 +29,10 @@ uniform sampler2D composite;
 uniform sampler2D gaux1;
 uniform sampler2D gaux3;
 
+uniform sampler2D shadowtex1;
+uniform sampler2D shadowcolor;
+uniform sampler2D shadowcolor1;
+
 uniform sampler2D noisetex;
 
 uniform vec3 cameraPosition;
@@ -36,6 +40,10 @@ uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
+
+uniform mat4 shadowModelView;
+uniform mat4 shadowProjection;
+uniform mat4 shadowProjectionInverse;
 
 uniform float near;
 uniform float far;
@@ -99,6 +107,18 @@ vec2 getCoordFromCameraSpace(in vec3 position) {
     vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
     vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
     return ndcSpacePosition * 0.5 + 0.5;
+}
+
+vec3 get_viewspace_position(in vec2 uv, in mat4 projection_inverse, in sampler2D zbuffer) {
+    float depth = texture2D(zbuffer, uv).x;
+    vec4 position = projection_inverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    return position.xyz / position.w;
+}
+
+vec2 get_coord_from_viewspace(in vec4 position, in mat4 projection) {
+    vec4 ndc_position = projection * position;
+    ndc_position /= ndc_position.w;
+    return ndc_position.xy * 0.5 + 0.5;
 }
 
 vec3 get_specular_color() {
@@ -173,9 +193,9 @@ void fillPixelStruct(inout Pixel1 pixel) {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec2 castRay(in vec3 origin, in vec3 direction, in float maxDist) {
+vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection, in mat4 projection_inverse, in sampler2D zbuffer) {
     vec3 curPos = origin;
-    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
     direction = normalize(direction) * RAY_STEP_LENGTH;
     bool forward = true;
     bool can_collect = true;
@@ -185,7 +205,7 @@ vec2 castRay(in vec3 origin, in vec3 direction, in float maxDist) {
     //then slowly moves forward until it's in front of something.
     for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
         curPos += direction;
-        curCoord = getCoordFromCameraSpace(curPos);
+        curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
             return vec2(-1);
@@ -193,22 +213,15 @@ vec2 castRay(in vec3 origin, in vec3 direction, in float maxDist) {
         if(length(curPos - origin) > MAX_RAY_LENGTH) {
             return vec2(-1);
         }
-        float worldDepth = getCameraSpacePosition(curCoord).z;
+        float worldDepth = get_viewspace_position(curCoord, projection_inverse, zbuffer).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = length(direction) + RAY_DEPTH_BIAS;
-        //if(forward) {
-            if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-                return curCoord;
-                direction = -1 * normalize(direction) * 0.15;
-                forward = false;
-            }
-        //} else {
-        //    depthDiff *= -1;
-        //    if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-        //        return curCoord;
-        //    }
-        //}
+        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+            return curCoord;
+            direction = -1 * normalize(direction) * 0.15;
+            forward = false;
+        }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
@@ -250,13 +263,27 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
         vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness);
 
-        hitUV = castRay(rayStart, rayDir, MAX_RAY_LENGTH);
+        hitUV = cast_screenspace_ray(rayStart, rayDir, gbufferProjection, gbufferProjectionInverse, gdepthtex);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
 
             retColor += reflection_sample;
         } else {
-            retColor += reflected_sky_color;
+            /*
+            // Try casting a ray against the shadow map
+            vec4 position_shadowspace = shadowModelView * gbufferModelViewInverse * vec4(pixel.position, 1.0);
+            vec3 ray_dir_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(rayDir, 0.0)).xyz;
+
+            hitUV = cast_screenspace_ray(position_shadowspace.xyz, ray_dir_shadowspace, shadowProjection, shadowProjectionInverse, shadowtex1);
+
+            if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
+                vec3 reflection_sample = texture2DLod(shadowcolor, hitUV.st, 0).rgb;
+
+                retColor += reflection_sample;
+            } else {*/
+                // No ray could resolve against the screen buffer nor against the shadow buffer. So sad.
+                retColor += reflected_sky_color;
+            //}
         }
     }
 

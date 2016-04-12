@@ -102,7 +102,7 @@ const bool shadowMipmapEnabled      = true;
  * the slowest, HARD is the fastest at the expense of realism.
  */
 #define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
-#define HYBRID_RAYTRACED_SHADOWS    ON
+#define HYBRID_RAYTRACED_SHADOWS    OFF
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100
 #define HRS_BIAS                    0.02
@@ -732,7 +732,6 @@ vec4 calc_volumetric_lighting(in vec2 vl_coord) {
         float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
 
         vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st).rgb;
-        float transparency = texture2D(shadowcolor1, shadowCoord.st).a;
 
         colorSample = mix(colorSample, vec3(1.0), waterVisibility);
         colorSample = mix(vec3(0.0), colorSample, visibility);
