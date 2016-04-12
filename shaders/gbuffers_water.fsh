@@ -70,6 +70,6 @@ void main() {
 
     gl_FragData[0] = matColor;
     gl_FragData[6] = vec4(1.0, 0.0, 0.0, 1.0);
-    gl_FragData[2] = vec4( wNormal * 0.5 + 0.5, isWater );
-    gl_FragData[5] = vec4( 0, texture2D( lightmap, uvLight ).r, 0, 1.0 );
+    gl_FragData[7] = vec4(wNormal * 0.5 + 0.5, isWater);
+    gl_FragData[5] = vec4(0, texture2D( lightmap, uvLight ).r, 0, 1.0);
 }

@@ -23,6 +23,10 @@ void main() {
     vec4 texColor = texture2D(texture, uv) * color;
 
     //get data from specular texture
+    // red = shininess
+    // green = metallic
+    // blue = emissive
+    // alpha = ao
     vec4 sData = texture2D(specular, uv);
 
     float lumac = min(luma(texColor.rgb), 1.0);
@@ -37,13 +41,8 @@ void main() {
     vec3 texnormal = texture2D(normals, uv).xyz * 2.0 - 1.0;
     texnormal = tbnMatrix * texnormal;
     //normal, junk
-    gl_FragData[2] = vec4(texnormal * 0.5 + 0.5, 0.0);
+    gl_FragData[7] = vec4(texnormal * 0.5 + 0.5, 0.0);
 
-
-    // red = shininess
-    // green = metallic
-    // blue = emissive
-    // alpha = ao
     //skipLighting, torch lighting, metlness, smoothness
     gl_FragData[5] = vec4(sData.b, uvLight.r, sData.gr);
 }

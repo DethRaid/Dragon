@@ -2,7 +2,7 @@
 #extension GL_ARB_shader_texture_lod : enable
 
 /*!
- * \brief Computes GI, storing it to a single buffer
+ * \brief Computes GI and the skybox
  */
 
 // GI variables
@@ -13,17 +13,16 @@
 
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			3.3
-#define MIE_BRIGHTNESS 				10
-#define MIE_DISTRIBUTION 			-0.75
+#define MIE_BRIGHTNESS 				0.1
+#define MIE_DISTRIBUTION 			0.63
 #define STEP_COUNT 					15.0
-#define SCATTER_STRENGTH			100
-#define INTENSITY					1.8
-#define RAYLEIGH_STRENGTH			139
-#define MIE_STRENGTH				264
-#define RAYLEIGH_COLLECTION_POWER	1
-#define MIE_COLLECTION_POWER		1
+#define SCATTER_STRENGTH			0.028
+#define RAYLEIGH_STRENGTH			0.139
+#define MIE_STRENGTH				0.0264
+#define RAYLEIGH_COLLECTION_POWER	0.81
+#define MIE_COLLECTION_POWER		0.39
 
-#define SUNSPOT_BRIGHTNESS			25
+#define SUNSPOT_BRIGHTNESS			1000
 #define MOONSPOT_BRIGHTNESS			1
 
 #define SURFACE_HEIGHT				0.99
@@ -31,6 +30,7 @@
 #define PI 3.14159
 
 const int RGB32F					= 0;
+const int RGB16F					= 1;
 
 const int   shadowMapResolution     = 4096;
 const float shadowDistance          = 120.0;
@@ -41,10 +41,11 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 const int 	gdepthFormat			= RGB32F;
+const int	gnormalFormat			= RGB16F;
 
 uniform sampler2D gdepthtex;
-uniform sampler2D colortex2;
 uniform sampler2D gaux3;
+uniform sampler2D gaux4;
 
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor;
@@ -73,10 +74,10 @@ varying vec3 ambientColor;
 varying vec3 fogColor;
 varying vec3 skyColor;
 
-/* DRAWBUFFERS:71 */
+/* DRAWBUFFERS:21 */
 
 vec3 get_normal(in vec2 coord) {
-	return texture2DLod(colortex2, coord, 0).xyz * 2.0 - 1.0;
+	return texture2DLod(gaux4, coord, 0).xyz * 2.0 - 1.0;
 }
 
 float get_depth(in vec2 coord) {
@@ -108,63 +109,6 @@ vec3 get_3d_noise(in vec2 coord) {
 
 float get_leaf(in vec2 coord) {
 	return texture2D(gaux3, coord).b;
-}
-
-/*
- * Global Illumination
- *
- * Calculates bounces diffuse light
- */
-
-vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
- 	float NdotL = dot(normal, lightVector);
-
- 	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
-
- 	vec4 position = viewspace_to_worldspace(position_viewspace);
- 		 position = worldspace_to_shadowspace(position);
- 		 position = position * 0.5 + 0.5;
-
- 	float fademult 	= 0.15;
-
- 	vec3 light = vec3(0.0);
- 	int samples	= 0;
-
- 	for(int i = 0; i < GI_QUALITY; i++) {
- 		float percentage_done = float(i) / float(GI_QUALITY);
- 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
-
- 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
- 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
- 		offset /= shadowMapResolution;
-
- 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
- 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
-
- 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
- 		vec3 normal_shadow	 = texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0;
-
-        vec3 light_strength              = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1)));
- 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
- 		float transmitted_light_strength = max(0.0, dot(normal_shadow, -sample_dir));
-
-		//return vec3(received_light_strength);
-
- 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
-		falloff = max(falloff, 1.0);
-        falloff = pow(falloff, 4);
-		falloff = max(1.0, falloff);
-
- 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
-        vec3 flux = sample_color * light_strength;
-
- 		light += flux * transmitted_light_strength * received_light_strength / falloff;
- 	}
-
- 	light /= GI_QUALITY;
-
- 	return light / 15;
 }
 
 vec3 calc_leaf_scattering(in vec2 coord) {
@@ -266,7 +210,6 @@ float horizon_extinction(vec3 position, vec3 dir, float radius) {
 }
 
 vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);	// Color of nitrogen
-vec3 MieColor = vec3(1.0) - Kr;
 
 vec3 absorb(float dist, vec3 color, float factor) {
 	return color - color * pow(Kr, vec3(factor / dist));
@@ -316,9 +259,7 @@ float pNoise(vec2 p, int res){
  *
  * \param coord The UV coordinate to render to
  */
-vec3 get_sky_color(in vec2 coord, in vec3 light_vector, in float light_intensity) {
-	vec3 eye_vector = get_eye_vector(coord).xzy;
-
+vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_intensity) {
 	vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(light_vector, 0.0)).xyz);
 
 	float alpha = max(dot(eye_vector, light_vector_worldspace), 0.0);
@@ -335,11 +276,6 @@ vec3 get_sky_color(in vec2 coord, in vec3 light_vector, in float light_intensity
 
 	vec3 rayleigh_collected = vec3(0);
 	vec3 mie_collected = vec3(0);
-	float light_depth = atmospheric_depth(eye_position, light_vector_worldspace);
-	float toward_light_factor = dot(light_vector_worldspace, eye_vector) * 0.5 + 0.5;
-	vec3 spot_color = lightColor - (Kr * light_depth * 150 * toward_light_factor) * light_intensity;	// As more and more light goes to Rayleigh, less and less should go to the sun
-
-	vec3 influx_collected = vec3(0);
 
 	for(int i = 0; i < STEP_COUNT; i++) {
 		float sample_distance = step_length * float(i);
@@ -348,7 +284,6 @@ vec3 get_sky_color(in vec2 coord, in vec3 light_vector, in float light_intensity
 		float sample_depth = atmospheric_depth(position, light_vector_worldspace);
 
 		vec3 influx = absorb(sample_depth, vec3(light_intensity), SCATTER_STRENGTH) * extinction;
-		influx_collected += influx;
 
 		// rayleigh will make the nice blue band around the bottom of the sky
 		rayleigh_collected += absorb(sample_distance, Kr * influx, RAYLEIGH_STRENGTH);
@@ -361,6 +296,61 @@ vec3 get_sky_color(in vec2 coord, in vec3 light_vector, in float light_intensity
 	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 
 	return color;
+}
+
+/*
+ * Global Illumination
+ *
+ * Calculates bounces diffuse light
+ */
+
+vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
+ 	float NdotL = dot(normal, lightVector);
+
+ 	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
+
+ 	vec4 position = viewspace_to_worldspace(position_viewspace);
+ 		 position = worldspace_to_shadowspace(position);
+ 		 position = position * 0.5 + 0.5;
+
+ 	float fademult 	= 0.15;
+
+ 	vec3 light = vec3(0.0);
+ 	int samples	= 0;
+
+ 	for(int i = 0; i < GI_QUALITY; i++) {
+ 		float percentage_done = float(i) / float(GI_QUALITY);
+ 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
+
+ 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
+ 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
+ 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
+ 		offset /= shadowMapResolution;
+
+ 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
+ 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
+
+ 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
+ 		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
+
+        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
+ 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
+ 		float transmitted_light_strength = max(0.0, dot(normal_shadow, -sample_dir));
+
+ 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
+		falloff = max(falloff, 1.0);
+        falloff = pow(falloff, 3);
+		falloff = max(1.0, falloff);
+
+ 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
+        vec3 flux = sample_color * light_strength * vec3(1.0, 0.98, 0.95);
+
+ 		light += flux * transmitted_light_strength * received_light_strength / falloff;
+ 	}
+
+ 	light /= GI_QUALITY;
+
+ 	return light / 15;
 }
 
 void main() {
@@ -378,9 +368,10 @@ void main() {
 	}
 
 	vec3 sky_color = vec3(0);
-	sky_color += get_sky_color(coord, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
-	sky_color += get_sky_color(coord, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
+	vec3 eye_vector = get_eye_vector(coord).xzy;
+	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
+	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
 
-    gl_FragData[0] = vec4(pow(gi, vec3(1 / 2.2)), 1.0);
+    gl_FragData[0] = vec4(gi, 1.0);
 	gl_FragData[1] = vec4(sky_color, 1.0);
 }

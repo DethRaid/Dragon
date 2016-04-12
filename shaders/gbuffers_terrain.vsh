@@ -30,28 +30,24 @@ void main() {
     //We're working in a cube world. If one component of the normal is
     //greater than all the others, we know what direction the surface is
     //facing in
-    if( gl_Normal.x > 0.5 ) {
-        tangent  = vec3( 0,  0, 1 );
-        binormal = cross(  gl_Normal, tangent );
-    } else if( gl_Normal.x < -0.5 ) {
-        tangent  = vec3( 0,  0, 1 );
-        binormal = cross(  gl_Normal, tangent );
-    } else if( gl_Normal.y > 0.5 ) {
-        tangent  = vec3( -1,  0, 0 );
-        binormal = cross(  gl_Normal, tangent );
-    } else if( gl_Normal.y < -0.5 ) {
-        tangent  = vec3( 1,  0, 0 );
-        binormal = cross(  gl_Normal, tangent );
-    } else if( gl_Normal.z > 0.5 ) {
-        tangent  = vec3( 1,  0, 0 );
-        binormal = cross(  gl_Normal, tangent );
-    } else if( gl_Normal.z < -0.5 ) {
-        tangent  = vec3( 1,  0, 0 );
-        binormal = cross(  gl_Normal, tangent );
+    if(gl_Normal.x > 0.5) {
+        tangent = vec3(0, 0, 1);
+    } else if(gl_Normal.x < -0.5) {
+        tangent = vec3(0, 0, 1);
+    } else if(gl_Normal.y > 0.5 ) {
+        tangent = vec3(-1, 0, 0);
+    } else if(gl_Normal.y < -0.5) {
+        tangent = vec3(1, 0, 0);
+    } else if(gl_Normal.z > 0.5) {
+        tangent = vec3(1, 0, 0);
+    } else if(gl_Normal.z < -0.5) {
+        tangent = vec3(1, 0, 0);
     }
 
-    tangent = normalize( gl_NormalMatrix * tangent );
-    binormal = normalize( gl_NormalMatrix * binormal );
+    binormal = cross(gl_Normal, tangent);
+
+    tangent = normalize(gl_NormalMatrix * tangent);
+    binormal = normalize(gl_NormalMatrix * binormal);
 
     tbnMatrix = mat3( tangent,
                       binormal,

@@ -2,12 +2,12 @@
 #extension GL_ARB_shader_texture_lod : enable
 
 #define SATURATION 1.5
-#define CONTRAST 0.9
+#define CONTRAST 1.0
 
 #define OFF     0
 #define ON      1
 
-#define FILM_GRAIN ON
+#define FILM_GRAIN OFF
 #define FILM_GRAIN_STRENGTH 0.045
 
 #define BLOOM               OFF
@@ -142,7 +142,7 @@ vec3 doMotionBlur() {
 #endif
 
 vec3 reinhard_tonemap(in vec3 color, in float lWhite) {
-    return (color * (1 + (color / (lWhite * lWhite)))) / (1 + color);
+    //return (color * (1 + (color / (lWhite * lWhite)))) / (1 + color);
     float lumac = luma(color);
 
     float lumat = (lumac * (1 + (lumac / (lWhite * lWhite)))) / (1 + lumac);
@@ -179,11 +179,11 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 
 vec3 doToneMapping(in vec3 color) {
     //return uncharted_tonemap(color, 1);
-    //vec3 ret_color = reinhard_tonemap(color, 10);
+    //vec3 ret_color = reinhard_tonemap(color, 7500);
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return ret_color;
 
-    return burgess_tonemap(color, 5);
+    return burgess_tonemap(color / 100, 25);
 
 }
 
@@ -215,5 +215,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gdepth, coord / 2).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gnormal, coord / 2).rgb, 1.0);
 }

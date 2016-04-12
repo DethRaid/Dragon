@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.25    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -23,11 +23,12 @@ const bool compositeMipmapEnabled   = true;
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
 uniform sampler2D gdepth;
-uniform sampler2D gaux2;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
 uniform sampler2D gaux1;
+uniform sampler2D gaux2;
 uniform sampler2D gaux3;
+uniform sampler2D gaux4;
 
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor;
@@ -138,7 +139,7 @@ float getSmoothness() {
 }
 
 vec3 getNormal() {
-    vec3 normal = texture2D(gnormal, coord).xyz * 2.0 - 1.0;
+    vec3 normal = texture2D(gaux4, coord).xyz * 2.0 - 1.0;
     return normal;
 }
 
@@ -299,26 +300,28 @@ void main() {
     fillPixelStruct(pixel);
     vec3 hitColor = pixel.color;
     vec3 reflectedColor = vec3(0);
-#if NUM_RAYS > 0
+
+    vec3 viewVector = normalize(getCameraSpacePosition(coord));
+
+    float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
+
+    float smoothness = pixel.smoothness;
+    float metalness = pixel.metalness;
+    float waterness = pixel.water;
+
+    vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness)) * (1.1 - waterness);
+    vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
+
     if(!pixel.skipLighting) {
-        hitColor = doLightBounce(pixel);
-
-        vec3 viewVector = normalize(getCameraSpacePosition(coord));
-
-        float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
-
-        float smoothness = pixel.smoothness;
-        float metalness = pixel.metalness;
-        float waterness = pixel.water;
-
+#if NUM_RAYS > 0
         reflectedColor = doLightBounce(pixel).rgb;
-
-        vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness)) * (1.1 - waterness);
-        vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
+#else
+        // Only reflect the sky
+        reflectedColor = get_sky_color(viewVector, (1.0 - smoothness) * 8);
+#endif
 
         hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
     }
-#endif
 
     vec3 normal_world = cameraToWorldSpace(vec4(pixel.normal, 0.0));
 
