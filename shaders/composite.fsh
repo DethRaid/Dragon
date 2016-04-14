@@ -6,8 +6,8 @@
  */
 
 // GI variables
-#define GI_SAMPLE_RADIUS 35
-#define GI_QUALITY 203
+#define GI_SAMPLE_RADIUS 100
+#define GI_QUALITY 307
 
 #define LEAF_SS_QUALITY 16
 
@@ -109,6 +109,62 @@ vec3 get_3d_noise(in vec2 coord) {
 
 float get_leaf(in vec2 coord) {
 	return texture2D(gaux3, coord).b;
+}
+
+/*
+ * Global Illumination
+ *
+ * Calculates bounces diffuse light
+ */
+
+vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
+ 	float NdotL = dot(normal, lightVector);
+
+ 	vec3 normal_shadowspace = (shadowModelView * vec4(normal, 0.0)).xyz;
+
+ 	vec4 position = viewspace_to_worldspace(position_viewspace);
+ 		 position = worldspace_to_shadowspace(position);
+ 		 position = position * 0.5 + 0.5;
+
+ 	float fademult 	= 0.15;
+
+ 	vec3 light = vec3(0.0);
+ 	int samples	= 0;
+
+ 	for(int i = 0; i < GI_QUALITY; i++) {
+ 		float percentage_done = float(i) / float(GI_QUALITY);
+ 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
+
+ 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
+ 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
+ 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
+ 		offset /= shadowMapResolution;
+
+ 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
+ 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
+
+ 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
+ 		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
+		normal_shadow.xy *= -1;
+
+        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
+ 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
+ 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
+
+ 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
+		falloff = max(falloff, 1.0);
+        falloff = pow(falloff, 4);
+		falloff = max(1.0, falloff);
+
+ 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
+        vec3 flux = sample_color * light_strength;
+
+ 		light += flux * transmitted_light_strength * received_light_strength / falloff;
+ 	}
+
+ 	light /= GI_QUALITY;
+
+ 	return light / 15;
 }
 
 vec3 calc_leaf_scattering(in vec2 coord) {
@@ -296,61 +352,6 @@ vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_inte
 	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 
 	return color;
-}
-
-/*
- * Global Illumination
- *
- * Calculates bounces diffuse light
- */
-
-vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
- 	float NdotL = dot(normal, lightVector);
-
- 	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
-
- 	vec4 position = viewspace_to_worldspace(position_viewspace);
- 		 position = worldspace_to_shadowspace(position);
- 		 position = position * 0.5 + 0.5;
-
- 	float fademult 	= 0.15;
-
- 	vec3 light = vec3(0.0);
- 	int samples	= 0;
-
- 	for(int i = 0; i < GI_QUALITY; i++) {
- 		float percentage_done = float(i) / float(GI_QUALITY);
- 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
-
- 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
- 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
- 		offset /= shadowMapResolution;
-
- 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
- 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
-
- 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
- 		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
-
-        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
- 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
- 		float transmitted_light_strength = max(0.0, dot(normal_shadow, -sample_dir));
-
- 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
-		falloff = max(falloff, 1.0);
-        falloff = pow(falloff, 3);
-		falloff = max(1.0, falloff);
-
- 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
-        vec3 flux = sample_color * light_strength * vec3(1.0, 0.98, 0.95);
-
- 		light += flux * transmitted_light_strength * received_light_strength / falloff;
- 	}
-
- 	light /= GI_QUALITY;
-
- 	return light / 15;
 }
 
 void main() {

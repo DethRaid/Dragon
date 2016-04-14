@@ -1,7 +1,7 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.5
+#define SATURATION 1.0
 #define CONTRAST 1.0
 
 #define OFF     0
@@ -183,7 +183,7 @@ vec3 doToneMapping(in vec3 color) {
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return ret_color;
 
-    return burgess_tonemap(color / 100, 25);
+    return burgess_tonemap(color / 50, 15);
 
 }
 

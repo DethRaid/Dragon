@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.25    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -262,8 +262,6 @@ vec3 doLightBounce(in Pixel1 pixel) {
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
-        vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness);
-
         hitUV = cast_screenspace_ray(rayStart, rayDir, gbufferProjection, gbufferProjectionInverse, gdepthtex);
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
@@ -283,6 +281,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
                 retColor += reflection_sample;
             } else {*/
                 // No ray could resolve against the screen buffer nor against the shadow buffer. So sad.
+                vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness) * mix(1, 20, pixel.metalness);
                 retColor += reflected_sky_color;
             //}
         }
