@@ -64,7 +64,7 @@ void main() {
     vec4 matColor = color * texture2D( diffuse, uv );
 
     if( isWater > 0.9 ) {
-        wNormal = getWaveNormal();
+        //wNormal = getWaveNormal();
        // matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
     }
 

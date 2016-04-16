@@ -8,6 +8,7 @@ varying vec2 uvLight;
 
 varying vec3 normal;
 varying mat3 tbnMatrix;
+varying vec3 view_vector;
 
 varying float is_leaf;
 
@@ -18,7 +19,7 @@ void main() {
 
     gl_Position = ftransform();
 
-    normal = normalize( gl_NormalMatrix * gl_Normal );
+    normal = normalize(gl_NormalMatrix * gl_Normal);
 
     is_leaf = 0;
     if(mc_Entity.x == 18) {
@@ -52,4 +53,7 @@ void main() {
     tbnMatrix = mat3( tangent,
                       binormal,
                       normal );
+
+    // Calculate the view vector for POM
+    view_vector = normalize(tbnMatrix * (gl_ModelViewMatrix * gl_Vertex).xyz);
 }

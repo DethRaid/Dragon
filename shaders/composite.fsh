@@ -14,7 +14,7 @@
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			3.3
 #define MIE_BRIGHTNESS 				0.1
-#define MIE_DISTRIBUTION 			0.63
+#define MIE_DISTRIBUTION 			-0.63
 #define STEP_COUNT 					15.0
 #define SCATTER_STRENGTH			0.028
 #define RAYLEIGH_STRENGTH			0.139
@@ -22,10 +22,12 @@
 #define RAYLEIGH_COLLECTION_POWER	0.81
 #define MIE_COLLECTION_POWER		0.39
 
-#define SUNSPOT_BRIGHTNESS			1000
-#define MOONSPOT_BRIGHTNESS			1
+#define SUNSPOT_BRIGHTNESS			500
+#define MOONSPOT_BRIGHTNESS			25
 
-#define SURFACE_HEIGHT				0.99
+#define SKY_SATURATION				1
+
+#define SURFACE_HEIGHT				0.98
 
 #define PI 3.14159
 
@@ -120,7 +122,7 @@ float get_leaf(in vec2 coord) {
 vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
  	float NdotL = dot(normal, lightVector);
 
- 	vec3 normal_shadowspace = (shadowModelView * vec4(normal, 0.0)).xyz;
+ 	vec3 normal_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(normal, 0.0)).xyz;
 
  	vec4 position = viewspace_to_worldspace(position_viewspace);
  		 position = worldspace_to_shadowspace(position);
@@ -351,7 +353,17 @@ vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_inte
 
 	vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
 
-	return color;
+	return color * 7;
+}
+
+float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+vec3 enhance(in vec3 color) {
+    vec3 intensity = vec3(luma(color));
+
+    return mix(intensity, color, SKY_SATURATION);
 }
 
 void main() {
@@ -372,6 +384,8 @@ void main() {
 	vec3 eye_vector = get_eye_vector(coord).xzy;
 	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
 	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
+
+	sky_color = enhance(sky_color);
 
     gl_FragData[0] = vec4(gi, 1.0);
 	gl_FragData[1] = vec4(sky_color, 1.0);

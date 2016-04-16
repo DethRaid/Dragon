@@ -183,7 +183,7 @@ vec3 doToneMapping(in vec3 color) {
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return ret_color;
 
-    return burgess_tonemap(color / 50, 15);
+    return burgess_tonemap(color / 125, 5);
 
 }
 

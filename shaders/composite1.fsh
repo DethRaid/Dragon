@@ -408,7 +408,7 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
     vec2 curCoord = getCoordFromCameraSpace(curPos);
     vec3 noise = getNoise(coord);
-    direction = normalize(direction + noise * 0.04);
+    direction = normalize(direction + noise * 0.01);
     //return direction;
     direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
 
@@ -527,7 +527,7 @@ vec3 calcShadowing(in vec4 fragPosition) {
         shadow_color /= numSamples;
 
         #if HYBRID_RAYTRACED_SHADOWS == ON
-        if(length(fragPosition.xyz - cameraPosition) < 10) {
+        if(length(fragPosition.xyz - cameraPosition) < 8.7) {
             vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
             shadow_color = min(raytraced_shadow.xxx, shadow_color);///, raytraced_shadow.yyy);
         }
@@ -669,7 +669,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
     sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, pixel.normal, pixel.metalness, sky_lod_level);
 
-    return sky_diffuse * mix(0.5, 1, getSkyLighting()) * 2;
+    return sky_diffuse * mix(0.5, 1, getSkyLighting());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

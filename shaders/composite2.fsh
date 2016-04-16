@@ -4,9 +4,9 @@
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          25.0
 #define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.5
+#define RAY_STEP_LENGTH         0.45
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
-#define RAY_GROWTH              1.25    //Make this number smaller to get more accurate reflections at the cost of performance
+#define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
 #define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
@@ -122,6 +122,11 @@ vec2 get_coord_from_viewspace(in vec4 position, in mat4 projection) {
     return ndc_position.xy * 0.5 + 0.5;
 }
 
+vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
+	vec4 pos = gbufferModelViewInverse * position_viewspace;
+	return pos;
+}
+
 vec3 get_specular_color() {
     return texture2D(gcolor, coord).rgb;
 }
@@ -230,8 +235,9 @@ vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
 }
 
 vec3 get_reflected_sky(in Pixel1 pixel) {
-    vec3 reflect_dir = reflect(pixel.position, pixel.normal);
-    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness);
+    vec3 reflect_dir = reflect(normalize(pixel.position), pixel.normal);
+    reflect_dir = viewspace_to_worldspace(vec4(reflect_dir, 0)).xyz;
+    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness) * 10;
 
     float vdotn = dot(pixel.normal, pixel.position);
     vdotn = max(0, vdotn);
@@ -281,7 +287,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
                 retColor += reflection_sample;
             } else {*/
                 // No ray could resolve against the screen buffer nor against the shadow buffer. So sad.
-                vec3 reflected_sky_color = get_sky_color(reflectDir, pixel.smoothness) * mix(1, 20, pixel.metalness);
+                vec3 reflected_sky_color = get_reflected_sky(pixel);
                 retColor += reflected_sky_color;
             //}
         }
@@ -316,7 +322,7 @@ void main() {
         reflectedColor = doLightBounce(pixel).rgb;
 #else
         // Only reflect the sky
-        reflectedColor = get_sky_color(viewVector, (1.0 - smoothness) * 8);
+        reflectedColor = get_reflected_sky(pixel);
 #endif
 
         hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
