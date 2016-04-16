@@ -573,7 +573,7 @@ vec3 calcDirectLighting(in Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
 
     // Calculate the main light lighting from the light position and whatnot
-    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 2);
+    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 2) * 0.5;
 
     // Calculate specular light from the sky
     // Get the specular component blurred by the pixel's roughness

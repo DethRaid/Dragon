@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -274,22 +274,10 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
             retColor += reflection_sample;
         } else {
-            /*
-            // Try casting a ray against the shadow map
-            vec4 position_shadowspace = shadowModelView * gbufferModelViewInverse * vec4(pixel.position, 1.0);
-            vec3 ray_dir_shadowspace = (shadowModelView * gbufferModelViewInverse * vec4(rayDir, 0.0)).xyz;
-
-            hitUV = cast_screenspace_ray(position_shadowspace.xyz, ray_dir_shadowspace, shadowProjection, shadowProjectionInverse, shadowtex1);
-
-            if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
-                vec3 reflection_sample = texture2DLod(shadowcolor, hitUV.st, 0).rgb;
-
-                retColor += reflection_sample;
-            } else {*/
-                // No ray could resolve against the screen buffer nor against the shadow buffer. So sad.
-                vec3 reflected_sky_color = get_reflected_sky(pixel);
-                retColor += reflected_sky_color;
-            //}
+            Pixel1 sky_pixel = pixel;
+            sky_pixel.normal = reflectDir;
+            vec3 reflected_sky_color = get_reflected_sky(sky_pixel);
+            retColor += reflected_sky_color;
         }
     }
 
@@ -314,7 +302,7 @@ void main() {
     float metalness = pixel.metalness;
     float waterness = pixel.water;
 
-    vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness)) * (1.1 - waterness);
+    vec3 sColor = mix(vec3(0.14), get_specular_color() * 10, vec3(metalness)) * (1.1 - waterness);
     vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
     if(!pixel.skipLighting) {
