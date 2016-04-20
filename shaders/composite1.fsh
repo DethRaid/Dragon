@@ -65,7 +65,7 @@ const bool shadowMipmapEnabled      = true;
  * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
  * you'd see if the Earth's sun was as big in the sky as Minecraft's
  */
-#define LIGHT_SIZE                  5
+#define LIGHT_SIZE                  7.5
 
 /*
  * Defined the minimum about of shadow blur when PCSS is enabled. A value of
@@ -559,7 +559,7 @@ vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in float me
     float ndotl = dot(normal, direction);
     ndotl = max(0, ndotl);
 
-    vec3 sky_lambert = ndotl * sky_light_diffuse * (1.0 - metalness);
+    vec3 sky_lambert = ndotl * sky_light_diffuse;// * (1.0 - metalness);
 
     return sky_lambert;
 }
@@ -652,22 +652,24 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
     vec3 specularColor = pixel.color * pixel.metalness + (1 - pixel.metalness) * vec3(0.2);
     specularColor *= pixel.smoothness;
+    vec3 sample_normal = pixel.normal;
+    //sample_normal.zy *= -1;
 
-    const float sky_lod_level = 2;
+    const float sky_lod_level = 7;
 
     vec3 sky_diffuse = vec3(0);
     // Add in lighting from the parts around the sun
     // Fade it out by the amount of sky lighting
     vec3 sky_sample_1_pos = (shadowModelViewInverse * vec4(1, 0, 0, 0)).xyz;
-    sky_diffuse += calc_lighting_from_direction(sky_sample_1_pos, pixel.normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += calc_lighting_from_direction(sky_sample_1_pos, sample_normal, pixel.metalness, sky_lod_level);
     vec3 sky_sample_2_pos = (shadowModelViewInverse * vec4(-1, 0, 0, 0)).xyz;
-    sky_diffuse += calc_lighting_from_direction(sky_sample_2_pos, pixel.normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += calc_lighting_from_direction(sky_sample_2_pos, sample_normal, pixel.metalness, sky_lod_level);
     vec3 sky_sample_3_pos = (shadowModelViewInverse * vec4(0, 1, 0, 0)).xyz;
-    sky_diffuse += calc_lighting_from_direction(sky_sample_3_pos, pixel.normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += calc_lighting_from_direction(sky_sample_3_pos, sample_normal, pixel.metalness, sky_lod_level);
     vec3 sky_sample_4_pos = (shadowModelViewInverse * vec4(0, -1, 0, 0)).xyz;
-    sky_diffuse += calc_lighting_from_direction(sky_sample_4_pos, pixel.normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += calc_lighting_from_direction(sky_sample_4_pos, sample_normal, pixel.metalness, sky_lod_level);
     vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
-    sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, pixel.normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, sample_normal, pixel.metalness, sky_lod_level);
 
     return sky_diffuse * mix(0.5, 1, getSkyLighting());
 }
@@ -757,7 +759,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    // return ambient_lighting;
+    //return ambient_lighting;
 
     return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }

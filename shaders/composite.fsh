@@ -6,8 +6,8 @@
  */
 
 // GI variables
-#define GI_SAMPLE_RADIUS 100
-#define GI_QUALITY 307
+#define GI_SAMPLE_RADIUS 150
+#define GI_QUALITY 105
 
 #define LEAF_SS_QUALITY 16
 
@@ -139,7 +139,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  		float theta = percentage_done * (GI_QUALITY / 16) * PI;
  		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(gi_coord * 1.3).xy * 3;
+ 		offset += get_3d_noise(gi_coord).xy * 25;
  		offset /= shadowMapResolution;
 
  		vec3 sample_pos = vec3(position.xy + offset, 0.0);

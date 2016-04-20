@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -238,13 +238,14 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
     vec3 reflect_dir = reflect(normalize(pixel.position), pixel.normal);
     reflect_dir = viewspace_to_worldspace(vec4(reflect_dir, 0)).xyz;
     vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness) * 10;
+    return sky_sample;
 
     float vdotn = dot(pixel.normal, pixel.position);
     vdotn = max(0, vdotn);
 
-    vec3 fresnel = pixel.specular_color + (vec3(1.0) - pixel.specular_color) * pow(1.0 - vdotn, 5);
+    vec3 fresnel = pixel.specular_color + (vec3(1.0) - pixel.specular_color) * pow(1.0 - vdotn, 5) * pixel.smoothness;
 
-    return (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + sky_sample * fresnel * pixel.smoothness;
+    return (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + sky_sample * fresnel;
 }
 
 vec3 doLightBounce(in Pixel1 pixel) {
