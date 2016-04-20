@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -52,7 +52,7 @@ uniform float viewWidth;
 uniform float viewHeight;
 uniform float rainStrength;
 
-uniform vec3 skyColor;
+in vec3 lightVector;
 
 in vec2 coord;
 
@@ -237,8 +237,15 @@ vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
 vec3 get_reflected_sky(in Pixel1 pixel) {
     vec3 reflect_dir = reflect(normalize(pixel.position), pixel.normal);
     reflect_dir = viewspace_to_worldspace(vec4(reflect_dir, 0)).xyz;
-    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness) * 10;
-    return sky_sample;
+    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness) * 2.5;
+
+    // Boost the sky when the reflection direction is pointing at the sun
+    vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
+    float facing_sun_fact = max(0, dot(reflect_dir, light_vector_worldspace));
+    facing_sun_fact = pow(facing_sun_fact, 200);
+
+    float sky_boost = mix(1, 10000, facing_sun_fact);
+    sky_sample *= sky_boost;
 
     float vdotn = dot(pixel.normal, pixel.position);
     vdotn = max(0, vdotn);

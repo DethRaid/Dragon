@@ -644,7 +644,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
     float torchIntensity = length(torchColor * torchFac);
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
-    return torchColor;
+    return torchColor * 75;
 }
 
 vec3 get_ambient_lighting(in Pixel pixel) {
@@ -758,10 +758,11 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
+    vec3 torch_lighting = calcTorchLighting(pixel);
 
     //return ambient_lighting;
 
-    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
+    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi + torch_lighting) * pixel.color;
 }
 
 float luma(in vec3 color) {
