@@ -161,7 +161,7 @@ varying vec3 fogColor;
 varying vec3 skyColor;
 varying vec3 ambientColor;
 
-/* DRAWBUFFERS:34 */
+/* DRAWBUFFERS:342 */
 
 #include "/lib/wind.glsl"
 
@@ -178,6 +178,7 @@ struct Pixel {
     bool skipLighting;
 
     vec3 directLighting;
+    vec3 shadow;
     vec3 torchLighting;
 } curFrag;
 
@@ -310,82 +311,6 @@ vec3 calcShadowCoordinate(in vec4 pixelPos) {
     float dFrag = shadowCoord.z * 0.5 + 0.505;
 
     return vec3(shadowCoord.st, dFrag);
-}
-
-//I'm sorry this is so long, OSX doesn't support GLSL 120 arrays
-vec2 poisson(int i) {
-    if(i == 0) {
-        return vec2(0.680375, -0.211234);
-    } else if(i == 1) {
-        return vec2(0.566198, 0.596880);
-    } else if(i == 2) {
-        return vec2(0.823295, -0.604897);
-    } else if(i == 3) {
-        return vec2(-0.329554, 0.536459);
-
-    } else if(i == 4) {
-        return vec2(-0.444451, 0.107940);
-    } else if(i == 5) {
-        return vec2(-0.045206, 0.257742);
-    } else if(i == 6) {
-        return vec2(-0.270431, 0.026802);
-    } else if(i == 7) {
-        return vec2(0.904459, 0.832390);
-
-    } else if(i == 8) {
-        return vec2(0.271423, 0.434594);
-    } else if(i == 9) {
-        return vec2(-0.716795, 0.213938);
-    } else if(i == 10) {
-        return vec2(-0.967399, -0.514226);
-    } else if(i == 11) {
-        return vec2(-0.725537, 0.608354);
-
-    } else if(i == 12) {
-        return vec2(-0.686642, -0.198111);
-    } else if(i == 13) {
-        return vec2(-0.740419, -0.782382);
-    } else if(i == 14) {
-        return vec2(0.997849, -0.563486);
-    } else if(i == 15) {
-        return vec2(0.025865, 0.678224);
-
-    } else if(i == 16) {
-        return vec2(0.225280, -0.407937);
-    } else if(i == 17) {
-        return vec2(0.275105, 0.048574);
-    } else if(i == 18) {
-        return vec2(-0.012834, 0.945550);
-    } else if(i == 19) {
-        return vec2(-0.414966, 0.542715);
-
-    } else if(i == 20) {
-        return vec2(0.053490, 0.539828);
-    } else if(i == 21) {
-        return vec2(-0.199543, 0.783059);
-    } else if(i == 22) {
-        return vec2(-0.433371, -0.295083);
-    } else if(i == 23) {
-        return vec2(0.615449, 0.838053);
-
-    } else if(i == 24) {
-        return vec2(-0.860489, 0.898654);
-    } else if(i == 25) {
-        return vec2(0.051991, -0.827888);
-    } else if(i == 26) {
-        return vec2(-0.615572, 0.326454);
-    } else if(i == 27) {
-        return vec2(0.780465, -0.302214);
-
-    } else if(i == 28) {
-        return vec2(-0.871657, -0.959954);
-    } else if(i == 29) {
-        return vec2(-0.084597, -0.873808);
-    } else if(i == 30) {
-        return vec2(-0.523440, 0.941268);
-    } else if(i == 31) {
-        return vec2(0.804416, 0.701840);
-    }
 }
 
 int rand(vec2 seed) {
@@ -564,7 +489,10 @@ vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in float me
     return sky_lambert;
 }
 
-vec3 calcDirectLighting(in Pixel pixel) {
+/*
+ * \brief
+ */
+vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
     float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
     vec3 specularColor = pixel.color * pixel.metalness + (1 - pixel.metalness) * vec3(0.2);
@@ -589,9 +517,9 @@ vec3 calcDirectLighting(in Pixel pixel) {
     vec3 sky_specular = fresnel_color * pixel.smoothness;
 
     #if SHADOW_QUALITY != OFF
-        vec3 shadow_color = calcShadowing(pixel.position);
+        pixel.shadow = calcShadowing(pixel.position);
         //return shadow_color;
-        sun_lighting *= shadow_color;
+        sun_lighting *= pixel.shadow;
     #endif
 
     // Mix the specular and diffuse light together
@@ -691,6 +619,7 @@ Pixel fillPixelStruct() {
     pixel.sky =             getSky();
     pixel.directLighting =  vec3(0);
     pixel.torchLighting =   vec3(0);
+    pixel.shadow =          vec3(1);
 
     return pixel;
 }
@@ -758,11 +687,8 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
-    vec3 torch_lighting = calcTorchLighting(pixel);
 
-    //return ambient_lighting;
-
-    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi + torch_lighting) * pixel.color;
+    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
 
 float luma(in vec3 color) {
@@ -802,4 +728,5 @@ void main() {
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;
+    gl_FragData[2] = vec4(curFrag.shadow, 1.0);
 }

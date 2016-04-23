@@ -25,7 +25,7 @@
 #define SUNSPOT_BRIGHTNESS			500
 #define MOONSPOT_BRIGHTNESS			25
 
-#define SKY_SATURATION				1
+#define SKY_SATURATION				1.0
 
 #define SURFACE_HEIGHT				0.98
 

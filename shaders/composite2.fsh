@@ -177,6 +177,10 @@ vec3 get_sky_color(in vec3 direction, in float smoothness) {
     return texture2DLod(gdepth, sphereCoords, lod).rgb * getSkyLighting();
 }
 
+vec3 get_shadow(in vec2 coord) {
+    return texture2D(gnormal, coord).rgb;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
@@ -237,22 +241,20 @@ vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
 vec3 get_reflected_sky(in Pixel1 pixel) {
     vec3 reflect_dir = reflect(normalize(pixel.position), pixel.normal);
     reflect_dir = viewspace_to_worldspace(vec4(reflect_dir, 0)).xyz;
-    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness) * 2.5;
+    vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness);
 
     // Boost the sky when the reflection direction is pointing at the sun
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
-    float facing_sun_fact = max(0, dot(reflect_dir, light_vector_worldspace));
+    float facing_sun_fact = clamp(dot(reflect_dir, light_vector_worldspace), 0, 1);
     facing_sun_fact = pow(facing_sun_fact, 200);
 
     float sky_boost = mix(1, 10000, facing_sun_fact);
     sky_sample *= sky_boost;
 
-    float vdotn = dot(pixel.normal, pixel.position);
-    vdotn = max(0, vdotn);
+    sky_sample *= mix(vec3(1), get_shadow(coord), facing_sun_fact);
+    //sky_sample *= mix(1, 0, facing_sun_fact);
 
-    vec3 fresnel = pixel.specular_color + (vec3(1.0) - pixel.specular_color) * pow(1.0 - vdotn, 5) * pixel.smoothness;
-
-    return (vec3(1.0) - fresnel) * pixel.color * (1.0 - pixel.metalness) + sky_sample * fresnel;
+    return sky_sample;
 }
 
 vec3 doLightBounce(in Pixel1 pixel) {
@@ -310,7 +312,7 @@ void main() {
     float metalness = pixel.metalness;
     float waterness = pixel.water;
 
-    vec3 sColor = mix(vec3(0.14), get_specular_color() * 10, vec3(metalness)) * (1.1 - waterness);
+    vec3 sColor = mix(vec3(0.14), get_specular_color() * 50, vec3(metalness)) * (1.1 - waterness);
     vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
     if(!pixel.skipLighting) {
@@ -327,6 +329,7 @@ void main() {
     vec3 normal_world = cameraToWorldSpace(vec4(pixel.normal, 0.0));
 
     vec4 vlColor = texture2DLod(gaux1, coord / 2, 3);
+    //hitColor = get_shadow(coord);
 
     gl_FragData[0] = vec4(hitColor, 1);
 }

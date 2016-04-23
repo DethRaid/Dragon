@@ -82,16 +82,12 @@ void doBloom(inout vec3 color) {
         }
     }
 
-    //for(int i = 1; i < 4; i++) {
-    //    colorAccum += texture2DLod(gcolor, coord, i).rgb;// * log2(float(i));// * 0.25;
-    //}
-
     color += colorAccum;
 }
 #endif
 
-void correctColor(inout vec3 color) {
-    color *= vec3(1.2, 1.2, 1.2);
+vec3 correct_colors(in vec3 color) {
+    return color * vec3(0.9, 0.9, 1);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -142,7 +138,7 @@ vec3 doMotionBlur() {
 #endif
 
 vec3 reinhard_tonemap(in vec3 color, in float lWhite) {
-    //return (color * (1 + (color / (lWhite * lWhite)))) / (1 + color);
+    return (color * (1 + (color / (lWhite * lWhite)))) / (1 + color);
     float lumac = luma(color);
 
     float lumat = (lumac * (1 + (lumac / (lWhite * lWhite)))) / (1 + lumac);
@@ -178,12 +174,13 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 }
 
 vec3 doToneMapping(in vec3 color) {
-    //return uncharted_tonemap(color, 1);
-    //vec3 ret_color = reinhard_tonemap(color, 7500);
+    return uncharted_tonemap(color / 125, 1);
+
+    //vec3 ret_color = reinhard_tonemap(color / 500, 20);
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
     //return ret_color;
 
-    return burgess_tonemap(color, 1200);
+    //return burgess_tonemap(color, 1200);
 
 }
 
@@ -199,11 +196,9 @@ void main() {
     doBloom(color);
 #endif
 
-    //color = texture2DLod(gdepth, coord, 0).rgb;
-
     color = doToneMapping(color);
+    color = correct_colors(color);
 
-    //correctColor(color);
     contrastEnhance(color);
 
 #if FILM_GRAIN == ON
