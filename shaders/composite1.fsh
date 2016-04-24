@@ -476,10 +476,10 @@ vec3 calcShadowing(in vec4 fragPosition) {
                     sampleCoord = kernelRotation * sampleCoord;
                 #endif
 
-                float shadowDepth = texture2D(shadow, shadowCoord.st + sampleCoord).r;
+                float shadowDepth = texture2DLod(shadow, shadowCoord.st + sampleCoord, 0).r;
                 float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
 
-                float waterDepth = texture2D(watershadow, shadowCoord.st + sampleCoord).r;
+                float waterDepth = texture2DLod(watershadow, shadowCoord.st + sampleCoord, 0).r;
                 float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
 
                 vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
