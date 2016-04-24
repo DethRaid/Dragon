@@ -65,7 +65,7 @@ void main() {
 
     if( isWater > 0.9 ) {
         //wNormal = getWaveNormal();
-       // matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
+        matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
     }
 
     gl_FragData[0] = matColor;

@@ -11,7 +11,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 4096;
+const int   shadowMapResolution     = 1024;
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
@@ -74,19 +74,19 @@ const bool shadowMipmapEnabled      = true;
  * allow hard shadows when the distance from the shadow caster to the shadow
  * receiver is very small
  */
-#define MIN_PENUMBRA_SIZE           0.15
+#define MIN_PENUMBRA_SIZE           0.0
 
 /*
  * The number of samples to use for PCSS's blocker search. A higher value allows
  * for higher quality shadows at the expense of framerate
  */
-#define BLOCKER_SEARCH_SAMPLES_HALF 1
+#define BLOCKER_SEARCH_SAMPLES_HALF 2
 
 /*
  * The number of samples to use for shadow blurring. More samples means blurrier
  * shadows at the expense of framerate. A value of 5 is recommended
  */
-#define PCF_SIZE_HALF               2
+#define PCF_SIZE_HALF               3
 
 /*
  * If set to 1, a random rotation will be applied to the shadow filter to reduce
@@ -102,13 +102,14 @@ const bool shadowMipmapEnabled      = true;
  * the slowest, HARD is the fastest at the expense of realism.
  */
 #define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
+#define SHADOW_MAP_BIAS             0.8
 #define HYBRID_RAYTRACED_SHADOWS    OFF
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100
 #define HRS_BIAS                    0.02
 #define HRS_DEPTH_CORRECTION        0.01
 
-#define SHADOW_BIAS                 0.00755
+#define SHADOW_BIAS                 0.0055
 
 #define WATER_FOG_DENSITY           0.25
 #define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
@@ -116,6 +117,9 @@ const bool shadowMipmapEnabled      = true;
 #define VOLUMETRIC_LIGHTING         OFF
 
 #define ATMOSPHERIC_DENSITY         0.5
+
+#define GI_FILTER_SIZE              3
+#define GI_SCALE                    1
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              I need these                                 //
@@ -260,8 +264,12 @@ float getSmoothness() {
     return pow(texture2D(gaux2, coord).a, 2.2);
 }
 
-vec3 getNormal() {
+vec3 getNormal(in vec2 coord) {
     return normalize(texture2D(gaux4, coord).xyz * 2.0 - 1.0);
+}
+
+vec3 getNormal() {
+    return getNormal(coord);
 }
 
 float getMetalness() {
@@ -270,10 +278,6 @@ float getMetalness() {
 
 float getSkyLighting() {
     return texture2D(gaux3, coord).r;
-}
-
-vec3 get_gi(in vec2 coord) {
-    return texture2D(gnormal, coord / 2.0).rgb;
 }
 
 vec3 getNoise(in vec2 coord) {
@@ -295,17 +299,57 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     return texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
+/*
+ * \brief Performs a bilaterial filter on the GI texture
+ */
+vec3 get_gi(in vec2 sample_coord) {
+	vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
+    float depth = getDepthLinear(sample_coord);
+    vec3 normal = getNormal(sample_coord);
+
+	vec4 light = vec4(0.0f);
+	float weights = 0.0f;
+
+	for (float i = -GI_FILTER_SIZE; i <= GI_FILTER_SIZE; i += 1.0f) {
+		for (float j = -GI_FILTER_SIZE; j <= GI_FILTER_SIZE; j += 1.0f) {
+			vec2 offset = vec2(i, j) * recipres * 2.0f;
+
+			float sampleDepth = getDepthLinear(sample_coord + offset * 2.0f * (exp2(GI_SCALE)));
+			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f * (exp2(GI_SCALE)));
+			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
+			weight *= max(0.0f, dot(sampleNormal, normal) * 2.0f - 1.0f);
+
+			light += texture2DLod(gnormal, sample_coord * (1.0f / exp2(GI_SCALE)) + offset, 1) * weight;
+			weights += weight;
+		}
+	}
+
+	light /= max(0.00001f, weights);
+
+	if (weights < 0.01f) {
+		light = texture2DLod(gnormal, sample_coord * (1.0f / exp2(GI_SCALE)), 2);
+	}
+
+	return light.rgb;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Lighting Functions                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-//from SEUS v8
 vec3 calcShadowCoordinate(in vec4 pixelPos) {
     vec4 shadowCoord = pixelPos;
     shadowCoord.xyz -= cameraPosition;
     shadowCoord = shadowModelView * shadowCoord;
     shadowCoord = shadowProjection * shadowCoord;
     shadowCoord /= shadowCoord.w;
+
+	vec2 pos = abs(shadowCoord.xy * 1.165);
+	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	shadowCoord.xy *= 1.0f / distortFactor;
+	shadowCoord.z /= 4.0;
 
     shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
     float dFrag = shadowCoord.z * 0.5 + 0.505;
@@ -370,13 +414,13 @@ float calcPenumbraSize(vec3 shadowCoord) {
 
 	float temp;
 	float numBlockers = 0;
-    float searchSize = LIGHT_SIZE * (dFragment - 9.5) / dFragment;
+    float searchSize = LIGHT_SIZE * (dFragment - 5) / dFragment;
 
     for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
         for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
             temp = texture2DLod(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF)), 2).r;
             if(dFragment - temp > 0.0015) {
-                dBlocker += temp;// * temp;
+                dBlocker += temp;
                 numBlockers += 1.0;
             }
         }
@@ -572,7 +616,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
     float torchIntensity = length(torchColor * torchFac);
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
-    return torchColor * 75;
+    return torchColor * 500;
 }
 
 vec3 get_ambient_lighting(in Pixel pixel) {
@@ -687,6 +731,8 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
+
+    //return gi;
 
     return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }

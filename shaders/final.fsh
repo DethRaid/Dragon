@@ -1,14 +1,14 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.0
-#define CONTRAST 1.0
+#define SATURATION 1.35
+#define CONTRAST 0.9
 
 #define OFF     0
 #define ON      1
 
-#define FILM_GRAIN OFF
-#define FILM_GRAIN_STRENGTH 0.045
+#define FILM_GRAIN ON
+#define FILM_GRAIN_STRENGTH 0.03
 
 #define BLOOM               OFF
 #define BLOOM_RADIUS        2
@@ -37,6 +37,7 @@ uniform sampler2D gaux1;
 uniform sampler2D gaux2;
 uniform sampler2D gaux3;
 uniform sampler2D gaux4;
+uniform sampler2D shadow;
 
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
@@ -78,7 +79,7 @@ void doBloom(inout vec3 color) {
     for(int i = -BLOOM_RADIUS; i <= BLOOM_RADIUS; i++) {
         for(int j = -BLOOM_RADIUS; j <= BLOOM_RADIUS; j++) {
             vec2 offset = vec2(j / viewWidth, i / viewHeight);
-            colorAccum += texture2D(composite, coord + offset).rgb / length(offset);
+            colorAccum += getColorSample(coord + offset).rgb / length(offset);
         }
     }
 
@@ -87,7 +88,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.9, 0.9, 1);
+    return color * vec3(0.775, 0.9, 1);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -128,10 +129,10 @@ vec2 getBlurVector() {
 
 vec3 doMotionBlur() {
     vec2 blurVector = getBlurVector() * MOTION_BLUR_SCALE;
-    vec4 result = texture2D(gaux1, coord);
+    vec3 result = getColorSample(coord);
     for(int i = 0; i < MOTION_BLUR_SAMPLES; i++) {
         vec2 offset = blurVector * (float(i) / float(MOTION_BLUR_SAMPLES - 1) - 0.5);
-        result += texture2D(gaux1, coord + offset);
+        result += getColorSample(coord + offset);
     }
     return result.rgb / float(MOTION_BLUR_SAMPLES);
 }
@@ -196,6 +197,8 @@ void main() {
     doBloom(color);
 #endif
 
+    //color = texture2D(gdepth, coord).rgb;
+
     color = doToneMapping(color);
     color = correct_colors(color);
 
@@ -210,5 +213,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gnormal, coord / 2).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(shadow, coord).rgb, 1.0);
 }

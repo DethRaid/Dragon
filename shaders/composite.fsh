@@ -10,6 +10,7 @@
 #define GI_QUALITY 105
 
 #define LEAF_SS_QUALITY 16
+#define SHADOW_MAP_BIAS 0.8
 
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			3.3
@@ -126,6 +127,12 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  	vec4 position = viewspace_to_worldspace(position_viewspace);
  		 position = worldspace_to_shadowspace(position);
+		 vec2 pos = abs(position.xy * 1.165);
+	 	 float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	 	 float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	 	 position.xy *= 1.0f / distortFactor;
+	 	 position.z /= 4.0;
  		 position = position * 0.5 + 0.5;
 
  	float fademult 	= 0.15;

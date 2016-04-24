@@ -9,7 +9,7 @@
 #define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -245,13 +245,20 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
 
     // Boost the sky when the reflection direction is pointing at the sun
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
-    float facing_sun_fact = clamp(dot(reflect_dir, light_vector_worldspace), 0, 1);
+    float facing_sun_fact = max(dot(reflect_dir, light_vector_worldspace), 0);
     facing_sun_fact = pow(facing_sun_fact, 200);
+    facing_sun_fact = min(1, facing_sun_fact);
+    //return vec3(facing_sun_fact);
 
-    float sky_boost = mix(1, 10000, facing_sun_fact);
+    float sky_boost = mix(1, 500, facing_sun_fact);
     sky_sample *= sky_boost;
 
-    sky_sample *= mix(vec3(1), get_shadow(coord), facing_sun_fact);
+    vec3 shadow = get_shadow(coord);
+    if(length(shadow) < 0.01) {
+        shadow = vec3(0);
+    }
+
+    //sky_sample *= mix(vec3(1), shadow, facing_sun_fact);
     //sky_sample *= mix(1, 0, facing_sun_fact);
 
     return sky_sample;
@@ -273,8 +280,9 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
-        noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2.0 - 1.0;
-        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.25 + pixel.normal);
+        noiseSample = texture2DLod(noisetex, noiseCoord * i, 0).rgb * 2 - 1;
+        noiseSample.x = noiseSample.x + 0.42;   // Correct the noise texture. It's kinda broken I guess?
+        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
@@ -325,11 +333,6 @@ void main() {
 
         hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
     }
-
-    vec3 normal_world = cameraToWorldSpace(vec4(pixel.normal, 0.0));
-
-    vec4 vlColor = texture2DLod(gaux1, coord / 2, 3);
-    //hitColor = get_shadow(coord);
 
     gl_FragData[0] = vec4(hitColor, 1);
 }
