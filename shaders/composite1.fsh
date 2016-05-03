@@ -32,12 +32,15 @@ const int   RGBA16                  = 3;
 const int   RGBA8                   = 4;
 const int   RGB16F                  = 5;
 const int   RGB32F                  = 6;
+const int   RGBA16F                 = 5;
 const int 	gcolorFormat 			= RGB32F;
 const int   gdepthtexFormat         = R32;
 const int 	gnormalFormat 			= RGBA16;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA16;
 const int   gaux2Format             = RGBA8;
+const int   gaux3Format             = RGBA8;
+const int   gaux4Format             = RGB16;
 const int   shadowcolor0Format      = RGB8;
 const int   shadowcolor1Format      = RGBA8;
 
@@ -111,8 +114,8 @@ const bool shadowMipmapEnabled      = true;
 
 #define SHADOW_BIAS                 0.0055
 
-#define WATER_FOG_DENSITY           0.25
-#define WATER_FOG_COLOR             (vec3(50, 100, 103) / (255.0 * 3))
+#define WATER_FOG_DENSITY           0.95
+#define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
 
 #define VOLUMETRIC_LIGHTING         OFF
 
@@ -253,7 +256,7 @@ bool shouldSkipLighting() {
 }
 
 float getWater() {
-    return texture2D(gnormal, coord).a;
+    return texture2D(gaux3, coord).a;
 }
 
 float getSky() {
@@ -395,7 +398,7 @@ vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
         worldDepth -= HRS_DEPTH_CORRECTION * raw_depth;
         float depthDiff = (worldDepth - curPos.z);
         //return vec2(depthDiff * far);
-        float maxDepthDiff = length(direction) + HRS_BIAS;
+        float maxDepthDiff = sqrt(dot(direction, direction)) + HRS_BIAS;
         //maxDepthDiff *= raw_depth;
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             return vec2(0, length(curPos - origin) / HRS_RAY_LENGTH);
@@ -545,7 +548,7 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
 
     // Calculate the main light lighting from the light position and whatnot
-    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 2) * 0.5;
+    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 0) * 0.5;
 
     // Calculate specular light from the sky
     // Get the specular component blurred by the pixel's roughness
@@ -671,13 +674,45 @@ Pixel fillPixelStruct() {
 /*!
  * \brief Calculates the amount of water fog at the given location
  */
-void calculateWaterFog(inout Pixel pixel) {
-    float water_distance = getDepthLinear(depthtex1, coord) - getDepthLinear(gdepthtex, coord);//getDepthLinear(coord, gdepthtex) - getDepthLinear(coord, depthtex1);
+float calculateWaterFog(in Pixel pixel) {
+    float water_distance = getDepthLinear(depthtex1, coord) - getDepthLinear(gdepthtex, coord);
+    water_distance = pow(water_distance, 0.0625);
 
     float fog_amount = water_distance * WATER_FOG_DENSITY;
     fog_amount = clamp(fog_amount, 0.0, 1.0);
 
-    pixel.color = mix(pixel.color, WATER_FOG_COLOR, fog_amount);
+    return fog_amount;
+}
+
+/*
+ * \brief Returns the worldspace vector to the pixel that the refraction ray should hit
+ */
+vec3 calc_refraction_for_wavelength(in vec3 view_vector, in vec3 normal, in float ior, in float water_depth) {
+    vec3 refract_direction = refract(view_vector, normal, ior);
+
+    vec3 refraction_vector = dot(view_vector * water_depth, refract_direction) * refract_direction;
+
+    return refraction_vector;
+}
+
+vec3 calc_refraction(in vec3 view_vector, in vec3 normal, in vec3 ior) {
+    // Get the distacnce through the water
+    float water_distance = getDepthLinear(depthtex1, coord) - getDepthLinear(gdepthtex, coord);
+
+    vec3 red_vector = calc_refraction_for_wavelength(view_vector, normal, ior.r, water_distance);
+    vec3 blue_coord = calc_refraction_for_wavelength(view_vector, normal, ior.g, water_distance);
+    vec3 green_coord = calc_refraction_for_wavelength(view_vector, normal, ior.b, water_distance);
+
+    vec3 red_position = view_vector + cameraPosition + red_vector;
+    vec2 red_coord = (gbufferProjection * (gbufferModelView * vec4(red_position, 1))).st * 0.5 + 0.5;
+
+    return texture2D(gcolor, red_coord).rgb;
+
+    float red = texture2D(gcolor, red_coord).r;
+    float green = texture2D(gcolor, red_coord).g;
+    float blue = texture2D(gcolor, red_coord).b;
+
+    return vec3(red, green, blue);
 }
 
 #if VOLUMETRIC_LIGHTING == ON
@@ -689,7 +724,7 @@ vec4 calc_volumetric_lighting(in vec2 vl_coord) {
     rayStart += vec3(-0.5, 0.0, 1.5);
     vec4 rayPos = vec4(rayStart, 1.0);
     vec3 viewVector = normalize(world_position - cameraPosition);
-    float distanceToPixel = length(viewVector);
+    float distanceToPixel = sqrt(dot(viewVector, viewVector));
     vec3 direction = viewVector * calculateDitherPattern() * 2;
     vec3 rayColor = vec3(0);
     float numSteps = 0;
@@ -743,13 +778,17 @@ float luma(in vec3 color) {
 
 void main() {
     curFrag = fillPixelStruct();
+    vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
 
     if(curFrag.water > 0.5) {
-        calculateWaterFog(curFrag);
+        // RGB = 570, 540, 440
+        vec3 refraction_color = curFrag.color; // calc_refraction(viewVector, curFrag.normal, vec3(1.333, 1.3334, 1.3374));
+        float fog_amount = calculateWaterFog(curFrag);
+        curFrag.color = mix(refraction_color, WATER_FOG_COLOR, fog_amount);
+        //curFrag.color = refraction_color;
     }
 
     if(curFrag.sky > 0.5) {
-        vec3 viewVector = normalize(curFrag.position.xyz - cameraPosition);
         curFrag.color = get_sky_color(viewVector, 0);
     }
 
@@ -769,6 +808,8 @@ void main() {
     #if VOLUMETRIC_LIGHTING == ON
     if(vl_coord.x < 1 && vl_coord.y < 1) {
         skyScattering = calc_volumetric_lighting(vl_coord);
+        vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
+        skyScattering.rgb *= calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     }
     #endif
 

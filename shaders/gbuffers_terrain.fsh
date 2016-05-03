@@ -103,8 +103,8 @@ void main() {
 
     gl_FragData[0] = texColor;//vec4(vec3(sData.a), 1.0);
 
-    //sky lighting, isSky, is_leaf, 1
-    gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 1);
+    //sky lighting, isSky, is_leaf, isWater
+    gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
 
     vec3 texnormal = texture2D(normals, coord).xyz * 2.0 - 1.0;
     texnormal = tbnMatrix * texnormal;

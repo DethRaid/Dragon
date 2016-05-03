@@ -1,6 +1,6 @@
 #version 120
 
-#define PI 3.14159265
+#define PI 3.14159
 
 attribute vec4 mc_Entity;
 
@@ -87,6 +87,7 @@ void main() {
             displacement += get_wave_displacement(worldPos, 0.25, 0.05, vec2(0.1, 0.5), 1, 1.25);
             displacement += get_wave_displacement(worldPos, 0.25, 0.05, vec2(0.5, 0.1), 1, 1.45);
         viewPos.xyz += displacement;
+        viewPos.z -= 0.05;
 
         normal = get_wave_normal(worldPos, 0.25, 0.05, vec2(1, 0), 1, 1.5);
         normal += get_wave_normal(worldPos, 0.25, 0.05, vec2(0.5, 0.5), 1, 1.75);

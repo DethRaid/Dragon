@@ -4,12 +4,12 @@
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_LENGTH          25.0
 #define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.45
+#define RAY_STEP_LENGTH         0.05
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
-#define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
+#define RAY_GROWTH              1.15    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                1   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -18,7 +18,7 @@
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
-/* DRAWBUFFERS:3 */
+/* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -226,7 +226,7 @@ vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
         float worldDepth = get_viewspace_position(curCoord, projection_inverse, zbuffer).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
-        float maxDepthDiff = length(direction) + RAY_DEPTH_BIAS;
+        float maxDepthDiff = sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS;
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             return curCoord;
             direction = -1 * normalize(direction) * 0.15;
@@ -247,19 +247,16 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     float facing_sun_fact = max(dot(reflect_dir, light_vector_worldspace), 0);
     facing_sun_fact = pow(facing_sun_fact, 200);
-    facing_sun_fact = min(1, facing_sun_fact);
-    //return vec3(facing_sun_fact);
+    //facing_sun_fact = min(1, facing_sun_fact);
 
     float sky_boost = mix(1, 500, facing_sun_fact);
     sky_sample *= sky_boost;
 
     vec3 shadow = get_shadow(coord);
-    if(length(shadow) < 0.01) {
-        shadow = vec3(0);
-    }
 
-    //sky_sample *= mix(vec3(1), shadow, facing_sun_fact);
+    sky_sample *= mix(vec3(1), shadow, facing_sun_fact);
     //sky_sample *= mix(1, 0, facing_sun_fact);
+    //sky_sample = vec3(facing_sun_fact * 100000);
 
     return sky_sample;
 }
@@ -280,8 +277,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
-        noiseSample = texture2DLod(noisetex, noiseCoord * i, 0).rgb * 2 - 1;
-        noiseSample.x = noiseSample.x + 0.42;   // Correct the noise texture. It's kinda broken I guess?
+        noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2 - 1;
         reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
@@ -320,7 +316,7 @@ void main() {
     float metalness = pixel.metalness;
     float waterness = pixel.water;
 
-    vec3 sColor = mix(vec3(0.14), get_specular_color() * 50, vec3(metalness)) * (1.1 - waterness);
+    vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness));
     vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
     if(!pixel.skipLighting) {
@@ -332,6 +328,7 @@ void main() {
 #endif
 
         hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
+        hitColor = reflectedColor;
     }
 
     gl_FragData[0] = vec4(hitColor, 1);

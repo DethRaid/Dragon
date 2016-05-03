@@ -35,7 +35,7 @@
 const int RGB32F					= 0;
 const int RGB16F					= 1;
 
-const int   shadowMapResolution     = 4096;
+const int   shadowMapResolution     = 1024;
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
@@ -264,7 +264,7 @@ float horizon_extinction(vec3 position, vec3 dir, float radius) {
 
     vec3 near = position + u*dir;
 
-    if(length(near) < radius) {
+    if(sqrt(dot(near, near)) < radius) {
         return 0.0;
 
     } else {

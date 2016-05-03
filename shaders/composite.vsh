@@ -1,21 +1,5 @@
 #version 120
 
-// Sky parameters
-#define RAYLEIGH_BRIGHTNESS			3.3
-#define MIE_BRIGHTNESS 				0.1
-#define MIE_DISTRIBUTION 			0.63
-#define STEP_COUNT 					15.0
-#define SCATTER_STRENGTH			0.028
-#define RAYLEIGH_STRENGTH			0.139
-#define MIE_STRENGTH				0.0264
-#define RAYLEIGH_COLLECTION_POWER	0.81
-#define MIE_COLLECTION_POWER		0.39
-
-#define SUNSPOT_BRIGHTNESS			1000
-#define MOONSPOT_BRIGHTNESS			1
-
-#define SURFACE_HEIGHT				0.99
-
 #define PI 3.14159
 
 uniform float rainStrength;

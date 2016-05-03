@@ -2,7 +2,7 @@
 
 #include "/lib/wind.glsl"
 
-#define PI 3.14159265
+#define PI 3.14159
 #define WAVE_SPEED  0.000085
 
 uniform sampler2D diffuse;
