@@ -112,7 +112,7 @@ const bool shadowMipmapEnabled      = true;
 #define HRS_BIAS                    0.02
 #define HRS_DEPTH_CORRECTION        0.01
 
-#define SHADOW_BIAS                 0.0055
+#define SHADOW_BIAS                 0.00525
 
 #define WATER_FOG_DENSITY           0.95
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
@@ -646,7 +646,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
     sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, sample_normal, pixel.metalness, sky_lod_level);
 
-    return sky_diffuse * mix(0.5, 1, getSkyLighting());
+    return sky_diffuse * mix(0, 1, getSkyLighting());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

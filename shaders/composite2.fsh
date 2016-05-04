@@ -196,6 +196,25 @@ void fillPixelStruct(inout Pixel1 pixel) {
     pixel.specular_color    = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
 }
 
+float calculateDitherPattern() {
+    const int[64] ditherPattern = int[64] ( 1, 49, 13, 61,  4, 52, 16, 64,
+                                           33, 17, 45, 29, 36, 20, 48, 32,
+                                            9, 57,  5, 53, 12, 60,  8, 56,
+                                           41, 25, 37, 21, 44, 28, 40, 24,
+                                            3, 51, 15, 63,  2, 50, 14, 62,
+                                           35, 19, 47, 31, 34, 18, 46, 30,
+                                           11, 59,  7, 55, 10, 58,  6, 54,
+                                           43, 27, 39, 23, 42, 26, 38, 22);
+
+    vec2 count = vec2(0.0f);
+         count.x = floor(mod(coord.s * viewWidth, 8.0f));
+         count.y = floor(mod(coord.t * viewHeight, 8.0f));
+
+    int dither = ditherPattern[int(count.x) + int(count.y) * 8];
+
+    return float(dither) / 64.0f;
+}
+
 //Determines the UV coordinate where the ray hits
 //If the returned value is not in the range [0, 1] then nothing was hit.
 //NOTHING!
@@ -206,14 +225,14 @@ void fillPixelStruct(inout Pixel1 pixel) {
 vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection, in mat4 projection_inverse, in sampler2D zbuffer) {
     vec3 curPos = origin;
     vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
-    direction = normalize(direction) * RAY_STEP_LENGTH;
+    direction = normalize(direction) * RAY_STEP_LENGTH;// * calculateDitherPattern();
     bool forward = true;
     bool can_collect = true;
     vec2 ret_val = vec2(-1);
 
     //The basic idea here is the the ray goes forward until it's behind something,
     //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < MAX_RAY_LENGTH * (1 / RAY_STEP_LENGTH); i++) {
+    for(int i = 0; i < MAX_RAY_LENGTH / RAY_STEP_LENGTH; i++) {
         curPos += direction;
         curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
@@ -246,11 +265,8 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
     // Boost the sky when the reflection direction is pointing at the sun
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     float facing_sun_fact = max(dot(reflect_dir, light_vector_worldspace), 0);
-    facing_sun_fact = pow(facing_sun_fact, 200);
+    //facing_sun_fact = pow(facing_sun_fact, 2);
     //facing_sun_fact = min(1, facing_sun_fact);
-
-    float sky_boost = mix(1, 500, facing_sun_fact);
-    sky_sample *= sky_boost;
 
     vec3 shadow = get_shadow(coord);
 

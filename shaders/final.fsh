@@ -1,7 +1,7 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.0
+#define SATURATION 0.9
 #define CONTRAST 0.9
 
 #define OFF     0
@@ -54,102 +54,8 @@ uniform float frameTimeCounter;
 varying vec2 coord;
 varying float floatTime;
 
-float getSmoothness(in vec2 coord) {
-    return texture2D(gaux2, coord).a;
-}
-
-float getDepth(vec2 coord) {
-    return texture2D(gdepthtex, coord).r;
-}
-
-vec3 getCameraSpacePosition(vec2 uv) {
-	float depth = getDepth(uv);
-	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition /= fragposition.w;
-	return fragposition.xyz;
-}
-
-float getDepthLinear(in sampler2D depthtex, in vec2 coord) {
-    return 2.0 * near * far / (far + near - (2.0 * texture2D(depthtex, coord).r - 1.0) * (far - near));
-}
-
-float getDepthLinear(vec2 coord) {
-    return getDepthLinear(gdepthtex, coord);
-}
-
-vec3 get_specular_color(in vec2 coord) {
-    return texture2D(gcolor, coord).rgb;
-}
-
-float getMetalness(in vec2 coord) {
-    return texture2D(gaux2, coord).b;
-}
-
-vec3 getNormal(in vec2 coord) {
-    return normalize(texture2D(gaux4, coord).xyz * 2.0 - 1.0);
-}
-
-bool shouldSkipLighting(in vec2 coord) {
-    return texture2D(gaux2, coord).r > 0.5;
-}
-
-vec3 get_reflection(in vec2 sample_coord) {
-	/*vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
-    float depth = getDepthLinear(sample_coord);
-    vec3 normal = getNormal(sample_coord);
-    float roughness = 1.0 - getSmoothness(coord);
-    roughness = pow(roughness, 4);
-
-	vec4 light = vec4(0.0f);
-	float weights = 0.0f;
-
-    vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 2;
-    float max_len = sqrt(dot(max_pos, max_pos));
-
-	for(float i = -REFLECTION_FILTER_SIZE; i <= REFLECTION_FILTER_SIZE; i += 1.0f) {
-		for(float j = -REFLECTION_FILTER_SIZE; j <= REFLECTION_FILTER_SIZE; j += 1.0f) {
-			vec2 offset = vec2(i, j) * recipres * roughness * 2;
-
-            float dist_factor =  max_len - sqrt(dot(offset, offset));
-            dist_factor /= max_len;
-
-			float sampleDepth = getDepthLinear(sample_coord + offset * 2.0f);
-			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f);
-			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
-			weight *= max(0.0f, dot(sampleNormal, normal));
-            weight *= mix(0, 0.05, dist_factor);
-
-			light += max(texture2DLod(gdepth, sample_coord + offset, 1), vec4(0)) * weight;
-			weights += weight;
-		}
-	}
-
-	light /= max(0.00001f, weights);*/
-
-    vec4 light = texture2D(gdepth, sample_coord);
-
-	return light.rgb;
-}
-
 vec3 getColorSample(in vec2 coord) {
-    vec3 diffuse = texture2D(composite, coord).rgb;
-    vec3 specular = get_reflection(coord);
-
-    float smoothness = getSmoothness(coord);
-    float metalness = getMetalness(coord);
-    vec3 viewVector = normalize(getCameraSpacePosition(coord));
-    vec3 normal = getNormal(coord);
-
-    float vdoth = clamp(dot(-viewVector, normal), 0, 1);
-
-    vec3 sColor = mix(vec3(0.14), get_specular_color(coord), vec3(metalness));
-    vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
-
-    if(shouldSkipLighting(coord)) {
-        fresnel = vec3(0);
-    }
-
-    return mix(diffuse, specular, fresnel * smoothness);
+    return texture2D(gcolor, coord).rgb;
 }
 
 float luma(vec3 color) {
@@ -183,7 +89,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.65, 0.95, 1.0);
+    return color * vec3(0.7, 0.9, 1.0);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -250,14 +156,14 @@ vec3 burgess_tonemap(in vec3 color, in float exposure) {
 }
 
 vec3 uncharted_tonemap_math(in vec3 color) {
-    const float A = 0.15;
-    const float B = 0.50;
-    const float C = 0.10;
-    const float D = 0.20;
+    const float shoulder_strength = 0.15;
+    const float linear_strength = 0.50;
+    const float linear_angle = 0.10;
+    const float toe_strength = 0.20;
     const float E = 0.02;
     const float F = 0.30;
 
-    return ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+    return ((color * (shoulder_strength * color + linear_angle * linear_strength) + toe_strength * E) / (color * (shoulder_strength * color + linear_strength) + toe_strength * F)) - E / F;
 }
 
 vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
@@ -270,7 +176,10 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 }
 
 vec3 doToneMapping(in vec3 color) {
-    return uncharted_tonemap(color / 75, 1);
+    vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
+    float luma = luma(blurred_color);
+    float luma_log = log(luma) / 4.0;
+    return uncharted_tonemap(color / 75, 1.0 / luma_log);
 
     //vec3 ret_color = reinhard_tonemap(color / 500, 15);
     //ret_color = pow(ret_color, vec3(1.0 / 2.2));
