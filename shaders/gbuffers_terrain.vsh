@@ -11,6 +11,7 @@ varying mat3 tbnMatrix;
 varying vec3 view_vector;
 
 varying float is_leaf;
+varying float is_lava;
 
 void main() {
     color = gl_Color;
@@ -24,6 +25,11 @@ void main() {
     is_leaf = 0;
     if(mc_Entity.x == 18) {
         is_leaf = 1.0;
+    }
+
+    is_lava = 0;
+    if(mc_Entity.x == 10 || mc_Entity.x == 11) {
+        is_lava = 1.0;
     }
 
     vec3 tangent = vec3( 0 );

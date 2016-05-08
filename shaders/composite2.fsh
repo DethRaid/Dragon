@@ -1,17 +1,22 @@
 #version 130
 #extension GL_ARB_shader_texture_lod : enable
 
+#define OFF 0
+#define ON 1
+
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          25.0
+#define MAX_RAY_LENGTH          100.0
 #define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
 #define RAY_STEP_LENGTH         0.05
 #define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
 #define RAY_GROWTH              1.15    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                2   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+
+#define DITHER_REFLECTION_RAYS OFF
 
 #define PI 3.14159
 
@@ -222,13 +227,15 @@ float calculateDitherPattern() {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection, in mat4 projection_inverse, in sampler2D zbuffer) {
+vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection, in mat4 projection_inverse, in sampler2D zbuffer) {
     vec3 curPos = origin;
     vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
-    direction = normalize(direction) * RAY_STEP_LENGTH;// * calculateDitherPattern();
+    direction = normalize(direction) * RAY_STEP_LENGTH;
+    #if DITHER_REFLECTION_RAYS == ON
+        direction *= calculateDitherPattern();
+    #endif
     bool forward = true;
     bool can_collect = true;
-    vec2 ret_val = vec2(-1);
 
     //The basic idea here is the the ray goes forward until it's behind something,
     //then slowly moves forward until it's in front of something.
@@ -237,24 +244,25 @@ vec2 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
         curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec2(-1);
+            return vec3(-1);
         }
         if(length(curPos - origin) > MAX_RAY_LENGTH) {
-            return vec2(-1);
+            return vec3(-1);
         }
         float worldDepth = get_viewspace_position(curCoord, projection_inverse, zbuffer).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
         float maxDepthDiff = sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS;
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-            return curCoord;
+            vec3 travelled = origin - curPos;
+            return vec3(curCoord, sqrt(dot(travelled, travelled)));
             direction = -1 * normalize(direction) * 0.15;
             forward = false;
         }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec2(-1);
+    return vec3(-1);
 }
 
 vec3 get_reflected_sky(in Pixel1 pixel) {
@@ -287,7 +295,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 noiseSample = vec3(0);
     vec3 reflectDir = vec3(0);
     vec3 rayDir = vec3(0);
-    vec2 hitUV = vec2(0);
+    vec3 hitUV = vec3(0);
     int hitLayer = 0;
     vec3 hitColor = vec3(0);
 
@@ -298,7 +306,18 @@ vec3 doLightBounce(in Pixel1 pixel) {
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
+        if(dot(rayDir, pixel.normal) < 0.1) {
+            rayDir += pixel.normal;
+            rayDir = normalize(rayDir);
+        }
+
         hitUV = cast_screenspace_ray(rayStart, rayDir, gbufferProjection, gbufferProjectionInverse, gdepthtex);
+
+        if(hitUV.z < RAY_STEP_LENGTH * 2) {
+            // If the ray is pointing into the object, just sample the sky and be done with it
+            hitUV.s = 100;
+        }
+
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
 

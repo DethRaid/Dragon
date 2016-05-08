@@ -1,16 +1,36 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
+#include "/lib/poisson.glsl"
+
 /*!
  * \brief Computes GI and the skybox
  */
 
-// GI variables
-#define GI_SAMPLE_RADIUS 150
-#define GI_QUALITY 105
+#define OFF 0
+#define ON 1
 
-#define LEAF_SS_QUALITY 16
+// GI variables
+#define GI_SAMPLE_RADIUS 50
+#define GI_QUALITY 256
+
 #define SHADOW_MAP_BIAS 0.8
+
+// Lighting things
+#define RAYTRACED_LIGHT ON
+
+#define MAX_RAY_LENGTH          16.0
+#define MAX_DEPTH_DIFFERENCE    0.25 //How much of a step between the hit pixel and anything else is allowed?
+#define RAY_STEP_LENGTH         0.25
+#define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
+#define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
+                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
+                                        //shorter and shorter until you're barely making any progress
+#define NUM_DIFFUSE_RAYS        8   //The best setting in the whole shader pack. If you increase this value,
+                                    //more and more rays will be sent per pixel, resulting in better and better
+                                    //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+
+#define DITHER_REFLECTION_RAYS OFF
 
 // Sky parameters
 #define RAYLEIGH_BRIGHTNESS			3.3
@@ -46,7 +66,9 @@ const int   noiseTextureResolution  = 64;
 const int 	gdepthFormat			= RGB32F;
 const int	gnormalFormat			= RGB16F;
 
+uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
+uniform sampler2D gaux2;
 uniform sampler2D gaux3;
 uniform sampler2D gaux4;
 
@@ -60,6 +82,7 @@ uniform float viewWidth;
 uniform float viewHeight;
 
 uniform vec3 cameraPosition;
+uniform mat4 gbufferProjection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 
@@ -107,7 +130,7 @@ vec3 get_3d_noise(in vec2 coord) {
     coord *= vec2(viewWidth, viewHeight);
     coord /= noiseTextureResolution;
 
-    return texture2D(noisetex, coord).xyz;
+    return texture2D(noisetex, coord).xyz * 2.0 - 1.0;
 }
 
 float get_leaf(in vec2 coord) {
@@ -127,26 +150,20 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  	vec4 position = viewspace_to_worldspace(position_viewspace);
  		 position = worldspace_to_shadowspace(position);
-		 vec2 pos = abs(position.xy * 1.165);
-	 	 float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
-	 	 float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+	vec2 pos = abs(position.xy * 1.165);
+	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
 
 	 	 position.xy *= 1.0f / distortFactor;
 	 	 position.z /= 4.0;
  		 position = position * 0.5 + 0.5;
 
- 	float fademult 	= 0.15;
-
  	vec3 light = vec3(0.0);
  	int samples	= 0;
 
  	for(int i = 0; i < GI_QUALITY; i++) {
- 		float percentage_done = float(i) / float(GI_QUALITY);
- 		float dist_from_center = GI_SAMPLE_RADIUS * percentage_done;
-
- 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
- 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(gi_coord).xy * 25;
+ 		vec2 offset = samples256[i] * GI_SAMPLE_RADIUS;
+ 		//offset += get_3d_noise(gi_coord).xy * 25;
  		offset /= shadowMapResolution;
 
  		vec3 sample_pos = vec3(position.xy + offset, 0.0);
@@ -160,12 +177,15 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
  		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
  		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
 
+		//return vec3(received_light_strength / 500);
+
  		float falloff = length(sample_pos.xyz - position.xyz) * 50;
 		falloff = max(falloff, 1.0);
         falloff = pow(falloff, 4);
 		falloff = max(1.0, falloff);
 
  		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
+		//return sample_color / 1000;
         vec3 flux = sample_color * light_strength;
 
  		light += flux * transmitted_light_strength * received_light_strength / falloff;
@@ -174,46 +194,6 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
  	light /= GI_QUALITY;
 
  	return light / 15;
-}
-
-vec3 calc_leaf_scattering(in vec2 coord) {
-
-	// Get shadow depth at coord, get shadow space depth at coord. Based on that, add in lighting from the GI calculation or whatever, doing a blur maybe
-	vec4 position = viewspace_to_worldspace(get_viewspace_position(coord));
-
-	// Project position into shadow space
-	vec4 position_shadowspace = shadowProjection * shadowModelView * position;
-	position_shadowspace /= position_shadowspace.w;
-	position_shadowspace.z = position_shadowspace.z * 0.5 + 0.5;
-
-	// Get depth from the shadow map
-	vec2 shadow_coord = position_shadowspace.xy * 0.5 + 0.5;
-	float shadow_depth = texture2D(shadowtex1, shadow_coord).r;
-	vec3 shadow_position = vec3(shadow_coord, shadow_depth);
-	//return vec3(position_shadowspace.z);
-
-	float depth_through_leaves = length(shadow_position - position_shadowspace.xyz);
-	depth_through_leaves = max(1, depth_through_leaves);
-	return vec3(depth_through_leaves * 0.1);
-
-	vec3 normal_shadow = texture2DLod(shadowcolor1, shadow_coord, 0).xyz * 2.0 - 1.0;
-	vec3 received_light = lightColor * max(0, dot(normal_shadow, vec3(0, 0, 1)));
-	received_light /= pow(depth_through_leaves, 2);
-
-	vec3 leaf_color = texture2DLod(shadowcolor, shadow_coord, 0).xyz;
-	received_light -= received_light * leaf_color;
-
-	return received_light * 0.1;
-
-	for(int i = 0; i < LEAF_SS_QUALITY; i++) {
-		float percentage_done = float(i) / float(LEAF_SS_QUALITY);
- 		float dist_from_center = depth_through_leaves * percentage_done * 50;
-
- 		float theta = percentage_done * (GI_QUALITY / 16) * PI;
- 		vec2 offset = vec2(cos(theta), sin(theta)) * dist_from_center;
- 		offset += get_3d_noise(coord * 1.3).xy * 3;
- 		offset /= shadowMapResolution;
-	}
 }
 
 /*
@@ -373,6 +353,75 @@ vec3 enhance(in vec3 color) {
     return mix(intensity, color, SKY_SATURATION);
 }
 
+#if RAYTRACED_LIGHT == ON
+vec2 get_coord_from_viewspace(in vec4 position) {
+    vec4 ndc_position = gbufferProjection * position;
+    ndc_position /= ndc_position.w;
+    return ndc_position.xy * 0.5 + 0.5;
+}
+
+vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
+    vec3 curPos = origin;
+    vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1));
+    direction = normalize(direction) * RAY_STEP_LENGTH;
+    #if DITHER_REFLECTION_RAYS == ON
+        direction *= calculateDitherPattern();
+    #endif
+    bool forward = true;
+    bool can_collect = true;
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for(int i = 0; i < MAX_RAY_LENGTH / RAY_STEP_LENGTH; i++) {
+        curPos += direction;
+        curCoord = get_coord_from_viewspace(vec4(curPos, 1));
+        if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
+            //If we're here, the ray has gone off-screen so we can't reflect anything
+            return vec3(-1);
+        }
+        if(length(curPos - origin) > MAX_RAY_LENGTH) {
+            return vec3(-1);
+        }
+        float worldDepth = get_viewspace_position(curCoord).z;
+        float rayDepth = curPos.z;
+        float depthDiff = (worldDepth - rayDepth);
+        float maxDepthDiff = min(sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS, MAX_DEPTH_DIFFERENCE);
+        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+            vec3 travelled = origin - curPos;
+            return vec3(curCoord, sqrt(dot(travelled, travelled)));
+            direction = -1 * normalize(direction) * RAY_STEP_LENGTH;
+            forward = false;
+        }
+        direction *= RAY_GROWTH;
+    }
+    //If we're here, we couldn't find anything to reflect within the alloted number of steps
+    return vec3(-1);
+}
+
+float get_emission(in vec2 coord) {
+    return texture2D(gaux2, coord).r;
+}
+
+vec3 raytrace_light(in vec2 coord) {
+	vec3 light = vec3(0);
+	for(int i = 0; i < NUM_DIFFUSE_RAYS; i++) {
+	    vec3 position_viewspace = get_viewspace_position(coord).xyz;
+		vec3 normal = get_normal(coord);
+		vec3 noise = get_3d_noise(coord * i);
+		vec3 ray_direction = normalize(noise * 0.35 + normal);
+		vec3 hit_uv = cast_screenspace_ray(position_viewspace, ray_direction);
+		hit_uv.z *= 0.5;
+
+		float ndotl = max(0, dot(normal, ray_direction));
+		float falloff = max(1, pow(hit_uv.z, 1));
+		float emission =  get_emission(hit_uv.st);
+		light += texture2D(gcolor, hit_uv.st).rgb * emission * ndotl / falloff;
+	}
+
+	return light * 2 / float(NUM_DIFFUSE_RAYS);
+}
+#endif
+
 void main() {
     vec3 gi = vec3(0);
 
@@ -381,11 +430,14 @@ void main() {
 	    vec4 position_viewspace = get_viewspace_position(gi_coord);
 	    vec3 normal = get_normal(gi_coord);
 		gi = calculate_gi(gi_coord, position_viewspace, normal);
-
-		//if(get_leaf(gi_coord) > 0.5) {
-		//	gi = calc_leaf_scattering(gi_coord);
-		//}
 	}
+
+	#if RAYTRACED_LIGHT == ON
+	else if(gi_coord.y < 1 && gi_coord.x < 2 && gi_coord.x > 1) {
+
+		gi = raytrace_light(gi_coord - vec2(1, 0));
+	}
+	#endif
 
 	vec3 sky_color = vec3(0);
 	vec3 eye_vector = get_eye_vector(coord).xzy;

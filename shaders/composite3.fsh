@@ -3,7 +3,7 @@
 #define OFF 0
 #define ON 1
 
-#define FILTER_REFLECTIONS OFF
+#define FILTER_REFLECTIONS ON
 #define REFLECTION_FILTER_SIZE 2
 
 uniform sampler2D gcolor;
@@ -90,9 +90,9 @@ vec3 get_reflection(in vec2 sample_coord) {
 			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f);
 			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
 			weight *= max(0.0f, dot(sampleNormal, normal));
-            weight *= mix(0, 0.05, dist_factor);
+            weight *= dist_factor; // mix(0, 0.5, dist_factor);
 
-			light += max(texture2DLod(gdepth, sample_coord + offset, 1), vec4(0)) * weight;
+			light += max(texture2DLod(gdepth, sample_coord + offset, 0), vec4(0)) * weight;
 			weights += weight;
 		}
 	}
@@ -124,6 +124,7 @@ void main() {
 
     vec3 sColor = mix(vec3(0.14), get_specular_color(coord), vec3(metalness));
     vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
+    fresnel = min(fresnel, vec3(1));
 
     if(shouldSkipLighting(coord)) {
         fresnel = vec3(0);
@@ -132,6 +133,7 @@ void main() {
     vec3 color = mix(diffuse, specular, fresnel * smoothness);
 
     color = max(color, vec3(0));
+    //color = specular;
 
     gl_FragData[0] = vec4(color, 1.0);
 }

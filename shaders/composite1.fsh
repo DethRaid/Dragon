@@ -1,6 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
+#include "/lib/poisson.glsl"
+
 // 970 performance:
 // extrems: 0 - 3
 // low 50 - 65
@@ -35,9 +37,9 @@ const int   RGB32F                  = 6;
 const int   RGBA16F                 = 5;
 const int 	gcolorFormat 			= RGB32F;
 const int   gdepthtexFormat         = R32;
-const int 	gnormalFormat 			= RGBA16;
+const int 	gnormalFormat 			= RGB16;
 const int 	compositeFormat 		= RGB32F;
-const int   gaux1Format             = RGBA16;
+const int   gaux1Format             = RGBA8;
 const int   gaux2Format             = RGBA8;
 const int   gaux3Format             = RGBA8;
 const int   gaux4Format             = RGB16;
@@ -51,7 +53,7 @@ const bool shadowMipmapEnabled      = true;
 //                              Changable Variables                          //
 ///////////////////////////////////////////////////////////////////////////////
 
-#define OFF            -1
+#define OFF             -1
 #define ON              0
 #define HARD            1
 #define SOFT            2
@@ -114,6 +116,8 @@ const bool shadowMipmapEnabled      = true;
 
 #define SHADOW_BIAS                 0.00525
 
+#define RAYTRACED_LIGHT             ON
+
 #define WATER_FOG_DENSITY           0.95
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
 
@@ -168,7 +172,7 @@ varying vec3 fogColor;
 varying vec3 skyColor;
 varying vec3 ambientColor;
 
-/* DRAWBUFFERS:342 */
+/* DRAWBUFFERS:34 */
 
 #include "/lib/wind.glsl"
 
@@ -302,10 +306,7 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     return texture2DLod(gdepth, sphereCoords, lod).rgb;
 }
 
-/*
- * \brief Performs a bilaterial filter on the GI texture
- */
-vec3 get_gi(in vec2 sample_coord) {
+vec3 bilateral_upsample(in vec2 sample_coord, in sampler2D texture) {
 	vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
     float depth = getDepthLinear(sample_coord);
     vec3 normal = getNormal(sample_coord);
@@ -322,7 +323,7 @@ vec3 get_gi(in vec2 sample_coord) {
 			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
 			weight *= max(0.0f, dot(sampleNormal, normal) * 2.0f - 1.0f);
 
-			light += texture2DLod(gnormal, sample_coord * (1.0f / exp2(GI_SCALE)) + offset, 1) * weight;
+			light += texture2DLod(texture, sample_coord * (1.0f / exp2(GI_SCALE)) + offset, 1) * weight;
 			weights += weight;
 		}
 	}
@@ -330,10 +331,17 @@ vec3 get_gi(in vec2 sample_coord) {
 	light /= max(0.00001f, weights);
 
 	if (weights < 0.01f) {
-		light = texture2DLod(gnormal, sample_coord * (1.0f / exp2(GI_SCALE)), 2);
+		light = texture2DLod(texture, sample_coord * (1.0f / exp2(GI_SCALE)), 2);
 	}
 
 	return light.rgb;
+}
+
+/*
+ * \brief Performs a bilaterial filter on the GI texture
+ */
+vec3 get_gi(in vec2 sample_coord) {
+	return bilateral_upsample(sample_coord, gnormal);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -501,7 +509,7 @@ vec3 calcShadowing(in vec4 fragPosition) {
         #if HYBRID_RAYTRACED_SHADOWS == ON
         if(length(fragPosition.xyz - cameraPosition) < 8.7) {
             vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
-            shadow_color = min(raytraced_shadow.xxx, shadow_color);///, raytraced_shadow.yyy);
+            shadow_color = min(raytraced_shadow.xxx, shadow_color);
         }
         #endif
 
@@ -600,6 +608,12 @@ float calculateDitherPattern() {
     return float(dither) / 64.0f;
 }
 
+vec3 filter_raytraced_light(in vec2 coord) {
+    vec2 light_coord = coord * 0.5 + vec2(0.5, 0.0);
+    //return bilateral_upsample(light_coord, gnormal);
+    return texture2D(gnormal, light_coord).rgb;
+}
+
 vec3 calcTorchLighting(in Pixel pixel) {
     if(pixel.metalness > 0.5) {
         return vec3(0);
@@ -619,6 +633,11 @@ vec3 calcTorchLighting(in Pixel pixel) {
     float torchIntensity = length(torchColor * torchFac);
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
+
+    #if RAYTRACED_LIGHT == ON
+    torchColor = filter_raytraced_light(coord);
+    #endif
+
     return torchColor * 500;
 }
 
@@ -646,7 +665,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sky_sample_5_pos = (shadowModelViewInverse * vec4(0, 0, -1, 0)).xyz;
     sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, sample_normal, pixel.metalness, sky_lod_level);
 
-    return sky_diffuse * mix(0, 1, getSkyLighting());
+    return sky_diffuse * mix(0.25, 1, getSkyLighting());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -767,7 +786,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    //return gi;
+    //return pixel.torchLighting;
 
     return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
@@ -801,6 +820,9 @@ void main() {
         finalColor = calcLitColor(curFrag);
     } else {
         finalColor = curFrag.color;
+        if(curFrag.sky < 0.5) {
+            finalColor *= 500;
+        }
     }
 
     vec2 vl_coord = coord * 2.0;
@@ -815,5 +837,5 @@ void main() {
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;
-    gl_FragData[2] = vec4(curFrag.shadow, 1.0);
+    //gl_FragData[2] = vec4(curFrag.shadow, 1.0);
 }
