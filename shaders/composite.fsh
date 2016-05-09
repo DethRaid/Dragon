@@ -10,6 +10,9 @@
 #define OFF 0
 #define ON 1
 
+
+#define GLOBAL_ILLUMINATION
+
 // GI variables
 #define GI_SAMPLE_RADIUS 50
 #define GI_QUALITY 256
@@ -17,25 +20,19 @@
 #define SHADOW_MAP_BIAS 0.8
 
 // Lighting things
-#define RAYTRACED_LIGHT ON
-
-#define MAX_RAY_LENGTH          16.0
-#define MAX_DEPTH_DIFFERENCE    0.25 //How much of a step between the hit pixel and anything else is allowed?
+#define RAYTRACED_LIGHT
+#define MAX_RAY_LENGTH          16.0	// [8.0 10.0 12.0 16.0 32.0]
+#define MIN_DEPTH_DIFFERENCE    1.25
 #define RAY_STEP_LENGTH         0.25
-#define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
-#define RAY_GROWTH              1.05    //Make this number smaller to get more accurate reflections at the cost of performance
-                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
-                                        //shorter and shorter until you're barely making any progress
-#define NUM_DIFFUSE_RAYS        8   //The best setting in the whole shader pack. If you increase this value,
-                                    //more and more rays will be sent per pixel, resulting in better and better
-                                    //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+#define RAY_DEPTH_BIAS          0.05
+#define RAY_GROWTH              1.05
+#define NUM_DIFFUSE_RAYS        4		// [1 2 4 8 16 32]
+//#define DITHER_REFLECTION_RAYS
 
-#define DITHER_REFLECTION_RAYS OFF
-
-// Sky parameters
+// Sky options
 #define RAYLEIGH_BRIGHTNESS			3.3
 #define MIE_BRIGHTNESS 				0.1
-#define MIE_DISTRIBUTION 			-0.63
+#define MIE_DISTRIBUTION 			0.63
 #define STEP_COUNT 					15.0
 #define SCATTER_STRENGTH			0.028
 #define RAYLEIGH_STRENGTH			0.139
@@ -46,7 +43,7 @@
 #define SUNSPOT_BRIGHTNESS			500
 #define MOONSPOT_BRIGHTNESS			25
 
-#define SKY_SATURATION				1.0
+#define SKY_SATURATION				1.5
 
 #define SURFACE_HEIGHT				0.98
 
@@ -55,7 +52,7 @@
 const int RGB32F					= 0;
 const int RGB16F					= 1;
 
-const int   shadowMapResolution     = 1024;
+const int   shadowMapResolution     = 1024;	// [1024 2048 4096]
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
@@ -180,7 +177,6 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 		//return vec3(received_light_strength / 500);
 
  		float falloff = length(sample_pos.xyz - position.xyz) * 50;
-		falloff = max(falloff, 1.0);
         falloff = pow(falloff, 4);
 		falloff = max(1.0, falloff);
 
@@ -348,12 +344,14 @@ float luma(vec3 color) {
 }
 
 vec3 enhance(in vec3 color) {
+	color *= vec3(0.85, 0.7, 1.2);
+
     vec3 intensity = vec3(luma(color));
 
     return mix(intensity, color, SKY_SATURATION);
 }
 
-#if RAYTRACED_LIGHT == ON
+#ifdef RAYTRACED_LIGHT
 vec2 get_coord_from_viewspace(in vec4 position) {
     vec4 ndc_position = gbufferProjection * position;
     ndc_position /= ndc_position.w;
@@ -364,7 +362,7 @@ vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
     vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1));
     direction = normalize(direction) * RAY_STEP_LENGTH;
-    #if DITHER_REFLECTION_RAYS == ON
+    #ifdef DITHER_REFLECTION_RAYS
         direction *= calculateDitherPattern();
     #endif
     bool forward = true;
@@ -385,7 +383,7 @@ vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
         float worldDepth = get_viewspace_position(curCoord).z;
         float rayDepth = curPos.z;
         float depthDiff = (worldDepth - rayDepth);
-        float maxDepthDiff = min(sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS, MAX_DEPTH_DIFFERENCE);
+        float maxDepthDiff = max(sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS, MIN_DEPTH_DIFFERENCE);
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             vec3 travelled = origin - curPos;
             return vec3(curCoord, sqrt(dot(travelled, travelled)));
@@ -432,7 +430,7 @@ void main() {
 		gi = calculate_gi(gi_coord, position_viewspace, normal);
 	}
 
-	#if RAYTRACED_LIGHT == ON
+	#ifdef RAYTRACED_LIGHT
 	else if(gi_coord.y < 1 && gi_coord.x < 2 && gi_coord.x > 1) {
 
 		gi = raytrace_light(gi_coord - vec2(1, 0));

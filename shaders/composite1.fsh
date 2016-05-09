@@ -13,7 +13,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 1024;
+const int   shadowMapResolution     = 1024; // [1024 2048 4096]
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
@@ -22,7 +22,7 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -40.0f;
+const float	sunPathRotation 		= -10.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
@@ -55,50 +55,14 @@ const bool shadowMipmapEnabled      = true;
 
 #define OFF             -1
 #define ON              0
-#define HARD            1
-#define SOFT            2
-#define REALISTIC       3
 
-#define PCF_FIXED       0
-#define PCF_VARIABLE    1
+#define PI              3.14159
 
-#define PI              3.14159265
-#define E               2.71828183
-
-/*
- * Make this number bigger for softer PCSS shadows. A value of 13 or 12 makes
- * shadows about like you'd see on Earth, a value of 50 or 60 is closer to what
- * you'd see if the Earth's sun was as big in the sky as Minecraft's
- */
 #define LIGHT_SIZE                  7.5
-
-/*
- * Defined the minimum about of shadow blur when PCSS is enabled. A value of
- * 0.175 allows for reasonably hard shadows with a very minimal amount of
- * aliasing, a value of 0.45 almost completely removes aliasing but doesn't
- * allow hard shadows when the distance from the shadow caster to the shadow
- * receiver is very small
- */
 #define MIN_PENUMBRA_SIZE           0.0
-
-/*
- * The number of samples to use for PCSS's blocker search. A higher value allows
- * for higher quality shadows at the expense of framerate
- */
-#define BLOCKER_SEARCH_SAMPLES_HALF 2
-
-/*
- * The number of samples to use for shadow blurring. More samples means blurrier
- * shadows at the expense of framerate. A value of 5 is recommended
- */
-#define PCF_SIZE_HALF               3
-
-/*
- * If set to 1, a random rotation will be applied to the shadow filter to reduce
- * shadow banding. If set to 0, no rotation will be applied to the shadow filter,
- * resulting in ugly banding but giving you a few more frames per second.
- */
-#define USE_RANDOM_ROTATION         1
+#define BLOCKER_SEARCH_SAMPLES_HALF 2   // [1 2 3 4 5]
+#define PCF_SIZE_HALF               3   // [1 2 3 4 5]
+#define USE_RANDOM_ROTATION
 
 /*
  * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
@@ -106,9 +70,12 @@ const bool shadowMipmapEnabled      = true;
  * shadows with a variable-size blur. PCSS is the most realistic option but also
  * the slowest, HARD is the fastest at the expense of realism.
  */
-#define SHADOW_MODE                 REALISTIC    // [OFF, HARD, SOFT, REALISTIC]
+
+//#define HARD_SHADOWS
+//#define SOFT_SHADOWS
+#define REALISTIC_SHADOWS
 #define SHADOW_MAP_BIAS             0.8
-#define HYBRID_RAYTRACED_SHADOWS    OFF
+#define HYBRID_RAYTRACED_SHADOWS
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100
 #define HRS_BIAS                    0.02
@@ -116,12 +83,12 @@ const bool shadowMipmapEnabled      = true;
 
 #define SHADOW_BIAS                 0.00525
 
-#define RAYTRACED_LIGHT             ON
+#define RAYTRACED_LIGHT
 
 #define WATER_FOG_DENSITY           0.95
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
 
-#define VOLUMETRIC_LIGHTING         OFF
+//#define VOLUMETRIC_LIGHTING
 
 #define ATMOSPHERIC_DENSITY         0.5
 
@@ -445,6 +412,9 @@ float calcPenumbraSize(vec3 shadowCoord) {
     return max(penumbra, MIN_PENUMBRA_SIZE);
 }
 
+#ifdef SOFT_SHADOWS
+#endif
+
 vec3 calcShadowing(in vec4 fragPosition) {
     vec3 shadowCoord = calcShadowCoordinate(fragPosition);
 
@@ -453,21 +423,21 @@ vec3 calcShadowing(in vec4 fragPosition) {
         return vec3(1.0);
     }
 
-    #if SHADOW_MODE == HARD
+    #ifdef HARD_SHADOWS
         float shadowDepth = texture2D(shadow, shadowCoord.st).r;
         return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
 
     #else
         float penumbraSize = 0.5;    // whoo magic number!
 
-        #if SHADOW_MODE == REALISTIC
+        #ifdef REALISTIC_SHADOWS
             penumbraSize = calcPenumbraSize(shadowCoord.xyz);
         #endif
 
         float numBlockers = 0.0;
         float numSamples = 0.0;
 
-        #if USE_RANDOM_ROTATION
+        #ifdef USE_RANDOM_ROTATION
             float rotateAmount = getNoise(coord).r * 2.0f - 1.0f;
 
             mat2 kernelRotation = mat2(
@@ -483,7 +453,7 @@ vec3 calcShadowing(in vec4 fragPosition) {
                 vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.25 * PCF_SIZE_HALF);
                 sampleCoord *= penumbraSize;
 
-                #if USE_RANDOM_ROTATION
+                #ifdef USE_RANDOM_ROTATION
                     sampleCoord = kernelRotation * sampleCoord;
                 #endif
 
@@ -506,7 +476,7 @@ vec3 calcShadowing(in vec4 fragPosition) {
 
         shadow_color /= numSamples;
 
-        #if HYBRID_RAYTRACED_SHADOWS == ON
+        #ifdef HYBRID_RAYTRACED_SHADOWS
         if(length(fragPosition.xyz - cameraPosition) < 8.7) {
             vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
             shadow_color = min(raytraced_shadow.xxx, shadow_color);
@@ -634,7 +604,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
     torchIntensity = pow(torchIntensity, 2);
     torchColor *= torchIntensity;
 
-    #if RAYTRACED_LIGHT == ON
+    #ifdef RAYTRACED_LIGHT
     torchColor = filter_raytraced_light(coord);
     #endif
 

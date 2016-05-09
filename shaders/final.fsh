@@ -194,9 +194,9 @@ void main() {
     doBloom(color);
 #endif
 
-    color = correct_colors(color);
+    color = texture2D(gdepth, coord).rgb;
 
-    color = texture2D(composite, coord).rgb;
+    color = correct_colors(color);
 
     color = doToneMapping(color);
 

@@ -23,7 +23,7 @@
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
-/* DRAWBUFFERS:1 */
+/* DRAWBUFFERS:2 */
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
