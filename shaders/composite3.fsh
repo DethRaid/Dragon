@@ -1,10 +1,11 @@
-#version 130
+#version 120
+#extension GL_ARB_shader_texture_lod : enable
 
 #define OFF 0
 #define ON 1
 
-#define FILTER_REFLECTIONS ON
-#define REFLECTION_FILTER_SIZE 2
+#define FILTER_REFLECTIONS OFF
+#define REFLECTION_FILTER_SIZE 3
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -22,6 +23,8 @@ uniform float near;
 uniform mat4 gbufferProjectionInverse;
 
 varying vec2 coord;
+
+varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE];
 
 /* DRAWBUFFERS:0 */
 
@@ -76,14 +79,28 @@ vec3 get_reflection(in vec2 sample_coord) {
 	vec4 light = vec4(0.0f);
 	float weights = 0.0f;
 
-    vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 2;
+    vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 0.75;
     float max_len = sqrt(dot(max_pos, max_pos));
+
+    /*
+    for(int i = 0; i < REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE; i++) {
+        vec2 reflection_coord = reflection_filter_coords[i];
+
+        float sampleDepth = getDepthLinear(reflection_coord);
+        vec3 sampleNormal = getNormal(reflection_coord);
+        float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
+        weight *= max(0.0f, dot(sampleNormal, normal));
+
+        light += max(texture2DLod(gdepth, reflection_coord, 0), vec4(0)) * weight;
+        weights += weight;
+    }
+    */
 
 	for(float i = -REFLECTION_FILTER_SIZE; i <= REFLECTION_FILTER_SIZE; i += 1.0f) {
 		for(float j = -REFLECTION_FILTER_SIZE; j <= REFLECTION_FILTER_SIZE; j += 1.0f) {
 			vec2 offset = vec2(i, j) * recipres * roughness_fac * 2;
 
-            float dist_factor =  max_len - sqrt(dot(offset, offset));
+            float dist_factor = max(0, max_len - sqrt(dot(offset, offset)));
             dist_factor /= max_len;
 
 			float sampleDepth = getDepthLinear(sample_coord + offset * 2.0f);

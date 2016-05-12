@@ -89,7 +89,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.7, 0.9, 1.0);
+    return color * vec3(0.5, 0.9, 1.0);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -194,7 +194,7 @@ void main() {
     doBloom(color);
 #endif
 
-    color = texture2D(gdepth, coord).rgb;
+    //color = texture2D(gdepth, coord).rgb;
 
     color = correct_colors(color);
 

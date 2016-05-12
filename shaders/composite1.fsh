@@ -58,9 +58,9 @@ const bool shadowMipmapEnabled      = true;
 
 #define PI              3.14159
 
-#define LIGHT_SIZE                  7.5
+#define LIGHT_SIZE                  25
 #define MIN_PENUMBRA_SIZE           0.0
-#define BLOCKER_SEARCH_SAMPLES_HALF 2   // [1 2 3 4 5]
+#define BLOCKER_SEARCH_SAMPLES_HALF 3   // [1 2 3 4 5]
 #define PCF_SIZE_HALF               3   // [1 2 3 4 5]
 #define USE_RANDOM_ROTATION
 
@@ -92,7 +92,7 @@ const bool shadowMipmapEnabled      = true;
 
 #define ATMOSPHERIC_DENSITY         0.5
 
-#define GI_FILTER_SIZE              3
+#define GI_FILTER_SIZE              5
 #define GI_SCALE                    1
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -139,7 +139,9 @@ varying vec3 fogColor;
 varying vec3 skyColor;
 varying vec3 ambientColor;
 
-/* DRAWBUFFERS:34 */
+varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
+
+/* DRAWBUFFERS:342 */
 
 #include "/lib/wind.glsl"
 
@@ -281,21 +283,19 @@ vec3 bilateral_upsample(in vec2 sample_coord, in sampler2D texture) {
 	vec4 light = vec4(0.0f);
 	float weights = 0.0f;
 
-	for (float i = -GI_FILTER_SIZE; i <= GI_FILTER_SIZE; i += 1.0f) {
-		for (float j = -GI_FILTER_SIZE; j <= GI_FILTER_SIZE; j += 1.0f) {
-			vec2 offset = vec2(i, j) * recipres * 2.0f;
+    for(int i = 0; i < GI_FILTER_SIZE * GI_FILTER_SIZE; i++) {
+        vec2 gi_coord = gi_lookup_coord[i];
+        float sampleDepth = getDepthLinear(gi_coord);
+        vec3 sampleNormal = getNormal(gi_coord);
+        float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
+        weight *= max(0.0f, dot(sampleNormal, normal) * 2.0f - 1.0f);
 
-			float sampleDepth = getDepthLinear(sample_coord + offset * 2.0f * (exp2(GI_SCALE)));
-			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f * (exp2(GI_SCALE)));
-			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
-			weight *= max(0.0f, dot(sampleNormal, normal) * 2.0f - 1.0f);
-
-			light += texture2DLod(texture, sample_coord * (1.0f / exp2(GI_SCALE)) + offset, 1) * weight;
-			weights += weight;
-		}
-	}
+        light += texture2DLod(texture, gi_coord, 1) * weight;
+        weights += weight;
+    }
 
 	light /= max(0.00001f, weights);
+    weights = 0;
 
 	if (weights < 0.01f) {
 		light = texture2DLod(texture, sample_coord * (1.0f / exp2(GI_SCALE)), 2);
@@ -392,11 +392,12 @@ float calcPenumbraSize(vec3 shadowCoord) {
 
 	float temp;
 	float numBlockers = 0;
-    float searchSize = LIGHT_SIZE * (dFragment - 5) / dFragment;
+    float searchSize = LIGHT_SIZE * (dFragment - 1) / dFragment;
 
     for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
         for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
-            temp = texture2DLod(shadow, shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF)), 2).r;
+            vec2 sample_coord = shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF));
+            temp = texture2DLod(shadow, sample_coord, 2).r;
             if(dFragment - temp > 0.0015) {
                 dBlocker += temp;
                 numBlockers += 1.0;
@@ -526,7 +527,7 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
 
     // Calculate the main light lighting from the light position and whatnot
-    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 0) * 0.5;
+    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
 
     // Calculate specular light from the sky
     // Get the specular component blurred by the pixel's roughness
@@ -807,5 +808,5 @@ void main() {
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;
-    //gl_FragData[2] = vec4(curFrag.shadow, 1.0);
+    gl_FragData[2] = vec4(curFrag.shadow, 1.0);
 }

@@ -12,7 +12,7 @@
 #define RAY_GROWTH              1.15    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                0   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                8   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -23,7 +23,7 @@
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
-/* DRAWBUFFERS:2 */
+/* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -280,7 +280,7 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
 
     sky_sample *= mix(vec3(1), shadow, facing_sun_fact);
     //sky_sample *= mix(1, 0, facing_sun_fact);
-    //sky_sample = vec3(facing_sun_fact * 100000);
+    //sky_sample = vec3(facing_sun_fact * 1000);
 
     return sky_sample;
 }

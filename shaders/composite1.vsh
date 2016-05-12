@@ -1,5 +1,8 @@
 #version 120
 
+// 5x5 filter
+#define GI_FILTER_SIZE  5
+
 uniform float rainStrength;
 
 uniform int worldTime;
@@ -16,6 +19,8 @@ varying vec3 ambientColor;
 
 varying vec3 fogColor;
 varying vec3 skyColor;
+
+varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
 
 struct main_light {
     vec3 direction;
@@ -63,4 +68,11 @@ void main() {
 
     lightVector = light.direction;
     lightColor = light.color;
+
+    int offset = GI_FILTER_SIZE / 2;
+    for(int y = 0; y < GI_FILTER_SIZE; y++) {
+        for(int x = 0; x < GI_FILTER_SIZE; x++) {
+            gi_lookup_coord[x + y * GI_FILTER_SIZE] = (coord + vec2(x - offset, y - offset)) * 0.5;
+        }
+    }
 }
