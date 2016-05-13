@@ -82,20 +82,6 @@ vec3 get_reflection(in vec2 sample_coord) {
     vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 0.75;
     float max_len = sqrt(dot(max_pos, max_pos));
 
-    /*
-    for(int i = 0; i < REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE; i++) {
-        vec2 reflection_coord = reflection_filter_coords[i];
-
-        float sampleDepth = getDepthLinear(reflection_coord);
-        vec3 sampleNormal = getNormal(reflection_coord);
-        float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
-        weight *= max(0.0f, dot(sampleNormal, normal));
-
-        light += max(texture2DLod(gdepth, reflection_coord, 0), vec4(0)) * weight;
-        weights += weight;
-    }
-    */
-
 	for(float i = -REFLECTION_FILTER_SIZE; i <= REFLECTION_FILTER_SIZE; i += 1.0f) {
 		for(float j = -REFLECTION_FILTER_SIZE; j <= REFLECTION_FILTER_SIZE; j += 1.0f) {
 			vec2 offset = vec2(i, j) * recipres * roughness_fac * 2;
@@ -150,7 +136,7 @@ void main() {
     vec3 color = mix(diffuse, specular, fresnel * smoothness);
 
     color = max(color, vec3(0));
-    //color = specular;
+    //color = diffuse;
 
     gl_FragData[0] = vec4(color, 1.0);
 }

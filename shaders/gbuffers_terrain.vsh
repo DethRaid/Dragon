@@ -38,9 +38,9 @@ void main() {
     //greater than all the others, we know what direction the surface is
     //facing in
     if(gl_Normal.x > 0.5) {
-        tangent = vec3(0, 0, 1);
+        tangent = vec3(0, -1, 0);
     } else if(gl_Normal.x < -0.5) {
-        tangent = vec3(0, 0, 1);
+        tangent = vec3(0, 1, 0);
     } else if(gl_Normal.y > 0.5 ) {
         tangent = vec3(-1, 0, 0);
     } else if(gl_Normal.y < -0.5) {

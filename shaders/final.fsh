@@ -89,7 +89,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.5, 0.9, 1.0);
+    return color * vec3(0.425, 0.9, 0.9);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -166,10 +166,8 @@ vec3 uncharted_tonemap_math(in vec3 color) {
     return ((color * (shoulder_strength * color + linear_angle * linear_strength) + toe_strength * E) / (color * (shoulder_strength * color + linear_strength) + toe_strength * F)) - E / F;
 }
 
-vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
-    const float W = 11.2;
-
-    vec3 curr = uncharted_tonemap_math(color * exposure_bias);
+vec3 uncharted_tonemap(in vec3 color, in float W) {
+    vec3 curr = uncharted_tonemap_math(color);
     vec3 white_scale = vec3(1.0) / uncharted_tonemap_math(vec3(W));
 
     return curr * white_scale;
@@ -178,8 +176,9 @@ vec3 uncharted_tonemap(in vec3 color, in float exposure_bias) {
 vec3 doToneMapping(in vec3 color) {
     vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
     float luma = luma(blurred_color);
-    float luma_log = log(luma) / 4.0;
-    return uncharted_tonemap(color / 75, 1.0);
+    float luma_log = max(log(luma) * 1.5, 0.75);
+    //luma_log = 11.5;
+    return uncharted_tonemap(color / 75, luma_log);
 }
 
 void main() {

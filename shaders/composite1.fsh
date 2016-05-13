@@ -22,7 +22,7 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -10.0f;
+const float	sunPathRotation 		= -20.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
@@ -510,7 +510,7 @@ vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in float me
     float ndotl = dot(normal, direction);
     ndotl = max(0, ndotl);
 
-    vec3 sky_lambert = ndotl * sky_light_diffuse;// * (1.0 - metalness);
+    vec3 sky_lambert = ndotl * sky_light_diffuse;
 
     return sky_lambert;
 }
@@ -657,6 +657,10 @@ Pixel fillPixelStruct() {
     pixel.directLighting =  vec3(0);
     pixel.torchLighting =   vec3(0);
     pixel.shadow =          vec3(1);
+
+    //if(abs(pixel.normal.z) > 0.75 || abs(pixel.normal.x) > 0.75) {
+    //    pixel.normal.y *= -1;
+    //}
 
     return pixel;
 }
@@ -805,6 +809,8 @@ void main() {
         skyScattering.rgb *= calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     }
     #endif
+
+    // finalColor = vec3(curFrag.skipLighting) * 500;
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;
