@@ -1,18 +1,17 @@
-#version 130
+#version 120
 #extension GL_ARB_shader_texture_lod : enable
 
 #define OFF 0
 #define ON 1
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_LENGTH          100.0
+#define MAX_RAY_STEPS           30
 #define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.05
-#define RAY_DEPTH_BIAS          0.05   //Serves the same purpose as a shadow bias
-#define RAY_GROWTH              1.15    //Make this number smaller to get more accurate reflections at the cost of performance
+#define RAY_STEP_LENGTH         0.01
+#define RAY_GROWTH              1.3    //Make this number smaller to get more accurate reflections at the cost of performance
                                         //numbers less than 1 are not recommended as they will cause ray steps to grow
                                         //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                8   //The best setting in the whole shader pack. If you increase this value,
+#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
                                     //more and more rays will be sent per pixel, resulting in better and better
                                     //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
 
@@ -57,9 +56,9 @@ uniform float viewWidth;
 uniform float viewHeight;
 uniform float rainStrength;
 
-in vec3 lightVector;
+varying vec3 lightVector;
 
-in vec2 coord;
+varying vec2 coord;
 
 struct Pixel1 {
     vec3 position;
@@ -115,9 +114,9 @@ vec2 getCoordFromCameraSpace(in vec3 position) {
     return ndcSpacePosition * 0.5 + 0.5;
 }
 
-vec3 get_viewspace_position(in vec2 uv, in mat4 projection_inverse, in sampler2D zbuffer) {
-    float depth = texture2D(zbuffer, uv).x;
-    vec4 position = projection_inverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+vec3 get_viewspace_position(in vec2 uv) {
+    float depth = texture2D(gdepthtex, uv).x;
+    vec4 position = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     return position.xyz / position.w;
 }
 
@@ -232,28 +231,23 @@ vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
     vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
     direction = normalize(direction) * RAY_STEP_LENGTH;
     #if DITHER_REFLECTION_RAYS == ON
-        direction *= calculateDitherPattern();
+        direction *= mix(0.75, 1.0, calculateDitherPattern());
     #endif
     bool forward = true;
     bool can_collect = true;
 
     //The basic idea here is the the ray goes forward until it's behind something,
     //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < MAX_RAY_LENGTH / RAY_STEP_LENGTH; i++) {
+    for(int i = 0; i < MAX_RAY_STEPS; i++) {
         curPos += direction;
         curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
             return vec3(-1);
         }
-        if(length(curPos - origin) > MAX_RAY_LENGTH) {
-            return vec3(-1);
-        }
-        float worldDepth = get_viewspace_position(curCoord, projection_inverse, zbuffer).z;
-        float rayDepth = curPos.z;
-        float depthDiff = (worldDepth - rayDepth);
-        float maxDepthDiff = sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS;
-        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+        vec3 worldDepth = get_viewspace_position(curCoord);
+        float depthDiff = (worldDepth.z - curPos.z);
+        if(depthDiff > 0 && depthDiff < sqrt(dot(direction, direction))) {
             vec3 travelled = origin - curPos;
             return vec3(curCoord, sqrt(dot(travelled, travelled)));
             direction = -1 * normalize(direction) * 0.15;
@@ -299,10 +293,13 @@ vec3 doLightBounce(in Pixel1 pixel) {
     int hitLayer = 0;
     vec3 hitColor = vec3(0);
 
+    float roughness = 1.0 - pixel.smoothness;
+    float noise_factor = pow(roughness, 8.0);// * 0.25;
+
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2 - 1;
-        reflectDir = normalize(noiseSample * (1.0 - pixel.smoothness) * 0.5 + pixel.normal);
+        reflectDir = normalize(noiseSample * noise_factor + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         rayDir = reflect(normalize(rayStart), reflectDir);
 
