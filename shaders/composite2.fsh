@@ -1,21 +1,19 @@
-#version 120
+#version 130
 #extension GL_ARB_shader_texture_lod : enable
-
-#define OFF 0
-#define ON 1
 
 //Adjustable variables. Tune these for performance
 #define MAX_RAY_STEPS           30
-#define MAX_DEPTH_DIFFERENCE    1.5 //How much of a step between the hit pixel and anything else is allowed?
-#define RAY_STEP_LENGTH         0.01
-#define RAY_GROWTH              1.3    //Make this number smaller to get more accurate reflections at the cost of performance
-                                        //numbers less than 1 are not recommended as they will cause ray steps to grow
-                                        //shorter and shorter until you're barely making any progress
-#define NUM_RAYS                4   //The best setting in the whole shader pack. If you increase this value,
-                                    //more and more rays will be sent per pixel, resulting in better and better
-                                    //reflections. If you computer can handle 4 (or even 16!) I highly recommend it.
+#define RAY_STEP_LENGTH         0.1
+#define RAY_DEPTH_BIAS          0.05
+#define RAY_GROWTH              1.15
+#define NUM_RAYS                8   // [4 8 16 64 256 1024]
 
-#define DITHER_REFLECTION_RAYS OFF
+//#define DITHER_REFLECTION_RAYS
+
+#define SCHLICK 0
+#define COOK_TORRANCE 1
+
+#define FRESNEL_EQUATION SCHLICK
 
 #define PI 3.14159
 
@@ -56,9 +54,9 @@ uniform float viewWidth;
 uniform float viewHeight;
 uniform float rainStrength;
 
-varying vec3 lightVector;
+in vec3 lightVector;
 
-varying vec2 coord;
+in vec2 coord;
 
 struct Pixel1 {
     vec3 position;
@@ -68,7 +66,6 @@ struct Pixel1 {
     bool skipLighting;
     float metalness;
     float smoothness;
-    float water;
 };
 
 float rayLen;
@@ -77,51 +74,14 @@ float rayLen;
 //                              Helper Functions                             //
 ///////////////////////////////////////////////////////////////////////////////
 
-float getDepth(vec2 coord) {
-    return texture2D(gdepthtex, coord).r;
-}
-
-float make_depth_linear(in float depth) {
-    return 2.0 * near * far / (far + near - (2.0 * depth - 1.0) * (far - near));
-}
-
-float getDepthLinear(vec2 coord) {
-    return 2.0 * near * far / (far + near - (2.0 * texture2D(gdepthtex, coord).r - 1.0) * (far - near));
-}
-
-vec3 getCameraSpacePosition(vec2 uv) {
-	float depth = getDepth(uv);
-	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition /= fragposition.w;
-	return fragposition.xyz;
-}
-
-vec3 getWorldSpacePosition(vec2 uv) {
-	vec4 pos = vec4(getCameraSpacePosition(uv), 1);
-	pos = gbufferModelViewInverse * pos;
-	pos.xyz += cameraPosition.xyz;
-	return pos.xyz;
-}
-
-vec3 cameraToWorldSpace(vec4 cameraPos) {
-    vec4 pos = gbufferModelViewInverse * cameraPos;
-    return pos.xyz;
-}
-
-vec2 getCoordFromCameraSpace(in vec3 position) {
-    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
-    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
-    return ndcSpacePosition * 0.5 + 0.5;
-}
-
 vec3 get_viewspace_position(in vec2 uv) {
     float depth = texture2D(gdepthtex, uv).x;
     vec4 position = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     return position.xyz / position.w;
 }
 
-vec2 get_coord_from_viewspace(in vec4 position, in mat4 projection) {
-    vec4 ndc_position = projection * position;
+vec2 get_coord_from_viewspace(in vec4 position) {
+    vec4 ndc_position = gbufferProjection * position;
     ndc_position /= ndc_position.w;
     return ndc_position.xy * 0.5 + 0.5;
 }
@@ -156,10 +116,6 @@ float getMetalness() {
     return texture2D(gaux2, coord).b;
 }
 
-float getWater() {
-    return texture2D(gnormal, coord).a;
-}
-
 float getSkyLighting() {
     return texture2D(gaux3, coord).r;
 }
@@ -190,14 +146,13 @@ vec3 get_shadow(in vec2 coord) {
 ///////////////////////////////////////////////////////////////////////////////
 
 void fillPixelStruct(inout Pixel1 pixel) {
-    pixel.position =        getCameraSpacePosition(coord);
+    pixel.position =        get_viewspace_position(coord);
     pixel.normal =          getNormal();
     pixel.color =           getColor();
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
-    pixel.water =           getWater();
-    pixel.specular_color    = (pixel.color * pixel.metalness + vec3(0.14) * (1.0 - pixel.metalness)) * (1.1 - pixel.water);
+    pixel.specular_color    = mix(vec3(0.14), get_specular_color(), vec3(pixel.metalness));
 }
 
 float calculateDitherPattern() {
@@ -226,11 +181,11 @@ float calculateDitherPattern() {
 //  -origin.st is the texture coordinate of the ray's origin
 //  -direction.st is of such a length that it moves the equivalent of one texel
 //  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection, in mat4 projection_inverse, in sampler2D zbuffer) {
+vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
     vec3 curPos = origin;
-    vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
+    vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1));
     direction = normalize(direction) * RAY_STEP_LENGTH;
-    #if DITHER_REFLECTION_RAYS == ON
+    #ifdef DITHER_REFLECTION_RAYS
         direction *= mix(0.75, 1.0, calculateDitherPattern());
     #endif
     bool forward = true;
@@ -240,14 +195,15 @@ vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction, in mat4 projection,
     //then slowly moves forward until it's in front of something.
     for(int i = 0; i < MAX_RAY_STEPS; i++) {
         curPos += direction;
-        curCoord = get_coord_from_viewspace(vec4(curPos, 1), projection);
+        curCoord = get_coord_from_viewspace(vec4(curPos, 1));
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
             return vec3(-1);
         }
         vec3 worldDepth = get_viewspace_position(curCoord);
         float depthDiff = (worldDepth.z - curPos.z);
-        if(depthDiff > 0 && depthDiff < sqrt(dot(direction, direction))) {
+        float maxDepthDiff = sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS;
+        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             vec3 travelled = origin - curPos;
             return vec3(curCoord, sqrt(dot(travelled, travelled)));
             direction = -1 * normalize(direction) * 0.15;
@@ -264,51 +220,139 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
     reflect_dir = viewspace_to_worldspace(vec4(reflect_dir, 0)).xyz;
     vec3 sky_sample = get_sky_color(reflect_dir, pixel.smoothness);
 
-    // Boost the sky when the reflection direction is pointing at the sun
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
     float facing_sun_fact = max(dot(reflect_dir, light_vector_worldspace), 0);
-    //facing_sun_fact = pow(facing_sun_fact, 2);
-    //facing_sun_fact = min(1, facing_sun_fact);
 
     vec3 shadow = get_shadow(coord);
 
     sky_sample *= mix(vec3(1), shadow, facing_sun_fact);
-    //sky_sample *= mix(1, 0, facing_sun_fact);
-    //sky_sample = vec3(facing_sun_fact * 1000);
 
     return sky_sample;
+}
+
+vec3 calculate_noise_direction(in vec2 epsilon, in float roughness) {
+    // Uses the GGX sample skewing Functions
+    float theta = atan(sqrt(roughness * roughness * epsilon.x / (1.0 - epsilon.x)));
+    float phi = 2 * PI * epsilon.y;
+
+    float sin_theta = sin(theta);
+
+    float x = cos(phi) * sin_theta;
+    float y = sin(phi) * sin_theta;
+    float z = cos(theta);
+
+    return vec3(x, y, z);
+}
+
+float noise(in vec2 coord) {
+    return fract(sin(dot(coord, vec2(12.8989, 78.233))) * 43758.5453);
+}
+
+float ggx_smith_geom(in vec3 i, in vec3 normal, in float alpha) {
+    float idotn = max(0, dot(normal, i));
+    float idotn2 = pow(idotn, 2);
+
+    return 2 * idotn / (idotn + sqrt(idotn2 + pow(alpha, 2) * (1 - idotn2)));
+}
+
+float ggx_distribution(in vec3 halfVector, in vec3 normal, in float alpha) {
+    float hdotn = max(0, dot(halfVector, normal));
+
+    return alpha / (3.1415927 * pow(1 + pow(hdotn, 2) * (alpha - 1), 2));
+}
+
+/*!
+ * \brief Calculates the geometry distribution given the given parameters
+ *
+ * \param lightVector The normalized, view-space vector from the light to the current fragment
+ * \param viewVector The normalized, view-space vector from the camera to the current fragment
+ * \param halfVector The vector halfway between the normal and view vector
+ *
+ * \return The geometry distribution of the given fragment
+ */
+float calculate_geometry_distribution(in vec3 lightVector, in vec3 viewVector, in vec3 halfVector, in float alpha) {
+    return ggx_smith_geom(lightVector, halfVector, alpha) * ggx_smith_geom(viewVector, halfVector, alpha);
+}
+
+/*!
+ * \brief Calculates the nicrofacet distribution for the current fragment
+ *
+ * \param halfVector The half vector for the current fragment
+ * \param normal The viewspace normal of the current fragment
+ *
+ * \return The microfacet distribution for the current fragment
+ */
+float calculate_microfacet_distribution(in vec3 halfVector, in vec3 normal, in float alpha) {
+    return ggx_distribution(halfVector, normal, alpha);
+}
+
+/*!
+ * \brief Calculates a specular highlight for a given light
+ *
+ * \param lightVector The normalized view space vector from the fragment being shaded to the light
+ * \param normal The normalized view space normal of the fragment being shaded
+ * \param fresnel The fresnel foctor for this fragment
+ * \param viewVector The normalized vector from the fragment to the camera being shaded, expressed in view space
+ * \param roughness The roughness of the fragment
+ *
+ * \return The color of the specular highlight at the current fragment
+ */
+vec3 calculate_specaulr_highlight(
+    in vec3 lightVector,
+    in vec3 normal,
+    in vec3 fresnel,
+    in vec3 viewVector,
+    in float roughness) {
+
+    vec3 halfVector = normalize(lightVector + viewVector);
+
+    float geometryFactor = calculate_geometry_distribution(lightVector, viewVector, halfVector, roughness);
+    float microfacetDistribution = calculate_microfacet_distribution(halfVector, normal, roughness);
+
+    float ldotn = max(0.01, dot(lightVector, normal));
+    float vdotn = max(0.01, dot(viewVector, normal));
+
+    return fresnel * geometryFactor * microfacetDistribution / (4 * ldotn * vdotn);
+}
+
+vec3 calculate_fresnel(in vec3 F0, in vec3 normal, in vec3 viewVector) {
+    float vdoth = max(0, dot(-viewVector, normal));
+
+    #if FRESNEL_EQUATION == SCHLICK
+        return F0 + (vec3(1.0) - F0) * pow(1.0 - vdoth, 5);
+    #elif FRESNEL_EQUATION == COOK_TOORANCE
+        float c = ndoth;
+        vec3 g = sqrt(F0 * F0 + c * c - 1);
+        return 0.5 * pow(g - c, 2) / pow(g + c, 2) * (1 + pow(c * (g + c) - 1, 2) / pow(c * (g - c) + 1, 2));
+    #endif
+
+    return F0;
 }
 
 vec3 doLightBounce(in Pixel1 pixel) {
     //Find where the ray hits
     //get the blur at that point
     //mix with the color
-    vec3 rayStart = pixel.position;
-    vec2 noiseCoord = vec2(coord.s * viewWidth / 64.0, coord.t * viewHeight / 64.0);
     vec3 retColor = vec3(0);
-    vec3 noiseSample = vec3(0);
-    vec3 reflectDir = vec3(0);
-    vec3 rayDir = vec3(0);
-    vec3 hitUV = vec3(0);
-    int hitLayer = 0;
     vec3 hitColor = vec3(0);
 
     float roughness = 1.0 - pixel.smoothness;
-    float noise_factor = pow(roughness, 8.0);// * 0.25;
+    roughness = pow(roughness * 0.8, 2);
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
-        noiseSample = texture2DLod(noisetex, noiseCoord * (i + 1), 0).rgb * 2 - 1;
-        reflectDir = normalize(noiseSample * noise_factor + pixel.normal);
+        vec2 epsilon = vec2(noise(coord * i), noise(coord * i * 3));
+        vec3 noiseSample = calculate_noise_direction(epsilon, roughness);
+        vec3 reflectDir = normalize(noiseSample * roughness + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
-        rayDir = reflect(normalize(rayStart), reflectDir);
+        vec3 rayDir = reflect(normalize(pixel.position), reflectDir);
 
         if(dot(rayDir, pixel.normal) < 0.1) {
             rayDir += pixel.normal;
             rayDir = normalize(rayDir);
         }
 
-        hitUV = cast_screenspace_ray(rayStart, rayDir, gbufferProjection, gbufferProjectionInverse, gdepthtex);
+        vec3 hitUV = cast_screenspace_ray(pixel.position, rayDir);
 
         if(hitUV.z < RAY_STEP_LENGTH * 2) {
             // If the ray is pointing into the object, just sample the sky and be done with it
@@ -316,22 +360,25 @@ vec3 doLightBounce(in Pixel1 pixel) {
         }
 
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
-            vec3 reflection_sample = texture2DLod(composite, hitUV.st, 0).rgb;
-
-            retColor += reflection_sample;
+            hitColor = texture2DLod(composite, hitUV.st, 0).rgb;
         } else {
             Pixel1 sky_pixel = pixel;
             sky_pixel.normal = reflectDir;
-            vec3 reflected_sky_color = get_reflected_sky(sky_pixel);
-            retColor += reflected_sky_color;
+            hitColor = get_reflected_sky(sky_pixel);
         }
+
+        hitColor = max(hitColor, vec3(0));
+
+        vec3 viewVector = normalize(pixel.position);
+
+        vec3 fresnel = calculate_fresnel(pixel.specular_color, reflectDir, viewVector);
+
+        vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
+
+        retColor += mix(pixel.color, hitColor * specularStrength, fresnel * (1.0 - roughness));
     }
 
     return retColor / NUM_RAYS;
-}
-
-float luma(vec3 color) {
-    return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 
 void main() {
@@ -340,26 +387,18 @@ void main() {
     vec3 hitColor = pixel.color;
     vec3 reflectedColor = vec3(0);
 
-    vec3 viewVector = normalize(getCameraSpacePosition(coord));
-
-    float vdoth = clamp(dot(-viewVector, pixel.normal), 0, 1);
-
     float smoothness = pixel.smoothness;
     float metalness = pixel.metalness;
-    float waterness = pixel.water;
-
-    vec3 sColor = mix(vec3(0.14), get_specular_color(), vec3(metalness));
-    vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
 
     if(!pixel.skipLighting) {
-#if NUM_RAYS > 0
+#if NUM_RAYS > 0u
         reflectedColor = doLightBounce(pixel).rgb;
 #else
         // Only reflect the sky
         reflectedColor = get_reflected_sky(pixel);
 #endif
 
-        hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
+        //hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
         hitColor = reflectedColor;
     }
 

@@ -4,8 +4,8 @@
 #define OFF 0
 #define ON 1
 
-#define FILTER_REFLECTIONS OFF
-#define REFLECTION_FILTER_SIZE 3
+#define FILTER_REFLECTIONS
+#define REFLECTION_FILTER_SIZE 2
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -68,23 +68,21 @@ bool shouldSkipLighting(in vec2 coord) {
 }
 
 vec3 get_reflection(in vec2 sample_coord) {
-#if FILTER_REFLECTIONS == ON
+#ifdef FILTER_REFLECTIONS
 	vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
     float depth = getDepthLinear(sample_coord);
     vec3 normal = getNormal(sample_coord);
     float roughness = 1.0 - getSmoothness(coord);
-    roughness = pow(roughness, 4);
-    float roughness_fac = mix(0.5, 1, roughness);
 
 	vec4 light = vec4(0.0f);
 	float weights = 0.0f;
 
-    vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 0.75;
+    vec2 max_pos = vec2(REFLECTION_FILTER_SIZE) * recipres * 0.5;
     float max_len = sqrt(dot(max_pos, max_pos));
 
 	for(float i = -REFLECTION_FILTER_SIZE; i <= REFLECTION_FILTER_SIZE; i += 1.0f) {
 		for(float j = -REFLECTION_FILTER_SIZE; j <= REFLECTION_FILTER_SIZE; j += 1.0f) {
-			vec2 offset = vec2(i, j) * recipres * roughness_fac * 2;
+			vec2 offset = vec2(i, j) * recipres * roughness;
 
             float dist_factor = max(0, max_len - sqrt(dot(offset, offset)));
             dist_factor /= max_len;
@@ -93,9 +91,9 @@ vec3 get_reflection(in vec2 sample_coord) {
 			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f);
 			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
 			weight *= max(0.0f, dot(sampleNormal, normal));
-            weight *= dist_factor; // mix(0, 0.5, dist_factor);
+            weight *= dist_factor;
 
-			light += max(texture2DLod(gdepth, sample_coord + offset, 0), vec4(0)) * weight;
+			light += max(texture2DLod(gdepth, sample_coord * 0.5 + offset, 0), vec4(0)) * weight;
 			weights += weight;
 		}
 	}
@@ -103,7 +101,7 @@ vec3 get_reflection(in vec2 sample_coord) {
 	light /= max(0.00001f, weights);
 
 #else
-    vec4 light = texture2D(gdepth, sample_coord);
+    vec4 light = texture2D(gdepth, sample_coord * 0.5);
 
 #endif
 
@@ -136,7 +134,7 @@ void main() {
     vec3 color = mix(diffuse, specular, fresnel * smoothness);
 
     color = max(color, vec3(0));
-    //color = diffuse;
+    //color = specular;
 
     gl_FragData[0] = vec4(color, 1.0);
 }

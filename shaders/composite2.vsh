@@ -11,6 +11,7 @@ varying vec3 lightVector;
 
 void main() {
     gl_Position = ftransform();
+    gl_Position.xy = gl_Position.xy * 0.5 - 0.5;
     coord = gl_MultiTexCoord0.st;
 
     if( worldTime > 100 && worldTime < 13000 ) {
