@@ -6,6 +6,7 @@
 
 #define FILTER_REFLECTIONS
 #define REFLECTION_FILTER_SIZE 2
+#define REFLECTION_RESOLUTION_MODIFIER     0.5 // [1 0.5 0.25]
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -93,7 +94,7 @@ vec3 get_reflection(in vec2 sample_coord) {
 			weight *= max(0.0f, dot(sampleNormal, normal));
             weight *= dist_factor;
 
-			light += max(texture2DLod(gdepth, sample_coord * 0.5 + offset, 0), vec4(0)) * weight;
+			light += max(texture2DLod(gdepth, (sample_coord + offset) * REFLECTION_RESOLUTION_MODIFIER, 0), vec4(0)) * weight;
 			weights += weight;
 		}
 	}
@@ -134,7 +135,7 @@ void main() {
     vec3 color = mix(diffuse, specular, fresnel * smoothness);
 
     color = max(color, vec3(0));
-    //color = specular;
+    //color = diffuse;
 
     gl_FragData[0] = vec4(color, 1.0);
 }

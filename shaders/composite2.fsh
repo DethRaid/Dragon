@@ -5,8 +5,8 @@
 #define MAX_RAY_STEPS           30
 #define RAY_STEP_LENGTH         0.1
 #define RAY_DEPTH_BIAS          0.05
-#define RAY_GROWTH              1.15
-#define NUM_RAYS                8   // [4 8 16 64 256 1024]
+#define RAY_GROWTH              1.05
+#define NUM_RAYS                4   // [4 8 16 64 256 1024]
 
 //#define DITHER_REFLECTION_RAYS
 
@@ -14,6 +14,11 @@
 #define COOK_TORRANCE 1
 
 #define FRESNEL_EQUATION SCHLICK
+
+#define BECKMANN 1
+#define GGX 2
+
+#define SKEWING_FUNCTION BECKMANN
 
 #define PI 3.14159
 
@@ -232,7 +237,16 @@ vec3 get_reflected_sky(in Pixel1 pixel) {
 
 vec3 calculate_noise_direction(in vec2 epsilon, in float roughness) {
     // Uses the GGX sample skewing Functions
+    #if SKEWING_FUNCTION == GGX
     float theta = atan(sqrt(roughness * roughness * epsilon.x / (1.0 - epsilon.x)));
+
+    #elif SKEWING_FUNCTION == PHONG
+
+
+    #elif SKEWING_FUNCTION == BECKMANN
+    float theta = atan(sqrt(-1 * roughness * log(1 - epsilon.x)));
+
+    #endif
     float phi = 2 * PI * epsilon.y;
 
     float sin_theta = sin(theta);
@@ -321,9 +335,12 @@ vec3 calculate_fresnel(in vec3 F0, in vec3 normal, in vec3 viewVector) {
     #if FRESNEL_EQUATION == SCHLICK
         return F0 + (vec3(1.0) - F0) * pow(1.0 - vdoth, 5);
     #elif FRESNEL_EQUATION == COOK_TOORANCE
-        float c = ndoth;
-        vec3 g = sqrt(F0 * F0 + c * c - 1);
-        return 0.5 * pow(g - c, 2) / pow(g + c, 2) * (1 + pow(c * (g + c) - 1, 2) / pow(c * (g - c) + 1, 2));
+        vec3 cookTorrance; //Phisically Accurate, handles metals better
+        vec3 nFactor = (1.0 + sqrt(F0)) / (1.0 - sqrt(F0));
+        vec3 gFactor = sqrt(pow(nFactor, vec3(2.0)) + pow(vdoth, 2.0) - 1.0);
+        cookTorrance = 0.5 * pow((gFactor - vdoth) / (gFactor + vdoth), vec3(2.0)) * (1 + pow(((gFactor + vdoth) * vdoth - 1.0) / ((gFactor - vdoth) * vdoth + 1.0), vec3(2.0)));
+
+        return cookTorrance;
     #endif
 
     return F0;
@@ -341,11 +358,11 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
-        vec2 epsilon = vec2(noise(coord * i), noise(coord * i * 3));
+        vec2 epsilon = vec2(noise(coord * (i + 1)), noise(coord * (i + 1) * 3));
         vec3 noiseSample = calculate_noise_direction(epsilon, roughness);
         vec3 reflectDir = normalize(noiseSample * roughness + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
-        vec3 rayDir = reflect(normalize(pixel.position), reflectDir);
+        vec3 rayDir = reflect(normalize(pixel.position), reflectDir); //  * mix(1, 3, roughness);
 
         if(dot(rayDir, pixel.normal) < 0.1) {
             rayDir += pixel.normal;
@@ -374,6 +391,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
         vec3 fresnel = calculate_fresnel(pixel.specular_color, reflectDir, viewVector);
 
         vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
+        //specularStrength = fresnel;
 
         retColor += mix(pixel.color, hitColor * specularStrength, fresnel * (1.0 - roughness));
     }

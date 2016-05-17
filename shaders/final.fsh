@@ -9,8 +9,8 @@
 
 #define REFLECTION_FILTER_SIZE 2
 
-#define FILM_GRAIN OFF
-#define FILM_GRAIN_STRENGTH 0.03
+#define FILM_GRAIN ON
+#define FILM_GRAIN_STRENGTH 0.035
 
 #define BLOOM               OFF
 #define BLOOM_RADIUS        3
@@ -193,8 +193,6 @@ void main() {
     doBloom(color);
 #endif
 
-    //color = texture2D(gdepth, coord).rgb;
-
     color = correct_colors(color);
 
     color = doToneMapping(color);
@@ -210,5 +208,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gaux2, coord).rgb * 1, 1.0);
+    //gl_FragColor = vec4(texture2D(gaux4, coord).rgb * 2.0 - 1.0, 1.0);
 }

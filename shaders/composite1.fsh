@@ -22,7 +22,7 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -20.0f;
+const float	sunPathRotation 		= -40.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;

@@ -168,7 +168,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
  		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
-		normal_shadow.xy *= -1;
+		//normal_shadow.xy *= -1;
 
         vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
  		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));

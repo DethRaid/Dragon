@@ -22,6 +22,8 @@ varying vec3 view_vector;
 varying float is_leaf;
 varying float is_lava;
 
+varying float face_id;
+
 float luma(in vec3 color) {
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
@@ -108,7 +110,15 @@ void main() {
     gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
 
     vec3 texnormal = texture2D(normals, coord).xyz * 2.0 - 1.0;
-    texnormal = tbnMatrix * texnormal;
+
+    if(face_id > 0.5 && face_id < 1.5) {
+        texnormal.y *= -1;
+    } else if(face_id > 1.5 && face_id < 2.5) {
+        texnormal.xy = texnormal.yx;
+    }
+
+    texnormal = normalize(tbnMatrix * texnormal);
+
     //normal, junk
     gl_FragData[7] = vec4(texnormal * 0.5 + 0.5, 0.0);
 
