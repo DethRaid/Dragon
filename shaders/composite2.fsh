@@ -28,7 +28,7 @@ const bool compositeMipmapEnabled   = true;
 /* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;
-uniform sampler2D gdepthtex
+uniform sampler2D gdepthtex;
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
@@ -409,7 +409,7 @@ void main() {
     float metalness = pixel.metalness;
 
     if(!pixel.skipLighting) {
-#if NUM_RAYS > 0u
+#if NUM_RAYS > 0
         reflectedColor = doLightBounce(pixel).rgb;
 #else
         // Only reflect the sky
