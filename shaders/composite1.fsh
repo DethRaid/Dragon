@@ -1,8 +1,6 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#include "/lib/poisson.glsl"
-
 // 970 performance:
 // extrems: 0 - 3
 // low 50 - 65
@@ -114,6 +112,8 @@ uniform sampler2D shadowcolor0;
 uniform sampler2D shadowcolor1;
 uniform sampler2D shadowcolor2;
 
+uniform sampler2D noisetex;
+
 uniform vec3 cameraPosition;
 
 uniform float viewWidth;
@@ -143,14 +143,12 @@ varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
 
 /* DRAWBUFFERS:340 */
 
-#include "/lib/wind.glsl"
-
 struct Pixel {
     vec4 position;
     vec4 screenPosition;
     vec3 color;
     vec3 normal;
-    float metalness
+    float metalness;
     float smoothness;
     float water;
     float sky;
@@ -176,7 +174,7 @@ float getDepth(vec2 coord) {
     return texture2DLod(gdepthtex, coord, 0).r;
 }
 
-float getDepthLinear(in sampler2D depthtex, in vec2 coord) {
+float getDepthLinear(sampler2D depthtex, vec2 coord) {
     return 2.0 * near * far / (far + near - (2.0 * texture2D(depthtex, coord).r - 1.0) * (far - near));
 }
 
