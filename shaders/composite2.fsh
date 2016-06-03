@@ -28,7 +28,7 @@ const bool compositeMipmapEnabled   = true;
 /* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;
-uniform sampler2D gdepthtex;
+uniform sampler2D gdepthtex
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
 uniform sampler2D composite;

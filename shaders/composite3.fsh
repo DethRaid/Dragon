@@ -29,7 +29,7 @@ varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER
 
 /* DRAWBUFFERS:0 */
 
-float getSmoothness(in vec2 coord) {
+float getSmoothness(in vec2 coord)
     return texture2D(gaux2, coord).a;
 }
 
@@ -40,7 +40,7 @@ float getDepth(vec2 coord) {
 vec3 getCameraSpacePosition(vec2 uv) {
 	float depth = getDepth(uv);
 	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition /= fragposition.w;
+		 fragposition = fragposition / fragposition.w;
 	return fragposition.xyz;
 }
 

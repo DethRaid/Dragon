@@ -1,21 +1,15 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#include "/lib/poisson.glsl"
-
 /*!
  * \brief Computes GI and the skybox
  */
-
-#define OFF 0
-#define ON 1
-
 
 #define GLOBAL_ILLUMINATION
 
 // GI variables
 #define GI_SAMPLE_RADIUS 50
-#define GI_QUALITY 256
+#define GI_QUALITY 8	// [2 4 8 16]
 
 #define SHADOW_MAP_BIAS 0.8
 
@@ -140,6 +134,18 @@ float get_leaf(in vec2 coord) {
  * Calculates bounces diffuse light
  */
 
+vec4 distort_shadow_coord(in vec4 shadow_coord) {
+	vec2 pos = abs(shadow_coord.xy * 1.165);
+	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	shadow_coord.xy *= 1.0f / distortFactor;
+	shadow_coord.z /= 4.0;
+ 	shadow_coord = shadow_coord * 0.5 + 0.5;
+
+	return shadow_coord;
+}
+
 vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
  	float NdotL = dot(normal, lightVector);
 
@@ -147,47 +153,47 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  	vec4 position = viewspace_to_worldspace(position_viewspace);
  		 position = worldspace_to_shadowspace(position);
-	vec2 pos = abs(position.xy * 1.165);
-	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
-	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-
-	 	 position.xy *= 1.0f / distortFactor;
-	 	 position.z /= 4.0;
- 		 position = position * 0.5 + 0.5;
 
  	vec3 light = vec3(0.0);
  	int samples	= 0;
 
- 	for(int i = 0; i < GI_QUALITY; i++) {
- 		vec2 offset = samples256[i] * GI_SAMPLE_RADIUS;
- 		//offset += get_3d_noise(gi_coord).xy * 25;
- 		offset /= shadowMapResolution;
+ 	for(int y = -GI_QUALITY; y <= GI_QUALITY; y++) {
+	 	for(int x = -GI_QUALITY; x <= GI_QUALITY; x++) {
+	 		vec2 offset = vec2(x, y) * GI_SAMPLE_RADIUS;
+	 		//offset += get_3d_noise(gi_coord).xy * 25;
+	 		offset /= 2 * shadowMapResolution;
 
- 		vec3 sample_pos = vec3(position.xy + offset, 0.0);
- 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
+			vec4 shadowmap_coord = position;
+			shadowmap_coord.xy += offset;
+			shadowmap_coord = distort_shadow_coord(position);
 
- 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
- 		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
-		//normal_shadow.xy *= -1;
+	 		vec3 sample_pos = vec3(shadowmap_coord.st, 0.0);
+	 		sample_pos.z	= texture2DLod(shadowtex1, sample_pos.st, 0).x;
 
-        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
- 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
- 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
+	 		vec3 sample_dir      = normalize(sample_pos.xyz - position.xyz);
+	 		vec3 normal_shadow	 = normalize(texture2DLod(shadowcolor1, sample_pos.st, 0).xyz * 2.0 - 1.0);
+			//normal_shadow.xy *= -1;
 
-		//return vec3(received_light_strength / 500);
+	        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 0, 1))));
+	 		float received_light_strength	 = max(0.0, dot(normal_shadowspace, sample_dir));
+	 		float transmitted_light_strength = max(0.0, dot(normal_shadow, -sample_dir));
 
- 		float falloff = length(sample_pos.xyz - position.xyz) * 50;
-        falloff = pow(falloff, 4);
-		falloff = max(1.0, falloff);
+			//return vec3(received_light_strength / 500);
 
- 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(2.2));
-		//return sample_color / 1000;
-        vec3 flux = sample_color * light_strength;
+	 		float falloff = length(sample_pos.xyz - position.xyz) * 5;
+	        falloff = pow(falloff, 4);
+			falloff = max(1.0, falloff);
 
- 		light += flux * transmitted_light_strength * received_light_strength / falloff;
- 	}
+	 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(1));
+			//return sample_color / 1000;
+	        vec3 flux = sample_color * light_strength;
 
- 	light /= GI_QUALITY;
+	 		//light += flux * transmitted_light_strength * received_light_strength / falloff;
+			light += vec3(transmitted_light_strength);
+	 	}
+	}
+
+ 	light /= pow(GI_QUALITY * 2 + 1, 1.0);
 
  	return light / 15;
 }
