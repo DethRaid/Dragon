@@ -102,7 +102,7 @@ vec3 get_reflection(in vec2 sample_coord) {
 	light /= max(0.00001f, weights);
 
 #else
-    vec4 light = texture2D(gdepth, sample_coord * 0.5);
+    vec4 light = texture2D(gdepth, sample_coord * REFLECTION_RESOLUTION_MODIFIER);
 
 #endif
 

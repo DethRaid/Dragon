@@ -20,7 +20,7 @@ const bool  shadowtexNearest        = true;
 
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -40.0f;
+const float	sunPathRotation 		= -10.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
@@ -81,7 +81,7 @@ const bool shadowMipmapEnabled      = true;
 
 #define SHADOW_BIAS                 0.00525
 
-#define RAYTRACED_LIGHT
+//#define RAYTRACED_LIGHT
 
 #define WATER_FOG_DENSITY           0.95
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
@@ -141,7 +141,7 @@ varying vec3 ambientColor;
 
 varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
 
-/* DRAWBUFFERS:340 */
+/* DRAWBUFFERS:342 */
 
 struct Pixel {
     vec4 position;
@@ -759,7 +759,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    //return pixel.torchLighting;
+    gi = vec3(0);
 
     return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }

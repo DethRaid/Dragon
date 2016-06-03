@@ -6,7 +6,7 @@
 #define RAY_STEP_LENGTH         0.1
 #define RAY_DEPTH_BIAS          0.05
 #define RAY_GROWTH              1.05
-#define NUM_RAYS                4   // [4 8 16 64 256 1024]
+#define NUM_RAYS                4  // [4 8 16 64 256 1024]
 
 //#define DITHER_REFLECTION_RAYS
 
@@ -18,13 +18,14 @@
 #define BECKMANN 1
 #define GGX 2
 
-#define SKEWING_FUNCTION BECKMANN
+#define SKEWING_FUNCTION GGX
 
 #define PI 3.14159
 
 const bool gdepthMipmapEnabled      = true;
 const bool compositeMipmapEnabled   = true;
 
+// TODO: Change back to 1
 /* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;

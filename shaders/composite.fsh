@@ -14,7 +14,7 @@
 #define SHADOW_MAP_BIAS 0.8
 
 // Lighting things
-#define RAYTRACED_LIGHT
+//#define RAYTRACED_LIGHT
 #define MAX_RAY_LENGTH          16.0	// [8.0 10.0 12.0 16.0 32.0]
 #define MIN_DEPTH_DIFFERENCE    1.25
 #define RAY_STEP_LENGTH         0.25
@@ -40,6 +40,8 @@
 #define SKY_SATURATION				1.5
 
 #define SURFACE_HEIGHT				0.98
+
+#define CLOUDS_START 				512
 
 #define PI 3.14159
 
@@ -224,7 +226,7 @@ vec3 get_eye_vector(in vec2 coord) {
 	float sin_lat = sin(latitude);
 	float sin_long = sin(longitude);
 
-	return vec3(cos_lat * cos_long, cos_lat * sin_long, sin_lat);
+	return normalize(vec3(cos_lat * cos_long, cos_lat * sin_long, sin_lat));
 }
 
 float atmospheric_depth(vec3 position, vec3 dir) {
@@ -345,6 +347,30 @@ vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_inte
 	return color * 7;
 }
 
+float get_brownian_noise(in vec2 orig_coord) {
+	float noise_accum = 0;
+	noise_accum += texture2D(noisetex, orig_coord * vec2(3, 1)).b * 0.5;
+	noise_accum += texture2D(noisetex, orig_coord * 2).g * 0.25;
+	//noise_accum += texture2D(noisetex, orig_coord * 8).g * 0.125;
+	//noise_accum += texture2D(noisetex, orig_coord * 16).g * 0.0625;
+
+	return pow(noise_accum, 2);
+}
+
+vec3 calc_clouds(in vec3 eye_vector) {
+	// Project the eye vector against the cloud plane, then use that position to draw a red/green stiped band
+
+	float num_steps_to_clouds = CLOUDS_START / eye_vector.y;
+	vec3 clouds_start_pos = eye_vector * num_steps_to_clouds;
+	if(length(clouds_start_pos) > 10000 || num_steps_to_clouds < 0.0f) {
+		return vec3(0);
+	}
+
+	vec3 color = vec3(get_brownian_noise(clouds_start_pos.xz * 0.00001));
+
+	return color;
+}
+
 float luma(vec3 color) {
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
@@ -447,6 +473,7 @@ void main() {
 	vec3 eye_vector = get_eye_vector(coord).xzy;
 	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
 	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
+	sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
 
 	sky_color = enhance(sky_color);
 
