@@ -29,7 +29,7 @@ varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER
 
 /* DRAWBUFFERS:0 */
 
-float getSmoothness(in vec2 coord)
+float getSmoothness(in vec2 coord) {
     return texture2D(gaux2, coord).a;
 }
 

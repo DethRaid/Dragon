@@ -208,5 +208,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    gl_FragColor = vec4(texture2D(gnormal, coord * 0.5).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gnormal, coord * 0.5).rgb, 1.0);
 }

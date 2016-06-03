@@ -1,4 +1,4 @@
-#version 130
+#version 120
 #extension GL_ARB_shader_texture_lod : enable
 
 //Adjustable variables. Tune these for performance
@@ -59,9 +59,9 @@ uniform float viewWidth;
 uniform float viewHeight;
 uniform float rainStrength;
 
-in vec3 lightVector;
+varying vec3 lightVector;
 
-in vec2 coord;
+varying vec2 coord;
 
 struct Pixel1 {
     vec3 position;
