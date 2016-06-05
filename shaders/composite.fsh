@@ -23,6 +23,31 @@
 #define NUM_DIFFUSE_RAYS        4		// [1 2 4 8 16 32]
 //#define DITHER_REFLECTION_RAYS
 
+#define LIGHT_SIZE                  25
+#define MIN_PENUMBRA_SIZE           0.0
+#define BLOCKER_SEARCH_SAMPLES_HALF 3   // [1 2 3 4 5]
+#define PCF_SIZE_HALF               3   // [1 2 3 4 5]
+#define USE_RANDOM_ROTATION
+
+/*
+ * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
+ * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
+ * shadows with a variable-size blur. PCSS is the most realistic option but also
+ * the slowest, HARD is the fastest at the expense of realism.
+ */
+
+//#define HARD_SHADOWS
+//#define SOFT_SHADOWS
+#define REALISTIC_SHADOWS
+#define SHADOW_MAP_BIAS             0.8
+//#define HYBRID_RAYTRACED_SHADOWS
+#define HRS_RAY_LENGTH              0.8
+#define HRS_RAY_STEPS               100
+#define HRS_BIAS                    0.02
+#define HRS_DEPTH_CORRECTION        0.01
+
+#define SHADOW_BIAS                 0.00525
+
 // Sky options
 #define RAYLEIGH_BRIGHTNESS			3.3
 #define MIE_BRIGHTNESS 				0.1
@@ -54,6 +79,7 @@ const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
 const bool  shadowtexNearest        = true;
+const float	sunPathRotation 		= -10.0f;
 
 const int   noiseTextureResolution  = 64;
 const int 	gdepthFormat			= RGB32F;
@@ -66,7 +92,8 @@ uniform sampler2D gaux3;
 uniform sampler2D gaux4;
 
 uniform sampler2D shadowtex1;
-uniform sampler2D shadowcolor;
+uniform sampler2D watershadow;
+uniform sampler2D shadowcolor0;
 uniform sampler2D shadowcolor1;
 
 uniform sampler2D noisetex;
@@ -186,7 +213,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 	        falloff = pow(falloff, 4);
 			falloff = max(1.0, falloff);
 
-	 		vec3 sample_color = pow(texture2DLod(shadowcolor, sample_pos.st, 0.0).rgb, vec3(1));
+	 		vec3 sample_color = pow(texture2DLod(shadowcolor0, sample_pos.st, 0.0).rgb, vec3(1));
 			//return sample_color / 1000;
 	        vec3 flux = sample_color * light_strength;
 
@@ -369,6 +396,180 @@ vec3 calc_clouds(in vec3 eye_vector) {
 	vec3 color = vec3(get_brownian_noise(clouds_start_pos.xz * 0.00001));
 
 	return color;
+}
+
+/*
+ * Shadowing code
+ */
+vec3 calcShadowCoordinate(in vec4 pixelPos) {
+    vec4 shadowCoord = pixelPos;
+    shadowCoord.xyz -= cameraPosition;
+    shadowCoord = shadowModelView * shadowCoord;
+    shadowCoord = shadowProjection * shadowCoord;
+    shadowCoord /= shadowCoord.w;
+
+	vec2 pos = abs(shadowCoord.xy * 1.165);
+	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
+	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
+
+	shadowCoord.xy *= 1.0f / distortFactor;
+	shadowCoord.z /= 4.0;
+
+    shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
+    float dFrag = shadowCoord.z * 0.5 + 0.505;
+
+    return vec3(shadowCoord.st, dFrag);
+}
+
+vec2 getCoordFromCameraSpace(in vec3 position) {
+    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
+    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
+    return ndcSpacePosition * 0.5 + 0.5;
+}
+
+vec3 getCameraSpacePosition(vec2 uv, float depth) {
+	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
+		 fragposition /= fragposition.w;
+	return fragposition.xyz;
+}
+
+/*
+vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
+    vec3 curPos = origin;
+    vec2 curCoord = getCoordFromCameraSpace(curPos);
+    vec3 noise = get_3d_noise(coord);
+    direction = normalize(direction + noise * 0.01);
+    //return direction;
+    direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
+
+    //The basic idea here is the the ray goes forward until it's behind something,
+    //then slowly moves forward until it's in front of something.
+    for(int i = 0; i < HRS_RAY_STEPS; i++) {
+        curPos += direction;
+        curCoord = getCoordFromCameraSpace(curPos);
+        if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
+            //If we're here, the ray has gone off-screen so we can't reflect anything
+            return vec2(1);
+        }
+        float raw_depth = getDepth(curCoord);
+        float worldDepth = getCameraSpacePosition(curCoord, raw_depth).z;
+        worldDepth -= HRS_DEPTH_CORRECTION * raw_depth;
+        float depthDiff = (worldDepth - curPos.z);
+        //return vec2(depthDiff * far);
+        float maxDepthDiff = sqrt(dot(direction, direction)) + HRS_BIAS;
+        //maxDepthDiff *= raw_depth;
+        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
+            return vec2(0, length(curPos - origin) / HRS_RAY_LENGTH);
+        }
+    }
+    //If we're here, we couldn't find anything to reflect within the alloted number of steps
+    return vec2(1);
+}
+*/
+
+//Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
+//Implemented by DethRaid - github.com/DethRaid
+float calcPenumbraSize(vec3 shadowCoord) {
+	float dFragment = shadowCoord.z;
+	float dBlocker = 0;
+	float penumbra = 0;
+
+	float temp;
+	float numBlockers = 0;
+    float searchSize = LIGHT_SIZE * (dFragment - 1) / dFragment;
+
+    for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
+        for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
+            vec2 sample_coord = shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF));
+            temp = texture2DLod(shadowtex1, sample_coord, 2).r;
+            if(dFragment - temp > 0.0015) {
+                dBlocker += temp;
+                numBlockers += 1.0;
+            }
+        }
+	}
+
+    if(numBlockers > 0.1) {
+		dBlocker /= numBlockers;
+		penumbra = (dFragment - dBlocker) * LIGHT_SIZE / dFragment;
+	}
+
+    return max(penumbra, MIN_PENUMBRA_SIZE);
+}
+
+#ifdef SOFT_SHADOWS
+#endif
+
+vec3 calcShadowing(in vec4 fragPosition) {
+    vec3 shadowCoord = calcShadowCoordinate(fragPosition);
+
+    if(shadowCoord.x > 1 || shadowCoord.x < 0 ||
+        shadowCoord.y > 1 || shadowCoord.y < 0) {
+        return vec3(1.0);
+    }
+
+    #ifdef HARD_SHADOWS
+        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
+        return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
+
+    #else
+        float penumbraSize = 0.5;    // whoo magic number!
+
+        #ifdef REALISTIC_SHADOWS
+            penumbraSize = calcPenumbraSize(shadowCoord.xyz);
+        #endif
+
+        float numBlockers = 0.0;
+        float numSamples = 0.0;
+
+        #ifdef USE_RANDOM_ROTATION
+            float rotateAmount = get_3d_noise(coord).r * 2.0f - 1.0f;
+
+            mat2 kernelRotation = mat2(
+                cos(rotateAmount), -sin(rotateAmount),
+                sin(rotateAmount), cos(rotateAmount)
+           );
+        #endif
+
+        vec3 shadow_color = vec3(0);
+
+    	for(int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++) {
+            for(int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++) {
+                vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.25 * PCF_SIZE_HALF);
+                sampleCoord *= penumbraSize;
+
+                #ifdef USE_RANDOM_ROTATION
+                    sampleCoord = kernelRotation * sampleCoord;
+                #endif
+
+                float shadowDepth = texture2DLod(shadowtex1, shadowCoord.st + sampleCoord, 0).r;
+                float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
+
+                float waterDepth = texture2DLod(watershadow, shadowCoord.st + sampleCoord, 0).r;
+                float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
+
+                vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
+
+                colorSample = mix(colorSample, vec3(1.0), waterVisibility);
+                colorSample = mix(vec3(0.0), colorSample, visibility);
+
+                shadow_color += colorSample;
+
+                numSamples++;
+            }
+    	}
+
+        shadow_color /= numSamples;
+
+        #ifdef HYBRID_RAYTRACED_SHADOWS
+        if(length(fragPosition.xyz - cameraPosition) < 8.7) {
+            vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
+            shadow_color = min(raytraced_shadow.xxx, shadow_color);
+        }
+        #endif
+
+        return shadow_color;
+    #endif
 }
 
 float luma(vec3 color) {

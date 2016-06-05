@@ -11,16 +11,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 1024; // [1024 2048 4096]
-const float shadowDistance          = 120.0;
-const bool  generateShadowMipmap    = false;
-const float shadowIntervalSize      = 4.0;
-const bool  shadowHardwareFiltering = false;
-const bool  shadowtexNearest        = true;
-
 const int   noiseTextureResolution  = 64;
 
-const float	sunPathRotation 		= -10.0f;
 const float ambientOcclusionLevel   = 0.2;
 
 const int 	R8 						= 0;
@@ -55,33 +47,6 @@ const bool shadowMipmapEnabled      = true;
 #define ON              0
 
 #define PI              3.14159
-
-#define LIGHT_SIZE                  25
-#define MIN_PENUMBRA_SIZE           0.0
-#define BLOCKER_SEARCH_SAMPLES_HALF 3   // [1 2 3 4 5]
-#define PCF_SIZE_HALF               3   // [1 2 3 4 5]
-#define USE_RANDOM_ROTATION
-
-/*
- * How to filter the shadows. HARD produces hard shadows with no blurring. PCF
- * produces soft shadows with a constant-size blur. PCSS produces contact-hardening
- * shadows with a variable-size blur. PCSS is the most realistic option but also
- * the slowest, HARD is the fastest at the expense of realism.
- */
-
-//#define HARD_SHADOWS
-//#define SOFT_SHADOWS
-#define REALISTIC_SHADOWS
-#define SHADOW_MAP_BIAS             0.8
-#define HYBRID_RAYTRACED_SHADOWS
-#define HRS_RAY_LENGTH              0.8
-#define HRS_RAY_STEPS               100
-#define HRS_BIAS                    0.02
-#define HRS_DEPTH_CORRECTION        0.01
-
-#define SHADOW_BIAS                 0.00525
-
-//#define RAYTRACED_LIGHT
 
 #define WATER_FOG_DENSITY           0.95
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
@@ -145,7 +110,6 @@ varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
 
 struct Pixel {
     vec4 position;
-    vec4 screenPosition;
     vec3 color;
     vec3 normal;
     float metalness;
@@ -313,179 +277,6 @@ vec3 get_gi(in vec2 sample_coord) {
 //                              Lighting Functions                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-vec3 calcShadowCoordinate(in vec4 pixelPos) {
-    vec4 shadowCoord = pixelPos;
-    shadowCoord.xyz -= cameraPosition;
-    shadowCoord = shadowModelView * shadowCoord;
-    shadowCoord = shadowProjection * shadowCoord;
-    shadowCoord /= shadowCoord.w;
-
-	vec2 pos = abs(shadowCoord.xy * 1.165);
-	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
-	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-
-	shadowCoord.xy *= 1.0f / distortFactor;
-	shadowCoord.z /= 4.0;
-
-    shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
-    float dFrag = shadowCoord.z * 0.5 + 0.505;
-
-    return vec3(shadowCoord.st, dFrag);
-}
-
-int rand(vec2 seed) {
-    return int(32 * fract(sin(dot(vec2(12.9898, 72.233), seed)) * 43758.5453));
-}
-
-vec2 getCoordFromCameraSpace(in vec3 position) {
-    vec4 viewSpacePosition = gbufferProjection * vec4(position, 1);
-    vec2 ndcSpacePosition = viewSpacePosition.xy / viewSpacePosition.w;
-    return ndcSpacePosition * 0.5 + 0.5;
-}
-
-vec3 getCameraSpacePosition(vec2 uv, float depth) {
-	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition /= fragposition.w;
-	return fragposition.xyz;
-}
-
-vec2 calc_raytraced_shadows(in vec3 origin, in vec3 direction) {
-    vec3 curPos = origin;
-    vec2 curCoord = getCoordFromCameraSpace(curPos);
-    vec3 noise = getNoise(coord);
-    direction = normalize(direction + noise * 0.01);
-    //return direction;
-    direction = normalize(direction) * (HRS_RAY_LENGTH / HRS_RAY_STEPS);
-
-    //The basic idea here is the the ray goes forward until it's behind something,
-    //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < HRS_RAY_STEPS; i++) {
-        curPos += direction;
-        curCoord = getCoordFromCameraSpace(curPos);
-        if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
-            //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec2(1);
-        }
-        float raw_depth = getDepth(curCoord);
-        float worldDepth = getCameraSpacePosition(curCoord, raw_depth).z;
-        worldDepth -= HRS_DEPTH_CORRECTION * raw_depth;
-        float depthDiff = (worldDepth - curPos.z);
-        //return vec2(depthDiff * far);
-        float maxDepthDiff = sqrt(dot(direction, direction)) + HRS_BIAS;
-        //maxDepthDiff *= raw_depth;
-        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-            return vec2(0, length(curPos - origin) / HRS_RAY_LENGTH);
-        }
-    }
-    //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec2(1);
-}
-
-//Implements the Percentage-Closer Soft Shadow algorithm, as defined by nVidia
-//Implemented by DethRaid - github.com/DethRaid
-float calcPenumbraSize(vec3 shadowCoord) {
-	float dFragment = shadowCoord.z;
-	float dBlocker = 0;
-	float penumbra = 0;
-
-	float temp;
-	float numBlockers = 0;
-    float searchSize = LIGHT_SIZE * (dFragment - 1) / dFragment;
-
-    for(int i = -BLOCKER_SEARCH_SAMPLES_HALF; i <= BLOCKER_SEARCH_SAMPLES_HALF; i++) {
-        for(int j = -BLOCKER_SEARCH_SAMPLES_HALF; j <= BLOCKER_SEARCH_SAMPLES_HALF; j++) {
-            vec2 sample_coord = shadowCoord.st + (vec2(i, j) * searchSize / (shadowMapResolution * 5 * BLOCKER_SEARCH_SAMPLES_HALF));
-            temp = texture2DLod(shadow, sample_coord, 2).r;
-            if(dFragment - temp > 0.0015) {
-                dBlocker += temp;
-                numBlockers += 1.0;
-            }
-        }
-	}
-
-    if(numBlockers > 0.1) {
-		dBlocker /= numBlockers;
-		penumbra = (dFragment - dBlocker) * LIGHT_SIZE / dFragment;
-	}
-
-    return max(penumbra, MIN_PENUMBRA_SIZE);
-}
-
-#ifdef SOFT_SHADOWS
-#endif
-
-vec3 calcShadowing(in vec4 fragPosition) {
-    vec3 shadowCoord = calcShadowCoordinate(fragPosition);
-
-    if(shadowCoord.x > 1 || shadowCoord.x < 0 ||
-        shadowCoord.y > 1 || shadowCoord.y < 0) {
-        return vec3(1.0);
-    }
-
-    #ifdef HARD_SHADOWS
-        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
-        return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
-
-    #else
-        float penumbraSize = 0.5;    // whoo magic number!
-
-        #ifdef REALISTIC_SHADOWS
-            penumbraSize = calcPenumbraSize(shadowCoord.xyz);
-        #endif
-
-        float numBlockers = 0.0;
-        float numSamples = 0.0;
-
-        #ifdef USE_RANDOM_ROTATION
-            float rotateAmount = getNoise(coord).r * 2.0f - 1.0f;
-
-            mat2 kernelRotation = mat2(
-                cos(rotateAmount), -sin(rotateAmount),
-                sin(rotateAmount), cos(rotateAmount)
-           );
-        #endif
-
-        vec3 shadow_color = vec3(0);
-
-    	for(int i = -PCF_SIZE_HALF; i <= PCF_SIZE_HALF; i++) {
-            for(int j = -PCF_SIZE_HALF; j <= PCF_SIZE_HALF; j++) {
-                vec2 sampleCoord = vec2(j, i) / (shadowMapResolution * 0.25 * PCF_SIZE_HALF);
-                sampleCoord *= penumbraSize;
-
-                #ifdef USE_RANDOM_ROTATION
-                    sampleCoord = kernelRotation * sampleCoord;
-                #endif
-
-                float shadowDepth = texture2DLod(shadow, shadowCoord.st + sampleCoord, 0).r;
-                float visibility = step(shadowCoord.z - shadowDepth, SHADOW_BIAS);
-
-                float waterDepth = texture2DLod(watershadow, shadowCoord.st + sampleCoord, 0).r;
-                float waterVisibility = step(shadowCoord.z - waterDepth, SHADOW_BIAS);
-
-                vec3 colorSample = texture2D(shadowcolor0, shadowCoord.st + sampleCoord).rgb;
-
-                colorSample = mix(colorSample, vec3(1.0), waterVisibility);
-                colorSample = mix(vec3(0.0), colorSample, visibility);
-
-                shadow_color += colorSample;
-
-                numSamples++;
-            }
-    	}
-
-        shadow_color /= numSamples;
-
-        #ifdef HYBRID_RAYTRACED_SHADOWS
-        if(length(fragPosition.xyz - cameraPosition) < 8.7) {
-            vec2 raytraced_shadow = calc_raytraced_shadows(get_viewspace_position().xyz, lightVector);
-            shadow_color = min(raytraced_shadow.xxx, shadow_color);
-        }
-        #endif
-
-        return shadow_color;
-    #endif
-}
-
 vec3 fresnel(vec3 specularColor, float hdotl) {
     return specularColor + (vec3(1.0) - specularColor) * pow(1.0f - hdotl, 5);
 }
@@ -541,7 +332,8 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 sky_specular = fresnel_color * pixel.smoothness;
 
     #if SHADOW_QUALITY != OFF
-        pixel.shadow = calcShadowing(pixel.position);
+        vec2 shadowcoord = (coord * vec2(0.5)) + vec2(0, 0.5);
+        pixel.shadow = texture2D(gnormal, shadowcoord).rgb;
         //return shadow_color;
         sun_lighting *= pixel.shadow;
     #endif
@@ -644,7 +436,6 @@ vec3 get_ambient_lighting(in Pixel pixel) {
 Pixel fillPixelStruct() {
     Pixel pixel;
     pixel.position =        getWorldSpacePosition();
-    pixel.screenPosition =  get_viewspace_position();
     pixel.normal =          viewspace_to_worldspace(vec4(getNormal(), 0.0)).xyz;
     pixel.color =           getColor();
     pixel.metalness =       getMetalness();
@@ -707,7 +498,7 @@ vec3 calc_refraction(in vec3 view_vector, in vec3 normal, in vec3 ior) {
     return vec3(red, green, blue);
 }
 
-#if VOLUMETRIC_LIGHTING == ON
+#ifdef VOLUMETRIC_LIGHTING
 vec4 calc_volumetric_lighting(in vec2 vl_coord) {
     // Send a ray through the atmosphere, sampling the shadow at each position
 
@@ -800,7 +591,7 @@ void main() {
 
     vec2 vl_coord = coord * 2.0;
     vec4 skyScattering = vec4(0);
-    #if VOLUMETRIC_LIGHTING == ON
+    #ifdef VOLUMETRIC_LIGHTING
     if(vl_coord.x < 1 && vl_coord.y < 1) {
         skyScattering = calc_volumetric_lighting(vl_coord);
         vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
