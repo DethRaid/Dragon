@@ -176,7 +176,7 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
 vec3 doToneMapping(in vec3 color) {
     vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
     float luma = luma(blurred_color);
-    float luma_log = max(log(luma) * 1.5, 0.75);
+    float luma_log = max(log(luma) * 1.5, 5.0);
     //luma_log = 11.5;
     return uncharted_tonemap(color / 75, luma_log);
 }
@@ -193,7 +193,7 @@ void main() {
     doBloom(color);
 #endif
 
-    color = texture2D(gdepth, coord).rgb;
+    color = texture2D(gcolor, coord).rgb;
 
     color = correct_colors(color);
 
@@ -210,5 +210,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gdepth, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(gnormal, coord).rgb, 1.0);
 }

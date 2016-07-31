@@ -120,6 +120,7 @@ varying vec3 ambientColor;
 varying vec3 fogColor;
 varying vec3 skyColor;
 
+// TODO: 21
 /* DRAWBUFFERS:21 */
 
 vec3 get_normal(in vec2 coord) {
@@ -402,11 +403,8 @@ vec3 calc_clouds(in vec3 eye_vector) {
  * Shadowing code
  */
 vec3 calcShadowCoordinate(in vec4 pixelPos) {
-    vec4 shadowCoord = pixelPos;
-    shadowCoord.xyz -= cameraPosition;
-    shadowCoord = shadowModelView * shadowCoord;
-    shadowCoord = shadowProjection * shadowCoord;
-    shadowCoord /= shadowCoord.w;
+    vec4 shadowCoord = viewspace_to_worldspace(pixelPos);
+    shadowCoord = worldspace_to_shadowspace(shadowCoord);
 
 	vec2 pos = abs(shadowCoord.xy * 1.165);
 	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
@@ -509,7 +507,7 @@ vec3 calcShadowing(in vec4 fragPosition) {
     }
 
     #ifdef HARD_SHADOWS
-        float shadowDepth = texture2D(shadow, shadowCoord.st).r;
+        float shadowDepth = texture2D(shadowtex1, shadowCoord.st).r;
         return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
 
     #else
@@ -657,14 +655,20 @@ void main() {
     vec3 gi = vec3(0);
 
 	vec2 gi_coord = coord * 2.0;
+	vec4 position_viewspace = get_viewspace_position(gi_coord);
 	if(gi_coord.x < 1 && gi_coord.y < 1) {
-	    vec4 position_viewspace = get_viewspace_position(gi_coord);
 	    vec3 normal = get_normal(gi_coord);
 		gi = calculate_gi(gi_coord, position_viewspace, normal);
-	}
+
+	} else if(gi_coord.x < 1 && gi_coord.y > 1) {
+        position_viewspace = get_viewspace_position(gi_coord - vec2(0, 1));
+        vec4 position_worldspace = gbufferModelViewInverse * position_viewspace;
+        gi = calcShadowing(position_viewspace);
+        //gi = position_viewspace.rgb;
+    }
 
 	#ifdef RAYTRACED_LIGHT
-	else if(gi_coord.y < 1 && gi_coord.x < 2 && gi_coord.x > 1) {
+	else if(gi_coord.x > 1 && gi_coord.y < 1) {
 
 		gi = raytrace_light(gi_coord - vec2(1, 0));
 	}
@@ -674,7 +678,7 @@ void main() {
 	vec3 eye_vector = get_eye_vector(coord).xzy;
 	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
 	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
-	sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
+	//sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
 
 	sky_color = enhance(sky_color);
 

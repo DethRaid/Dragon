@@ -106,6 +106,7 @@ varying vec3 ambientColor;
 
 varying vec2 gi_lookup_coord[GI_FILTER_SIZE * GI_FILTER_SIZE];
 
+// TODO: 342
 /* DRAWBUFFERS:342 */
 
 struct Pixel {
@@ -598,8 +599,6 @@ void main() {
         skyScattering.rgb *= calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     }
     #endif
-
-    // finalColor = vec3(curFrag.skipLighting) * 500;
 
     gl_FragData[0] = vec4(finalColor, 1);
     gl_FragData[1] = skyScattering;

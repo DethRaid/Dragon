@@ -13,7 +13,7 @@
 #define SCHLICK 0
 #define COOK_TORRANCE 1
 
-#define FRESNEL_EQUATION SCHLICK
+#define FRESNEL_EQUATION COOK_TOORANCE
 
 #define BECKMANN 1
 #define GGX 2
@@ -245,7 +245,7 @@ vec3 calculate_noise_direction(in vec2 epsilon, in float roughness) {
 
 
     #elif SKEWING_FUNCTION == BECKMANN
-    float theta = atan(sqrt(-1 * roughness * log(1 - epsilon.x)));
+    float theta = atan(sqrt(-1 * roughness * log(1.0 - epsilon.x)));
 
     #endif
     float phi = 2 * PI * epsilon.y;
@@ -361,7 +361,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
     for(int i = 0; i < NUM_RAYS; i++) {
         vec2 epsilon = vec2(noise(coord * (i + 1)), noise(coord * (i + 1) * 3));
         vec3 noiseSample = calculate_noise_direction(epsilon, roughness);
-        vec3 reflectDir = normalize(noiseSample * roughness + pixel.normal);
+        vec3 reflectDir = normalize(noiseSample * roughness / 8.0 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
         vec3 rayDir = reflect(normalize(pixel.position), reflectDir); //  * mix(1, 3, roughness);
 
@@ -394,7 +394,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
         vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
         //specularStrength = fresnel;
 
-        retColor += mix(pixel.color, hitColor * specularStrength, fresnel * (1.0 - roughness));
+        retColor += mix(pixel.color, hitColor * specularStrength, fresnel * pixel.smoothness);
     }
 
     return retColor / NUM_RAYS;
@@ -417,7 +417,6 @@ void main() {
         reflectedColor = get_reflected_sky(pixel);
 #endif
 
-        //hitColor = mix(pixel.color * (1.0 - metalness), reflectedColor, fresnel * smoothness);
         hitColor = reflectedColor;
     }
 

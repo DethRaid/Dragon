@@ -58,18 +58,18 @@ vec3 getWaveNormal() {
 }
 
 void main() {
-    mat3 nMat = mat3( gbufferModelView );
+    mat3 nMat = mat3(gbufferModelView);
 
     vec3 wNormal = normal;
-    vec4 matColor = color * texture2D( diffuse, uv );
+    vec4 matColor = color * texture2D(diffuse, uv);
 
-    if( isWater > 0.9 ) {
+    if(isWater > 0.9) {
         //wNormal = getWaveNormal();
-        matColor = vec4( 0.0, 0.412, 0.58, 0.11 );
+        matColor = vec4(0.0, 0.412, 0.58, 0.11);
     }
 
     gl_FragData[0] = matColor;
     gl_FragData[6] = vec4(1.0, 0.0, 0.0, 1.0);
     gl_FragData[7] = vec4(wNormal * 0.5 + 0.5, isWater);
-    gl_FragData[5] = vec4(0, texture2D( lightmap, uvLight ).r, 0, 1.0);
+    gl_FragData[5] = vec4(0, texture2D( lightmap, uvLight ).r, 0, 0.9);
 }

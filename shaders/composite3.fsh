@@ -27,6 +27,7 @@ varying vec2 coord;
 
 varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE];
 
+// TODO: Ensure that this is always 0
 /* DRAWBUFFERS:0 */
 
 float getSmoothness(in vec2 coord) {
@@ -135,7 +136,7 @@ void main() {
     vec3 color = mix(diffuse, specular, fresnel * smoothness);
 
     color = max(color, vec3(0));
-    //color = diffuse;
+    color = specular;
 
     gl_FragData[0] = vec4(color, 1.0);
 }
