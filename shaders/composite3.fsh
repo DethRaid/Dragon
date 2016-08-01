@@ -8,11 +8,8 @@
 #define REFLECTION_FILTER_SIZE 2
 #define REFLECTION_RESOLUTION_MODIFIER     0.5 // [1 0.5 0.25]
 
-uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
 uniform sampler2D gdepth;
-uniform sampler2D gnormal;
-uniform sampler2D composite;
 uniform sampler2D gaux2;
 uniform sampler2D gaux4;
 
@@ -38,13 +35,6 @@ float getDepth(vec2 coord) {
     return texture2D(gdepthtex, coord).r;
 }
 
-vec3 getCameraSpacePosition(vec2 uv) {
-	float depth = getDepth(uv);
-	vec4 fragposition = gbufferProjectionInverse * vec4(uv.s * 2.0 - 1.0, uv.t * 2.0 - 1.0, 2.0 * depth - 1.0, 1.0);
-		 fragposition = fragposition / fragposition.w;
-	return fragposition.xyz;
-}
-
 float getDepthLinear(in sampler2D depthtex, in vec2 coord) {
     return 2.0 * near * far / (far + near - (2.0 * texture2D(depthtex, coord).r - 1.0) * (far - near));
 }
@@ -53,20 +43,12 @@ float getDepthLinear(vec2 coord) {
     return getDepthLinear(gdepthtex, coord);
 }
 
-vec3 get_specular_color(in vec2 coord) {
-    return texture2D(gcolor, coord).rgb;
-}
-
 float getMetalness(in vec2 coord) {
     return texture2D(gaux2, coord).b;
 }
 
 vec3 getNormal(in vec2 coord) {
     return normalize(texture2D(gaux4, coord).xyz * 2.0 - 1.0);
-}
-
-bool shouldSkipLighting(in vec2 coord) {
-    return texture2D(gaux2, coord).r > 0.5;
 }
 
 vec3 get_reflection(in vec2 sample_coord) {
@@ -110,33 +92,10 @@ vec3 get_reflection(in vec2 sample_coord) {
 	return light.rgb;
 }
 
-float luma(vec3 color) {
-    return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
-
 void main() {
-    vec3 diffuse = texture2D(composite, coord).rgb;
-    vec3 specular = get_reflection(coord);
-
-    float smoothness = getSmoothness(coord);
-    float metalness = getMetalness(coord);
-    vec3 viewVector = normalize(getCameraSpacePosition(coord));
-    vec3 normal = getNormal(coord);
-
-    float vdoth = clamp(dot(-viewVector, normal), 0, 1);
-
-    vec3 sColor = mix(vec3(0.14), get_specular_color(coord), vec3(metalness));
-    vec3 fresnel = sColor + (vec3(1.0) - sColor) * pow(1.0 - vdoth, 5);
-    fresnel = min(fresnel, vec3(1));
-
-    if(shouldSkipLighting(coord)) {
-        fresnel = vec3(0);
-    }
-
-    vec3 color = mix(diffuse, specular, fresnel * smoothness);
-
+    vec3 color = get_reflection(coord);
     color = max(color, vec3(0));
-    color = specular;
+    color = texture2D(gdepth, coord).rgb;
 
     gl_FragData[0] = vec4(color, 1.0);
 }

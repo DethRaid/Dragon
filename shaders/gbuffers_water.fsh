@@ -41,7 +41,7 @@ vec3 getWaveNormal() {
     vec3 newNormal = vec3(0.0);
     float windAmount = getWindAmount(pos);
 
-    // Take a bunch of wave smples, fading in the smaller ones when it's more wind
+    // Take a bunch of wave smples, fading in the smaller ones when there's more wind
     vec3 wave1 = getSingleWave(sampleCoord, -0.2, vec2(1, 100), 1.0);// * (windAmount * 5 / WIND_STRENGTH);
     vec3 wave6 = getSingleWave(sampleCoord, 0.2, vec2(1, 100), 1.0);// * (windAmount * 5 / WIND_STRENGTH);
     vec3 wave2 = getSingleWave(sampleCoord, 0.3, vec2(2.5, 259), 1.9) * min((windAmount * 2.5 / WIND_STRENGTH), 1.0);
@@ -50,9 +50,9 @@ vec3 getWaveNormal() {
     vec3 wave5 = getSingleWave(sampleCoord, -0.23, vec2(1, 10), 4.2) * min((windAmount * 0.375 / WIND_STRENGTH), 1.0);
 
     //newNormal.xz *= 0.01;
-    newNormal = wave1 +wave6 +  wave2 + wave3 + wave4 + wave5;
+    newNormal = wave1 + wave6 +  wave2 + wave3 + wave4 + wave5;
 
-    newNormal = normalize(newNormal + vec3(0, 0, 20));
+    newNormal = normalize(newNormal);
 
     return normalMatrix * newNormal;
 }

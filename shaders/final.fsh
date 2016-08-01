@@ -176,8 +176,8 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
 vec3 doToneMapping(in vec3 color) {
     vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
     float luma = luma(blurred_color);
-    float luma_log = max(log(luma) * 1.5, 5.0);
-    //luma_log = 11.5;
+    float luma_log = max(log(luma) * 1.5, 0.5);
+    luma_log = 11.5;
     return uncharted_tonemap(color / 75, luma_log);
 }
 
