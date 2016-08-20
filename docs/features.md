@@ -1,0 +1,63 @@
+DethRaid's Awesome Graphics On Nitro (DRAGON) has a number of cool features. Here they are, enumerated so I don't forget them:
+
+- Physically Based Rendering through the whole pipeline
+- Physically Based soft shadows with constants for the PCSS equations chosen to reflect the values present for the sun
+- Dynamically rendered, physically based skybox used for all lighting
+- Volumetric atmospheric fog which uses the shadow map to determine light occlusion
+- Monte-Carlo reflections, optimized as highly as possible
+- Raytraced block lighting
+- Water waves based on the Gerstner equations
+- Dynamic wind which impacts the water waves
+- Volumetric clouds, rendered to get lighting from the skybox
+    - Clouds start at block 256
+    - Cloud opacity factors into shadows: shadows get blurrier when the sun is behind a partially transparent cloud
+- Metalness-based PBR to conserve data
+- GLSL version 450 to get access to all the new functions for things like compressing bits
+- Physically based global illumination
+- Specular lighting calculated on all the points that a ray hits, allowing for both the specular and diffuse light to bounce
+- Raytracing against both the gbuffer and shadow buffers
+- POM, outputting an offset depth value to the depth buffer
+- Anti-aliasing
+- Heavy use of #include to reduce code duplication
+    - Visual Studio Code extension to handle that?
+- Proper handling of rain and snow
+    - During rain, blocks get wet, starting with the tops of the blocks and moving down to the bottom
+    - During snow, the tops of the blocks get covered in snow, which then melts
+    - A world-space noise texture is used to determine which parts are covered by an atmospheric effect
+
+Things that happen in each file:
+- gbuffers_terrain (and similar files)
+    - read material parameters:
+        - albedo (colortex4) (ldr)
+        - roughness, metalness, emission, texture AO (colortex5) (ldr)
+            - emission and metalness could be stored in one channel
+                - metalness in one bit, emission in the other seven
+        - normals (colortex6) (ldr)
+            - normals can be stored in two channels
+- gbuffers_water
+    - Read material parameters 
+        - Same schema as gbuffers_terrain
+    - Dynamic waves
+        - Directly modify vertex positions
+        - Directly modify water normals and depth (for POM from small-scale waves)
+- composite
+    - Skybox generation (full resolution) (colortex2) (hdr)
+- composite1
+    - Volumetric clouds (full resolution, get lighting from skybox) (colortex0)
+        - Full skybox is output to colortex0
+        - skybox has atmospheric color (which implicitly includes brightness) in RGB and cloud opacity in A
+    - Raytraced block lighting (half resolution) (colortex1) (hdr)
+    - Global illumination (half resolution) (colortex1) (hdr)
+        - GI exists here because I want to use the skybox for lighting, so I need the skybox before I can use it
+    - Volumetric lighting (half resolution) (colortex1) (hdr)
+- composite2
+    - Diffuse lighting (full resolution) (colortex2) (hdr)
+    - Shadows (full resolution) (colortex4) (ldr)
+- composite3
+    - Specular lighting (full resolution) (colortex3) (hdr)
+- composite4
+    - Combine diffuse and specular light (colortex0) (hdr)
+- composite5
+    - Tonemapping, HDR bloom (colortex1) (ldr)
+- final
+    - Lens flare, anti-aliasing (screen) (ldr)

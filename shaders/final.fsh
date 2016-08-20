@@ -193,7 +193,7 @@ void main() {
     doBloom(color);
 #endif
 
-    color = texture2D(gcolor, coord).rgb;
+    //color = texture2D(composite, coord).rgb;
 
     color = correct_colors(color);
 
@@ -210,5 +210,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gnormal, coord).rgb, 1.0);
+    //gl_FragColor = vec4(texture2D(composite, coord).rgb, 1.0);
 }

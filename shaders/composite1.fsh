@@ -335,7 +335,6 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     #if SHADOW_QUALITY != OFF
         vec2 shadowcoord = (coord * vec2(0.5)) + vec2(0, 0.5);
         pixel.shadow = texture2D(gnormal, shadowcoord).rgb;
-        //return shadow_color;
         sun_lighting *= pixel.shadow;
     #endif
 

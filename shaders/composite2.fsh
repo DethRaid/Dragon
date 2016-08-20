@@ -312,7 +312,7 @@ float calculate_microfacet_distribution(in vec3 halfVector, in vec3 normal, in f
  *
  * \return The color of the specular highlight at the current fragment
  */
-vec3 calculate_specaulr_highlight(
+vec3 calculate_specular_highlight(
     in vec3 lightVector,
     in vec3 normal,
     in vec3 fresnel,
@@ -336,7 +336,7 @@ vec3 calculate_fresnel(in vec3 F0, in vec3 normal, in vec3 viewVector) {
     #if FRESNEL_EQUATION == SCHLICK
         return F0 + (vec3(1.0) - F0) * pow(1.0 - vdoth, 5);
     #elif FRESNEL_EQUATION == COOK_TOORANCE
-        vec3 cookTorrance; //Phisically Accurate, handles metals better
+        vec3 cookTorrance; //Physically Accurate, handles metals better
         vec3 nFactor = (1.0 + sqrt(F0)) / (1.0 - sqrt(F0));
         vec3 gFactor = sqrt(pow(nFactor, vec3(2.0)) + pow(vdoth, 2.0) - 1.0);
         cookTorrance = 0.5 * pow((gFactor - vdoth) / (gFactor + vdoth), vec3(2.0)) * (1 + pow(((gFactor + vdoth) * vdoth - 1.0) / ((gFactor - vdoth) * vdoth + 1.0), vec3(2.0)));
@@ -355,7 +355,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 hitColor = vec3(0);
 
     float roughness = 1.0 - pixel.smoothness;
-    roughness = pow(roughness * 0.8, 2);
+    roughness = pow(roughness * 0.8, 2.0);
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
@@ -388,10 +388,10 @@ vec3 doLightBounce(in Pixel1 pixel) {
         hitColor = max(hitColor, vec3(0));
 
         vec3 viewVector = normalize(pixel.position);
+        vec3 rayHalfVector = (viewVector + rayDir) / length(viewVector + rayDir);
+        vec3 fresnel = calculate_fresnel(pixel.specular_color, rayHalfVector, viewVector);
 
-        vec3 fresnel = calculate_fresnel(pixel.specular_color, reflectDir, viewVector);
-
-        vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
+        vec3 specularStrength = calculate_specular_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
         //specularStrength = fresnel;
 
         retColor += mix(pixel.color, hitColor * specularStrength, fresnel * pixel.smoothness);
