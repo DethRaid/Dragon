@@ -1,16 +1,24 @@
-#version 450 compatibility
+#version 120
+
+#define PI 3.14159
 
 uniform float rainStrength;
 
 uniform int worldTime;
 uniform vec3 sunPosition;
 uniform vec3 moonPosition;
+uniform float viewWidth;
 
-out vec2 coord;
-out vec3 lightVector;
-out vec3 lightColor;
+uniform mat4 gbufferModelViewInverse;
+uniform mat4 gbufferProjectionInverse;
 
-out vec3 fogColor;
+varying vec2 coord;
+varying vec3 lightVector;
+varying vec3 lightColor;
+varying vec3 ambientColor;
+
+varying vec3 fogColor;
+varying vec3 skyColor;
 
 struct main_light {
     vec3 direction;
@@ -36,13 +44,20 @@ void main() {
     gl_Position = ftransform();
     coord = gl_MultiTexCoord0.st;
 
+    skyColor = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);
+
     main_light light = get_main_light(worldTime, sunPosition, moonPosition);
 
     if(rainStrength > 0.1) {
         //load up the rain fog profile
         fogColor = vec3(0.5, 0.5, 0.5);
-    } else {
-        fogColor = vec3(1);
+        lightColor *= 0.3;
+        ambientColor *= 0.3;
+    }
+    if(worldTime < 100 || worldTime > 13000) {
+        ambientColor = vec3(0.02, 0.02, 0.02);
+        fogColor = vec3(0.103, 0.103, 0.105);
+        skyColor *= 0.0025;
     }
 
     lightVector = light.direction;
