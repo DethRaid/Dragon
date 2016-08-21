@@ -10,7 +10,7 @@
  */
 
 #define PCF_SIZE_HALF 3
-#define SHADOW_BIAS 0.00025
+#define SHADOW_BIAS 0.0025
 
 /*SHADOWFOV:45*/
 const int shadowMapResolution = 2048;

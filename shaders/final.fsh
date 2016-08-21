@@ -33,10 +33,10 @@ vec3 correct_colors(in vec3 color) {
 }
 
 void main() {
-    vec3 color = texture(colortex2, coord).rgb;
+    vec3 color = texture(colortex1, coord).rgb;
     color = correct_colors(color);
     color = tonemap(color);
     gl_FragColor = vec4(color, 1.0);
 
-    gl_FragColor = texture(colortex1, coord);
+    //gl_FragColor = texture(colortex1, coord);
 }

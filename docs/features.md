@@ -50,6 +50,8 @@ Things that happen in each file:
     - Global illumination (half resolution) (colortex1) (hdr)
         - GI exists here because I want to use the skybox for lighting, so I need the skybox before I can use it
     - Volumetric lighting (half resolution) (colortex1) (hdr)
+        - TODO: When we're mixing the atmosphere in, we'll have to check for sky pixels. If we have a sky pixel, use 
+            the sky at full strength. If not, mix in regularly
 - composite2
     - Diffuse lighting (full resolution) (colortex2) (hdr)
     - Shadows (full resolution) (colortex4) (ldr)
