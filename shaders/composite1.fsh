@@ -22,22 +22,17 @@ const int gdepthFormat = RGB32F;
 #define NUM_VL_SAMPLES      15
 #define ATMOSPHERIC_DENSITY 0.005
 
-uniform sampler2D colortex2;
-uniform sampler2D gdepthtex;
+#define GI_FILTER_SIZE_HALF 5
 
-uniform float near;
-uniform float far;
+uniform sampler2D colortex2;
+uniform sampler2D colortex6;
+uniform sampler2D gdepthtex;
 
 in vec2 coord;
 in vec3 sun_direction_worldspace;
 
 // TODO: 1
 /* DRAWBUFFERS:1 */
-
-float exp_to_linear_depth(in float depth_value) {
-    return 2.0 * near * far / (far + near - (2.0 * depth_value - 1.0) * (far - near));
-}
-
 
 /*!
  * \brief Getermines the color of the volumetric lighting froma given direction
@@ -80,7 +75,46 @@ vec4 get_atmosphere(in vec2 vl_coord) {
     return vec4(vl_color * sky_color * total_density / NUM_VL_SAMPLES, total_density);
 }
 
+vec3 get_gi(in vec2 gi_coord) {
+    float tex_depth = texture(gdepthtex, gi_coord).r;
+    vec4 world_position = viewspace_to_worldspace(get_viewspace_position(gi_coord, tex_depth));
+
+    vec3 shadow_coord = get_shadow_coord(world_position.xyz);
+
+    vec3 x = world_position.xyz;
+
+    vec3 n = viewspace_to_worldspace(vec4(texture(colortex6, gi_coord).xyz * 2.0 - 1.0, 0.0)).xyz;
+    n -= cameraPosition;
+
+    float e = 0;
+
+    for(int i = -GI_FILTER_SIZE_HALF; i <= GI_FILTER_SIZE_HALF; i++) {
+        for(int j = -GI_FILTER_SIZE_HALF; j <= GI_FILTER_SIZE_HALF; j++) {
+            vec2 offset = vec2(j, i) / shadowMapResolution;
+            float shadow_depth = texture(shadowtex0, shadow_coord.st + offset).r;
+
+            vec4 sample_pos = shadowModelViewInverse * shadowProjectionInverse * vec4(vec3(shadow_coord.xy + offset, shadow_depth) * 2.0 - 1.0, 1.0); 
+            sample_pos /= sample_pos.w;
+            sample_pos.xyz += cameraPosition;
+
+            vec3 xp = sample_pos.xyz;
+
+            vec3 np = texture(shadowcolor1, shadow_coord.st + offset).xyz * 2.0 - 1.0;
+            np = (shadowModelViewInverse * shadowProjectionInverse * vec4(np, 0.0)).xyz;
+
+            return np;
+
+            vec3 dir = x - xp;
+            e += /*max(0, dot(np, dir)) * */ max(0, dot(n, -dir)) / pow(length(dir), 2);
+        }
+    }
+
+    return vec3(e) / (GI_FILTER_SIZE_HALF * GI_FILTER_SIZE_HALF * 4);
+}
+
  void main() {
+     gl_FragData[0] = vec4(get_gi(coord), 1);
+
      float depth = texture2D(gdepthtex, coord).r;
      vec4 view_position = get_viewspace_position(coord, depth);
      vec4 world_position = viewspace_to_worldspace(view_position);
@@ -89,5 +123,5 @@ vec4 get_atmosphere(in vec2 vl_coord) {
 
      vec4 vl = get_atmosphere(coord);
 
-     gl_FragData[0] = vec4(mix(shadow_color, vl.rgb, vl.a), 1.0);
+     //gl_FragData[0] = vec4(mix(shadow_color, vl.rgb, vl.a), 1.0);
  }

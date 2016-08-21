@@ -23,8 +23,13 @@ const bool shadowtexMipmap0 = false;
 const bool shadowtexMipmap1 = false;
 
 uniform sampler2D shadowtex0;
+uniform sampler2D shadowcolor0;
+uniform sampler2D shadowcolor1;
+
 uniform mat4 shadowProjection;
 uniform mat4 shadowModelView;
+uniform mat4 shadowModelViewInverse;
+uniform mat4 shadowProjectionInverse;
 
 /*!
  * \brief Converts a vec4 from worldspace into shadowspace

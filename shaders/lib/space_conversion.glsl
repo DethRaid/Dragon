@@ -10,9 +10,16 @@ uniform vec3 cameraPosition;
 uniform float viewWidth;
 uniform float viewHeight;
 
+uniform float near;
+uniform float far;
+
 /*!
  * \brief A bunch of functions to convert between spaces
  */
+
+float exp_to_linear_depth(in float depth_value) {
+    return 2.0 * near * far / (far + near - (2.0 * depth_value - 1.0) * (far - near));
+}
 
 vec4 get_viewspace_position(in vec2 coord, in float depth) {
     vec4 pos = gbufferProjectionInverse * vec4(vec3(coord.st, depth) * 2.0 - 1.0, 1.0);

@@ -1,6 +1,6 @@
 #version 450 compatibility
 
-#define PI 3.14159
+#define PI 3.14159265
 
 const float sunPathRotation = -40;
 

@@ -38,5 +38,5 @@ void main() {
     color = tonemap(color);
     gl_FragColor = vec4(color, 1.0);
 
-    //gl_FragColor = texture(colortex1, coord);
+    gl_FragColor = texture(colortex1, coord);
 }
