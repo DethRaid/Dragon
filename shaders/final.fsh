@@ -1,5 +1,6 @@
 #version 450 compatibility
 
+uniform sampler2D colortex1;
 uniform sampler2D colortex2;
 
 in vec2 coord;
@@ -32,8 +33,10 @@ vec3 correct_colors(in vec3 color) {
 }
 
 void main() {
-    vec3 color = texture2D(colortex2, coord.st).rgb;
+    vec3 color = texture(colortex2, coord).rgb;
     color = correct_colors(color);
     color = tonemap(color);
     gl_FragColor = vec4(color, 1.0);
+
+    gl_FragColor = texture(colortex1, coord);
 }
