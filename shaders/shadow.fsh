@@ -5,7 +5,6 @@
 #line 6
 
 uniform sampler2D tex;
-//uniform sampler2D normal;
 
 in vec4 color;
 in vec2 uv;
@@ -17,7 +16,7 @@ void main() {
     gl_FragData[0] = frag_color;
 
     //vec3 texnormal = texture(normal, uv).xyz * 2.0 - 1.0;
-    //texnormal = normalize(tbn_matrix * texnormal);
+    //vec3 texnormal = normalize(tbn_matrix * normal);
 
     gl_FragData[1] = vec4(normal * 0.5 + 0.5, 1.0);
 }

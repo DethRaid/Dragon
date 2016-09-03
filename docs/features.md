@@ -46,10 +46,10 @@ Things that happen in each file:
     - Volumetric clouds (full resolution, get lighting from skybox) (colortex0)
         - Full skybox is output to colortex0
         - skybox has atmospheric color (which implicitly includes brightness) in RGB and cloud opacity in A
-    - Raytraced block lighting (half resolution) (colortex1) (hdr)
-    - Global illumination (half resolution) (colortex1) (hdr)
+    - Raytraced block lighting (half resolution) (colortex1) (hdr) (Upper left)
+    - Global illumination (half resolution) (colortex1) (hdr) (Lower right)
         - GI exists here because I want to use the skybox for lighting, so I need the skybox before I can use it
-    - Volumetric lighting (half resolution) (colortex1) (hdr)
+    - Volumetric lighting (half resolution) (colortex1) (hdr) (Lower left)
         - TODO: When we're mixing the atmosphere in, we'll have to check for sky pixels. If we have a sky pixel, use 
             the sky at full strength. If not, mix in regularly
 - composite2

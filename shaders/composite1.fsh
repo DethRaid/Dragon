@@ -1,4 +1,4 @@
-#version 450 compatibility
+#version 450
 
 /*!
  * \brief Responsible for rendering clouds, GI, VL, and raytraced block lighting
@@ -13,9 +13,9 @@
 
 #line 15
 
-const int RGB32F    = 0;
+const int RGB32F        = 0;
 
-const int gdepthFormat = RGB32F;
+const int gdepthFormat  = RGB32F;
 
 // How many VL samples should we take for each pixel?
 #define VL_DISTANCE         20
@@ -24,6 +24,9 @@ const int gdepthFormat = RGB32F;
 
 #define GI_FILTER_SIZE_HALF 5
 
+#define CLOUD_PLANE_START   128
+#define CLOUD_PLANE_END     160
+
 uniform sampler2D colortex2;
 uniform sampler2D colortex6;
 uniform sampler2D gdepthtex;
@@ -31,8 +34,11 @@ uniform sampler2D gdepthtex;
 in vec2 coord;
 in vec3 sun_direction_worldspace;
 
-// TODO: 1
-/* DRAWBUFFERS:1 */
+layout(location=0) out vec4 sky;
+layout(location=1) out vec4 dataTex;
+
+// TODO: 01
+/* DRAWBUFFERS:01 */
 
 /*!
  * \brief Getermines the color of the volumetric lighting froma given direction
@@ -69,22 +75,31 @@ vec4 get_atmosphere(in vec2 vl_coord) {
         total_density += density_per_step;
     }
 
-    vec2 sky_coord = get_sky_coord(ray_delta_unit);
+    vec3 sky_lookup_vector = normalize(vec3(ray_delta_unit.x, 0, ray_delta_unit.z));
+    vec2 sky_coord = get_sky_coord(sky_lookup_vector);
     vec3 sky_color = texture(colortex2, sky_coord).rgb;
 
     return vec4(vl_color * sky_color * total_density / NUM_VL_SAMPLES, total_density);
 }
 
+/*!
+ * \brief Uses Reflectance Shadow Mapping (http://www.klayge.org/material/3_12/GI/rsm.pdf) algorithm
+ */
 vec3 get_gi(in vec2 gi_coord) {
     float tex_depth = texture(gdepthtex, gi_coord).r;
     vec4 world_position = viewspace_to_worldspace(get_viewspace_position(gi_coord, tex_depth));
 
     vec3 shadow_coord = get_shadow_coord(world_position.xyz);
+    if(shadow_coord.x < 0 || shadow_coord.x > 1.0 || shadow_coord.y < 0 || shadow_coord.y > 1) {
+        // If we're not in the shadow map, we can't have any GI
+        return vec3(0);
+    }
 
     vec3 x = world_position.xyz;
 
     vec3 n = viewspace_to_worldspace(vec4(texture(colortex6, gi_coord).xyz * 2.0 - 1.0, 0.0)).xyz;
     n -= cameraPosition;
+    n = normalize(n);
 
     float e = 0;
 
@@ -96,32 +111,34 @@ vec3 get_gi(in vec2 gi_coord) {
             vec4 sample_pos = shadowModelViewInverse * shadowProjectionInverse * vec4(vec3(shadow_coord.xy + offset, shadow_depth) * 2.0 - 1.0, 1.0); 
             sample_pos /= sample_pos.w;
             sample_pos.xyz += cameraPosition;
-
+            
             vec3 xp = sample_pos.xyz;
 
-            vec3 np = texture(shadowcolor1, shadow_coord.st + offset).xyz * 2.0 - 1.0;
-            np = (shadowModelViewInverse * shadowProjectionInverse * vec4(np, 0.0)).xyz;
-
-            return np;
+            vec4 normal_point = texture(shadowcolor1, shadow_coord.st + offset) * 2.0f - 1.0f;
+            normal_point.w = 0.0f;
+            normal_point = (shadowModelViewInverse * normal_point);
+            vec3 np = normalize(normal_point.xyz);
 
             vec3 dir = x - xp;
-            e += /*max(0, dot(np, dir)) * */ max(0, dot(n, -dir)) / pow(length(dir), 2);
+            e += max(0, dot(np, dir)) * max(0, dot(n, -dir)) / pow(length(dir), 2);
         }
     }
 
     return vec3(e) / (GI_FILTER_SIZE_HALF * GI_FILTER_SIZE_HALF * 4);
 }
 
- void main() {
-     gl_FragData[0] = vec4(get_gi(coord), 1);
+vec4 get_sky(in vec2 sky_coord) {
+    // Step from the cloud plane start to the cloud plane end, accumulating cloud density and cloud coloring
 
-     float depth = texture2D(gdepthtex, coord).r;
-     vec4 view_position = get_viewspace_position(coord, depth);
-     vec4 world_position = viewspace_to_worldspace(view_position);
+}
 
-     vec3 shadow_color = get_shadow_color(world_position.xyz) * 0.8;
+void main() {
+    if(coord.x > 0.5 && coord.y < 0.5) {
+        vec2 gi_coord = coord * 2.0 - vec2(1.0, 0.0);
+        dataTex = vec4(get_gi(gi_coord), 1);
 
-     vec4 vl = get_atmosphere(coord);
-
-     //gl_FragData[0] = vec4(mix(shadow_color, vl.rgb, vl.a), 1.0);
- }
+    } else if(coord.x < 0.5 && coord.y < 0.5) {
+        vec2 vl_coord = coord * 2.0;
+        dataTex = vec4(get_atmosphere(vl_coord), 1.0);
+    }    
+}
