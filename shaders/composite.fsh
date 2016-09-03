@@ -51,8 +51,8 @@ vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
  */
 
 float phase(float alpha, float g) {
-	float a = 3.0 * (1.0 - g * g);
-	float b = 2.0 * (2.0 + g * g);
+    float a = 3.0 * (1.0 - g * g);
+    float b = 2.0 * (2.0 + g * g);
     float c = 1.0 + alpha * alpha;
     float d = pow(1.0 + g * g - 2.0 * g * alpha, 1.5);
     return (a / b) * (c / d);
@@ -74,7 +74,7 @@ vec3 get_eye_vector(in vec2 coord) {
 }
 
 float atmospheric_depth(vec3 position, vec3 dir) {
-	float a = dot(dir, dir);
+    float a = dot(dir, dir);
     float b = 2.0 * dot(dir, position);
     float c = dot(position, position) - 1.0;
     float det = b * b - 4.0 * a * c;
@@ -85,7 +85,7 @@ float atmospheric_depth(vec3 position, vec3 dir) {
 }
 
 float horizon_extinction(vec3 position, vec3 dir, float radius) {
-	float u = dot(dir, -position);
+    float u = dot(dir, -position);
     if(u < 0.0) {
         return 1.0;
     }
@@ -105,7 +105,7 @@ float horizon_extinction(vec3 position, vec3 dir, float radius) {
 vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);	// Color of nitrogen
 
 vec3 absorb(float dist, vec3 color, float factor) {
-	return color - color * pow(Kr, vec3(factor / dist));
+    return color - color * pow(Kr, vec3(factor / dist));
 }
 
 /*!
@@ -114,9 +114,9 @@ vec3 absorb(float dist, vec3 color, float factor) {
  * \param coord The UV coordinate to render to
  */
 vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_intensity) {
-	vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(light_vector, 0.0)).xyz);
+    vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(light_vector, 0.0)).xyz);
 
-	float alpha = max(dot(eye_vector, light_vector_worldspace), 0.0);
+    float alpha = max(dot(eye_vector, light_vector_worldspace), 0.0);
 
 	float rayleigh_factor = phase(alpha, -0.01) * RAYLEIGH_BRIGHTNESS;
 	float mie_factor = phase(alpha, MIE_DISTRIBUTION) * MIE_BRIGHTNESS;

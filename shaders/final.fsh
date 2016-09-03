@@ -1,9 +1,12 @@
-#version 450 compatibility
+#version 450
 
+uniform sampler2D colortex0;
 uniform sampler2D colortex1;
 uniform sampler2D colortex2;
 
 in vec2 coord;
+
+layout(location=0) out vec4 finalColor;
 
 vec3 uncharted_tonemap_math(in vec3 color) {
     const float shoulder_strength = 0.15;
@@ -33,10 +36,8 @@ vec3 correct_colors(in vec3 color) {
 }
 
 void main() {
-    vec3 color = texture(colortex1, coord).rgb;
+    vec3 color = texture(colortex0, coord).rgb;
     color = correct_colors(color);
     color = tonemap(color);
-    gl_FragColor = vec4(color, 1.0);
-
-    gl_FragColor = texture(colortex1, coord);
+    finalColor = vec4(color, 1.0);
 }

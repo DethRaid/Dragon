@@ -10,11 +10,14 @@
 #include "/lib/shadow_functions.glsl"
 #include "/lib/noise_reduction.glsl"
 #include "/lib/sky.glsl"
+#include "/lib/noise.glsl"
 
-#line 15
+#line 16
 
-const int RGB32F        = 0;
+const int RGB16F        = 0;
+const int RGB32F        = 1;
 
+const int gcolorFormat  = RGB32F;
 const int gdepthFormat  = RGB32F;
 
 // How many VL samples should we take for each pixel?
@@ -26,6 +29,7 @@ const int gdepthFormat  = RGB32F;
 
 #define CLOUD_PLANE_START   128
 #define CLOUD_PLANE_END     160
+#define NUM_CLOUD_STEPS     8
 
 uniform sampler2D colortex2;
 uniform sampler2D colortex6;
@@ -114,10 +118,9 @@ vec3 get_gi(in vec2 gi_coord) {
             
             vec3 xp = sample_pos.xyz;
 
-            vec4 normal_point = texture(shadowcolor1, shadow_coord.st + offset) * 2.0f - 1.0f;
-            normal_point.w = 0.0f;
-            normal_point = (shadowModelViewInverse * normal_point);
-            vec3 np = normalize(normal_point.xyz);
+            vec3 normal_point = texture(shadowcolor1, shadow_coord.st + offset).xyz * 2.0f - 1.0f;
+            normal_point = mat3(shadowModelViewInverse) * normal_point;
+            vec3 np = normalize(normal_point);
 
             vec3 dir = x - xp;
             e += max(0, dot(np, dir)) * max(0, dot(n, -dir)) / pow(length(dir), 2);
@@ -129,7 +132,34 @@ vec3 get_gi(in vec2 gi_coord) {
 
 vec4 get_sky(in vec2 sky_coord) {
     // Step from the cloud plane start to the cloud plane end, accumulating cloud density and cloud coloring
+    float depth = texture2D(gdepthtex, coord).r;
+    vec4 view_position = get_viewspace_position(coord, depth);
+    vec4 world_position = viewspace_to_worldspace(view_position);
+    world_position.xyz -= cameraPosition;
 
+    vec3 ray_direction = normalize(world_position.xyz);
+
+    float iterations_to_start = CLOUD_PLANE_START / ray_direction.y;
+    vec3 ray_start = ray_direction * iterations_to_start;
+
+    float iterations_to_end = CLOUD_PLANE_END / ray_direction.y;
+    vec3 ray_end = ray_direction * iterations_to_end;
+
+    vec3 ray_step = (ray_end - ray_start) / NUM_CLOUD_STEPS;
+    vec3 ray_pos = ray_start; 
+
+    vec3 cloud_color = vec3(0);
+
+    for(int i = 0; i < NUM_CLOUD_STEPS; i++) {
+        cloud_color += vec3(get3DNoise(ray_pos));
+
+        ray_pos += ray_step;
+    }
+
+    vec2 sky_lookup_coord = get_sky_coord(ray_direction);
+    vec3 sky_color = texture(colortex2, sky_lookup_coord).rgb;
+
+    return vec4(cloud_color / NUM_CLOUD_STEPS, 1.0);
 }
 
 void main() {
@@ -139,6 +169,8 @@ void main() {
 
     } else if(coord.x < 0.5 && coord.y < 0.5) {
         vec2 vl_coord = coord * 2.0;
-        dataTex = vec4(get_atmosphere(vl_coord), 1.0);
-    }    
+        dataTex = get_atmosphere(vl_coord);
+    }
+
+    sky = get_sky(coord);
 }
