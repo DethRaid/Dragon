@@ -20,7 +20,7 @@ varying mat3 tbnMatrix;
 varying vec3 view_vector;
 
 varying float is_leaf;
-varying float is_lava;
+varying float is_emissive;
 
 float luma(in vec3 color) {
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
@@ -105,7 +105,7 @@ void main() {
     gl_FragData[0] = texColor;//vec4(vec3(sData.a), 1.0);
 
     //sky lighting, isSky, is_leaf, isWater
-    gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
+    gl_FragData[6] = vec4(uvLight.g, 0, 0.0, 0);
 
     vec3 texnormal = texture2D(normals, coord).xyz * 2.0 - 1.0;
 
@@ -115,5 +115,5 @@ void main() {
     gl_FragData[7] = vec4(texnormal * 0.5 + 0.5, 0.0);
 
     //skipLighting, torch lighting, metalness, smoothness
-    gl_FragData[5] = vec4(max(sData.b, is_lava), uvLight.r, sData.gr);
+    gl_FragData[5] = vec4(max(sData.b, is_emissive), uvLight.r, sData.gr);
 }

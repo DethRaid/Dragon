@@ -89,7 +89,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.425, 0.9, 0.9);
+    return color * vec3(0.425, 0.9, 0.875);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -210,5 +210,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = vec4(texture2D(gnormal, coord).rgb, 1.0);
+    //gl_FragColor = texture2D(gnormal, coord);
 }

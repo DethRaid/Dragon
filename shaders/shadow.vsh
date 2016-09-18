@@ -46,8 +46,8 @@ void main() {
     vec2 pos = abs(gl_Position.xy * 1.165);
 	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
 	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-    gl_Position.xy *= 1.0f / distortFactor;
-    gl_Position.z /= 4.0;
+    //gl_Position.xy *= 1.0f / distortFactor;
+   // gl_Position.z /= 4.0;
 
     uv = gl_MultiTexCoord0.st;
     color = gl_Color;

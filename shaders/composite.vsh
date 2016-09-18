@@ -15,7 +15,6 @@ uniform mat4 gbufferProjectionInverse;
 varying vec2 coord;
 varying vec3 lightVector;
 varying vec3 lightColor;
-varying vec3 ambientColor;
 
 varying vec3 fogColor;
 varying vec3 skyColor;
@@ -52,10 +51,8 @@ void main() {
         //load up the rain fog profile
         fogColor = vec3(0.5, 0.5, 0.5);
         lightColor *= 0.3;
-        ambientColor *= 0.3;
     }
     if(worldTime < 100 || worldTime > 13000) {
-        ambientColor = vec3(0.02, 0.02, 0.02);
         fogColor = vec3(0.103, 0.103, 0.105);
         skyColor *= 0.0025;
     }

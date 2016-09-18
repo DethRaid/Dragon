@@ -13,7 +13,7 @@ varying mat3 tbnMatrix;
 varying vec3 view_vector;
 
 varying float is_leaf;
-varying float is_lava;
+varying float is_emissive;
 
 void main() {
     color = gl_Color;
@@ -32,9 +32,9 @@ void main() {
         is_leaf = 1.0;
     }
 
-    is_lava = 0;
-    if(mc_Entity.x == 10 || mc_Entity.x == 11) {
-        is_lava = 1.0;
+    is_emissive = 0;
+    if(mc_Entity.x == 10 || mc_Entity.x == 11 || mc_Entity.x == 89) {
+        is_emissive = 1.0;
     }
 
     tbnMatrix = calculate_tbn_matrix();

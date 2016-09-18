@@ -394,7 +394,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
         vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
         //specularStrength = fresnel;
 
-        retColor += mix(pixel.color, hitColor * specularStrength, fresnel * pixel.smoothness);
+        retColor += mix(pixel.color, hitColor * specularStrength, fresnel * pixel.smoothness * pixel.smoothness);
     }
 
     return retColor / NUM_RAYS;
