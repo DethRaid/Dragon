@@ -11,7 +11,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
-const int   shadowMapResolution     = 1024;	// [1024 2048 4096]
+const int   shadowMapResolution     = 4096;	// [1024 2048 4096]
 const int   noiseTextureResolution  = 64;
 
 const float ambientOcclusionLevel   = 0.2;
@@ -86,7 +86,6 @@ const bool shadowMipmapEnabled      = true;
 //#define HARD_SHADOWS
 //#define SOFT_SHADOWS
 #define REALISTIC_SHADOWS
-#define SHADOW_MAP_BIAS             0.8
 //#define HYBRID_RAYTRACED_SHADOWS
 #define HRS_RAY_LENGTH              0.8
 #define HRS_RAY_STEPS               100

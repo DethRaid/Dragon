@@ -36,7 +36,7 @@
 const int RGB32F					= 0;
 const int RGB16F					= 1;
 
-const int   shadowMapResolution     = 1024;	// [1024 2048 4096]
+const int   shadowMapResolution     = 4096;	// [1024 2048 4096]
 const float shadowDistance          = 120.0;
 const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
