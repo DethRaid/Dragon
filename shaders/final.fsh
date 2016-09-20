@@ -36,7 +36,7 @@ vec3 correct_colors(in vec3 color) {
 }
 
 void main() {
-    vec3 color = texture(colortex0, coord).rgb;
+    vec3 color = texture(colortex1, coord).rgb;
     color = correct_colors(color);
     color = tonemap(color);
     finalColor = vec4(color, 1.0);

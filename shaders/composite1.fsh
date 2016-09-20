@@ -25,7 +25,7 @@ const int gdepthFormat  = RGB32F;
 #define NUM_VL_SAMPLES      15
 #define ATMOSPHERIC_DENSITY 0.005
 
-#define GI_FILTER_SIZE_HALF 5
+#define GI_FILTER_SIZE_HALF 15
 
 #define CLOUD_PLANE_START   128
 #define CLOUD_PLANE_END     160
@@ -75,11 +75,11 @@ vec4 get_atmosphere(in vec2 vl_coord) {
         vec3 light_amount = get_shadow_color(ray_pos);
         vl_color += light_amount;
 
-        ray_pos += ray_delta; 
+        ray_pos += ray_delta;
         total_density += density_per_step;
     }
 
-    vec3 sky_lookup_vector = normalize(vec3(ray_delta_unit.x, 0, ray_delta_unit.z));
+    vec3 sky_lookup_vector = mix(ray_delta_unit, vec3(0, 1, 0), min(1, ray_pos.y / 256.0f));
     vec2 sky_coord = get_sky_coord(sky_lookup_vector);
     vec3 sky_color = texture(colortex2, sky_coord).rgb;
 
@@ -105,29 +105,34 @@ vec3 get_gi(in vec2 gi_coord) {
     n -= cameraPosition;
     n = normalize(n);
 
-    float e = 0;
+    vec3 e = vec3(0);
 
     for(int i = -GI_FILTER_SIZE_HALF; i <= GI_FILTER_SIZE_HALF; i++) {
         for(int j = -GI_FILTER_SIZE_HALF; j <= GI_FILTER_SIZE_HALF; j++) {
             vec2 offset = vec2(j, i) / shadowMapResolution;
             float shadow_depth = texture(shadowtex0, shadow_coord.st + offset).r;
 
-            vec4 sample_pos = shadowModelViewInverse * shadowProjectionInverse * vec4(vec3(shadow_coord.xy + offset, shadow_depth) * 2.0 - 1.0, 1.0); 
+            vec4 sample_pos = shadowModelViewInverse * shadowProjectionInverse * vec4(vec3(shadow_coord.xy + offset, shadow_depth) * 2.0 - 1.0, 1.0);
             sample_pos /= sample_pos.w;
             sample_pos.xyz += cameraPosition;
-            
+
             vec3 xp = sample_pos.xyz;
 
             vec3 normal_point = texture(shadowcolor1, shadow_coord.st + offset).xyz * 2.0f - 1.0f;
             normal_point = mat3(shadowModelViewInverse) * normal_point;
             vec3 np = normalize(normal_point);
 
+            vec2 light_hitting_p_pos = get_sky_coord(sun_direction_worldspace);
+            vec3 light_hitting_p = texture(colortex2, light_hitting_p_pos, 9).rgb;
+            vec3 p_albedo = texture(shadowcolor0, shadow_coord.st + offset).rgb;
+            vec3 flux = light_hitting_p * p_albedo * max(0, dot(np, sun_direction_worldspace));
+
             vec3 dir = x - xp;
-            e += max(0, dot(np, dir)) * max(0, dot(n, -dir)) / pow(length(dir), 2);
+            e += flux * max(0, dot(np, dir)) * max(0, dot(n, -dir)) / pow(length(dir), 2);
         }
     }
 
-    return vec3(e) / (GI_FILTER_SIZE_HALF * GI_FILTER_SIZE_HALF * 4);
+    return e / (GI_FILTER_SIZE_HALF * GI_FILTER_SIZE_HALF * 4);
 }
 
 vec4 get_sky(in vec2 sky_coord) {
@@ -146,7 +151,7 @@ vec4 get_sky(in vec2 sky_coord) {
     vec3 ray_end = ray_direction * iterations_to_end;
 
     vec3 ray_step = (ray_end - ray_start) / NUM_CLOUD_STEPS;
-    vec3 ray_pos = ray_start; 
+    vec3 ray_pos = ray_start;
 
     vec3 cloud_color = vec3(0);
 
