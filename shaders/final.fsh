@@ -1,13 +1,11 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 0.9
-#define CONTRAST 0.9
+#define SATURATION 1.0
+#define CONTRAST 1.0
 
 #define OFF     0
 #define ON      1
-
-#define REFLECTION_FILTER_SIZE 2
 
 #define FILM_GRAIN ON
 #define FILM_GRAIN_STRENGTH 0.035
@@ -55,7 +53,7 @@ varying vec2 coord;
 varying float floatTime;
 
 vec3 getColorSample(in vec2 coord) {
-    return texture2D(gcolor, coord).rgb;
+    return texture2D(gdepth, coord).rgb;
 }
 
 float luma(vec3 color) {
@@ -89,7 +87,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.425, 0.9, 0.875);
+    return color * vec3(1, 0.65, 0.65);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -174,11 +172,7 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
 }
 
 vec3 doToneMapping(in vec3 color) {
-    vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
-    float luma = luma(blurred_color);
-    float luma_log = max(log(luma) * 1.5, 0.5);
-    luma_log = 11.5;
-    return uncharted_tonemap(color / 75, luma_log);
+    return uncharted_tonemap(color / 15, 11.5);
 }
 
 void main() {
@@ -193,7 +187,7 @@ void main() {
     doBloom(color);
 #endif
 
-    color = texture2D(gcolor, coord).rgb;
+    //color = texture2D(gdepth, coord).rgb;
 
     color = correct_colors(color);
 
@@ -201,14 +195,11 @@ void main() {
 
     contrastEnhance(color);
 
-#if FILM_GRAIN == ON
     doFilmGrain(color);
-#endif
 
 #if VINGETTE == ON
     color -= vec3(vingetteAmt(coord));
 #endif
 
     gl_FragColor = vec4(color, 1);
-    //gl_FragColor = texture2D(gnormal, coord);
 }

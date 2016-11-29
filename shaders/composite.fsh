@@ -108,91 +108,11 @@ vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
 	return pos;
 }
 
-vec4 worldspace_to_shadowspace(in vec4 position_worldspace) {
-	vec4 pos = shadowProjection * shadowModelView * position_worldspace;
-	return pos /= pos.w;
-}
-
-vec3 calcShadowCoordinate(in vec4 pixelPos) {
-    vec4 shadowCoord = viewspace_to_worldspace(pixelPos);
-    shadowCoord = worldspace_to_shadowspace(shadowCoord);
-
-    shadowCoord.st = shadowCoord.st * 0.5 + 0.5;    //take it from [-1, 1] to [0, 1]
-    float dFrag = shadowCoord.z * 0.5 + 0.505;
-
-    return vec3(shadowCoord.st, dFrag);
-}
-
 vec3 get_3d_noise(in vec2 coord) {
     coord *= vec2(viewWidth, viewHeight);
     coord /= noiseTextureResolution;
 
     return texture2D(noisetex, coord).xyz * 2.0 - 1.0;
-}
-
-float get_leaf(in vec2 coord) {
-	return texture2D(gaux3, coord).b;
-}
-
-/*
- * Global Illumination
- *
- * Calculates bounced diffuse light
- */
-
-vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
- 	float NdotL = dot(normal, lightVector);
-
- 	normal = normalize(mat3(gbufferModelViewInverse) * normal);
-
- 	vec4 position = viewspace_to_worldspace(position_viewspace);
-    position.xyz += cameraPosition;
-    vec3 shadowmap_coord = calcShadowCoordinate(position_viewspace);
-
- 	vec3 light = vec3(0.0);
- 	int samples	= 0;
-
-    float transmission_accum = 0;
-
- 	for(int y = -GI_QUALITY; y <= GI_QUALITY; y++) {
-	 	for(int x = -GI_QUALITY; x <= GI_QUALITY; x++) {
-	 		vec2 offset = vec2(x, y) * GI_SAMPLE_RADIUS;
-	 		//offset += get_3d_noise(offset).xy * 25;
-            offset.x += 1.0;
-	 		offset /= 2 * shadowMapResolution;
-
-			shadowmap_coord.xy += offset;
-
-            float shadow_depth = texture2DLod(shadowtex1, shadowmap_coord.st, 0).x;
-
-	 		vec4 sample_pos = vec4(vec3(shadowmap_coord.st, shadow_depth) * 2.0 - 1.0, 1.0);
-            sample_pos      = shadowModelViewInverse * shadowProjectionInverse * sample_pos;
-            sample_pos     /= sample_pos.w;
-            sample_pos.xyz += cameraPosition;
-
-	 		vec3 sample_dir      = normalize(position.xyz - sample_pos.xyz);
-	 		vec3 normal_shadow	 = texture2DLod(shadowcolor1, shadowmap_coord.st, 0).xyz * 2.0 - 1.0;
-            normal_shadow        = mat3(shadowModelViewInverse) * normal_shadow;
-
-	        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 1, 0))));
-	 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
-	 		float received_light_strength	 = max(0.0, dot(normal, sample_dir));
-
-	 		float falloff = length(position.xyz - sample_pos.xyz);
-	        falloff = pow(falloff, 4);
-			falloff = max(1.0, falloff);
-
-	 		vec3 sample_color = texture2D(shadowcolor0, shadowmap_coord.st).rgb;
-	        vec3 flux = sample_color * light_strength;
-
-	 		light += flux * transmitted_light_strength * received_light_strength / falloff;
-            //light += transmitted_light_strength;
-	 	}
-	}
-
- 	light /= pow(GI_QUALITY * 2 + 1, 2.0);
-
- 	return light;
 }
 
 /*
@@ -263,41 +183,6 @@ float rand(vec2 c){
     return fract(sin(dot(c.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-// From https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
-float noise(vec2 p, float freq ){
-    float unit = viewWidth/freq;
-    vec2 ij = floor(p/unit);
-    vec2 xy = mod(p,unit)/unit;
-    //xy = 3.*xy*xy-2.*xy*xy*xy;
-    xy = .5*(1.-cos(PI*xy));
-    float a = rand((ij+vec2(0.,0.)));
-    float b = rand((ij+vec2(1.,0.)));
-    float c = rand((ij+vec2(0.,1.)));
-    float d = rand((ij+vec2(1.,1.)));
-    float x1 = mix(a, b, xy.x);
-    float x2 = mix(c, d, xy.x);
-    return mix(x1, x2, xy.y);
-}
-
-float pNoise(vec2 p, int res){
-    float persistance = .5;
-    float n = 0.;
-    float normK = 0.;
-    float f = 4.;
-    float amp = 1.;
-    int iCount = 0;
-    for (int i = 0; i<50; i++){
-        n+=amp*noise(p, f);
-        f*=2.;
-        normK+=amp;
-        amp*=persistance;
-        if (iCount == res) break;
-        iCount++;
-    }
-    float nf = n/normK;
-    return nf*nf*nf*nf;
-}
-
 /*!
  * \brief Renders the sky to a equirectangular texture, allowing for world-space sky reflections
  *
@@ -342,36 +227,13 @@ vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_inte
 	return color * 7;
 }
 
-float get_brownian_noise(in vec2 orig_coord) {
-	float noise_accum = 0;
-	noise_accum += texture2D(noisetex, orig_coord * vec2(3, 1)).b * 0.5;
-	noise_accum += texture2D(noisetex, orig_coord * 2).g * 0.25;
-	//noise_accum += texture2D(noisetex, orig_coord * 8).g * 0.125;
-	//noise_accum += texture2D(noisetex, orig_coord * 16).g * 0.0625;
-
-	return pow(noise_accum, 2);
-}
-
-vec3 calc_clouds(in vec3 eye_vector) {
-	// Project the eye vector against the cloud plane, then use that position to draw a red/green stiped band
-
-	float num_steps_to_clouds = CLOUDS_START / eye_vector.y;
-	vec3 clouds_start_pos = eye_vector * num_steps_to_clouds;
-	if(length(clouds_start_pos) > 10000 || num_steps_to_clouds < 0.0f) {
-		return vec3(0);
-	}
-
-	vec3 color = vec3(get_brownian_noise(clouds_start_pos.xz * 0.00001));
-
-	return color;
-}
-
 float luma(vec3 color) {
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 
+
 vec3 enhance(in vec3 color) {
-	color *= vec3(0.85, 0.7, 1.2);
+	color *= vec3(0.525, 0.7, 1.175);
 
     vec3 intensity = vec3(luma(color));
 
@@ -379,24 +241,12 @@ vec3 enhance(in vec3 color) {
 }
 
 void main() {
-    vec3 gi = vec3(0);
-
-	vec2 gi_coord = coord * 2.0;
-	vec4 position_viewspace = get_viewspace_position(gi_coord);
-	if(gi_coord.x < 1 && gi_coord.y < 1) {
-	    vec3 normal = get_normal(gi_coord);
-		gi = calculate_gi(gi_coord, position_viewspace, normal);
-
-	}
-
 	vec3 sky_color = vec3(0);
 	vec3 eye_vector = get_eye_vector(coord).xzy;
 	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
 	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
-	//sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
 
 	sky_color = enhance(sky_color);
 
 	gl_FragData[0] = vec4(sky_color, 1.0);
-    gl_FragData[1] = vec4(gi, 1.0);
 }

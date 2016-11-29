@@ -1,22 +1,19 @@
 #version 120
 
+#define REFLECTION_FILTER_SIZE 5
+
 varying vec2 coord;
 
-uniform int worldTime;
-
-uniform vec3 sunPosition;
-uniform vec3 moonPosition;
-
-varying vec3 lightVector;
+varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE];
 
 void main() {
     gl_Position = ftransform();
-    gl_Position.xy = gl_Position.xy;
     coord = gl_MultiTexCoord0.st;
 
-    if( worldTime > 100 && worldTime < 13000 ) {
-        lightVector = normalize(sunPosition);
-    } else {
-        lightVector = normalize(moonPosition);
+    int offset = REFLECTION_FILTER_SIZE / 2;
+    for(int y = 0; y < REFLECTION_FILTER_SIZE; y++) {
+        for(int x = 0; x < REFLECTION_FILTER_SIZE; x++) {
+            reflection_filter_coords[x + y * REFLECTION_FILTER_SIZE] = coord + vec2(x - offset, y - offset);
+        }
     }
 }
