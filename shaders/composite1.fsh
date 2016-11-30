@@ -60,7 +60,7 @@ varying vec3 lightVector;
 
 varying vec2 coord;
 
-struct Pixel1 {
+struct Fragment {
     vec3 position;
     vec3 color;
     vec3 normal;
@@ -169,15 +169,23 @@ vec3 get_sky_color(in vec3 direction) {
 //                              Main Functions                               //
 ///////////////////////////////////////////////////////////////////////////////
 
-void fillPixelStruct(inout Pixel1 pixel) {
+Fragment fill_frag_struct(in vec2 coord) {
+    vec4 color_tex_sample = texture2D(gcolor, coord);
+    vec4 normal_tex_sample = texture2D(gaux4, coord);
+    vec4 gaux2_sample = texture2D(gaux2, coord);
+    vec4 gaux3_sample = texture2D(gaux3, coord);
+
+    Fragment pixel;
     pixel.position          = get_viewspace_position(coord);
-    pixel.normal            = getNormal();
-    pixel.color             = getColor();
-    pixel.metalness         = getMetalness();
-    pixel.smoothness        = getSmoothness();
-    pixel.skipLighting      = shouldSkipLighting();
-    pixel.specular_color    = mix(vec3(0.14), get_specular_color(), vec3(pixel.metalness));
-    pixel.is_sky            = is_sky();
+    pixel.normal            = get_normal(coord);
+    pixel.color             = color_tex_sample.rgb;
+    pixel.metalness         = gaux2_sample.b;
+    pixel.smoothness        = pow(gaux2_sample.a, 2.2);
+    pixel.skipLighting      = gaux2_sample.r > 0.5;
+    pixel.specular_color    = mix(vec3(0.14), color_tex_sample.rgb, vec3(pixel.metalness));
+    pixel.is_sky            = gaux3_sample.g > 0.5;
+
+    return pixel;
 }
 
 float calculateDitherPattern() {
@@ -248,7 +256,7 @@ float noise(in vec2 coord) {
     return fract(sin(dot(coord, vec2(12.8989, 78.233))) * 43758.5453);
 }
 
-vec3 doLightBounce(in Pixel1 pixel) {
+vec3 doLightBounce(in Fragment pixel) {
     //Find where the ray hits
     //get the blur at that point
     //mix with the color
@@ -289,11 +297,8 @@ vec3 doLightBounce(in Pixel1 pixel) {
                 break;
             }
 
-            vec3 sample_color = get_color(hit_info.coord);
-            if(get_emission(hit_info.coord) > 0.5) {
-                sample_color *= 250;
-            }
-            ray_color *= sample_color;
+            Fragment hit_frag = fill_frag_struct(hit_info.coord);
+            ray_color *= hit_frag.color;
         }
 
         retColor += ray_color;
@@ -303,8 +308,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
 }
 
 void main() {
-    Pixel1 pixel;
-    fillPixelStruct(pixel);
+    Fragment pixel = fill_frag_struct(coord);
     vec3 reflectedColor = pixel.color;
 
     if(!pixel.skipLighting) {
