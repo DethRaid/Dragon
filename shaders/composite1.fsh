@@ -53,6 +53,8 @@ uniform float far;
 uniform float viewWidth;
 uniform float viewHeight;
 uniform float rainStrength;
+uniform vec3 upPosition;
+uniform vec3 sunVector;
 
 varying vec3 lightVector;
 
@@ -140,8 +142,12 @@ float get_emission(in vec2 coord) {
     return texture2D(gaux2, coord).r;
 }
 
+float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
 vec3 get_sky_color(in vec3 direction) {
-    return vec3(10);
+    //return 10;
 
     direction = normalize(viewspace_to_worldspace(vec4(direction, 1)).xyz);
 
@@ -275,7 +281,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
             }
 
             if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
-                ray_color *= 10;
+                ray_color *= luma(get_sky_color(rayDir));
                 break;
             }
 
