@@ -281,11 +281,18 @@ vec3 doLightBounce(in Pixel1 pixel) {
             }
 
             if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
-                ray_color *= luma(get_sky_color(rayDir));
+                if(get_emission(hit_info.coord) > 0.5) {
+                    ray_color *= get_color(hit_info.coord) * 3000;
+                } else {
+                    ray_color *= luma(get_sky_color(rayDir));
+                }
                 break;
             }
 
             vec3 sample_color = get_color(hit_info.coord);
+            if(get_emission(hit_info.coord) > 0.5) {
+                sample_color *= 250;
+            }
             ray_color *= sample_color;
         }
 
@@ -305,7 +312,7 @@ void main() {
     } else if(pixel.is_sky) {
         reflectedColor = get_sky_color(pixel.position) * 0.5;
     } else {
-        reflectedColor *= 5; // For emissive blocks
+        reflectedColor *= 1250; // For emissive blocks
     }
 
     gl_FragData[0] = vec4(reflectedColor, 1);

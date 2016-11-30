@@ -172,7 +172,7 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
 }
 
 vec3 doToneMapping(in vec3 color) {
-    return uncharted_tonemap(color / 75, 11.5);
+    return uncharted_tonemap(color / 65, 11.5);
 }
 
 void main() {
