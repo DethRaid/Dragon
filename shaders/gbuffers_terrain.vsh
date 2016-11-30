@@ -33,7 +33,7 @@ void main() {
     }
 
     is_emissive = 0;
-    if(mc_Entity.x == 10 || mc_Entity.x == 11 || mc_Entity.x == 89) {
+    if(mc_Entity.x == 10 || mc_Entity.x == 11 || mc_Entity.x == 89 || mc_Entity.x == 80) {
         is_emissive = 1.0;
     }
 

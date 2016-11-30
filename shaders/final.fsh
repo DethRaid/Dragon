@@ -1,7 +1,7 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 1.0
+#define SATURATION 1.3
 #define CONTRAST 1.0
 
 #define OFF     0
@@ -87,7 +87,7 @@ void doBloom(inout vec3 color) {
 #endif
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(1, 0.65, 0.65);
+    return color * vec3(1.0, 1.0, 1.0);
 }
 
 void contrastEnhance(inout vec3 color) {
@@ -172,7 +172,7 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
 }
 
 vec3 doToneMapping(in vec3 color) {
-    return uncharted_tonemap(color / 15, 11.5);
+    return uncharted_tonemap(color, 11.5);
 }
 
 void main() {
@@ -202,4 +202,5 @@ void main() {
 #endif
 
     gl_FragColor = vec4(color, 1);
+    //gl_FragColor = texture2D(gdepth, coord);
 }

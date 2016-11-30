@@ -6,7 +6,7 @@
 #define RAY_STEP_LENGTH         0.1
 #define RAY_DEPTH_BIAS          0.05
 #define RAY_GROWTH              1.05
-#define NUM_RAYS                4  // [1 2 4 8 16 32 64 256]
+#define NUM_RAYS                8  // [1 2 4 8 16 32]
 #define NUM_BOUNCES             2
 
 //#define DITHER_REFLECTION_RAYS
@@ -24,7 +24,7 @@
 #define PI 3.14159
 
 // TODO: Change back to 1
-/* DRAWBUFFERS1 */
+/* DRAWBUFFERS:1 */
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -70,9 +70,8 @@ struct Pixel1 {
 };
 
 struct HitInfo {
-    vec3 color;
     vec3 position;
-    vec3 normal;
+    vec2 coord;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,6 +99,10 @@ vec3 get_specular_color() {
     return texture2D(gcolor, coord).rgb;
 }
 
+vec3 get_color(in vec2 coord) {
+    return texture2D(gcolor, coord).rgb;
+}
+
 vec3 getColor() {
     return texture2D(gcolor, coord).rgb;
 }
@@ -114,6 +117,10 @@ bool is_sky() {
 
 float getSmoothness() {
     return pow(texture2D(gaux2, coord).a, 2.2);
+}
+
+vec3 get_normal(in vec2 coord) {
+    return texture2D(gaux4, coord).xyz * 2.0 - 1.0;
 }
 
 vec3 getNormal() {
@@ -134,7 +141,10 @@ float get_emission(in vec2 coord) {
 }
 
 vec3 get_sky_color(in vec3 direction) {
+    return vec3(10);
+
     direction = normalize(viewspace_to_worldspace(vec4(direction, 1)).xyz);
+
     float lon = atan(direction.z, direction.x);
     if(direction.z < 0) {
         lon = 2 * PI - atan(-direction.z, direction.x);
@@ -146,7 +156,7 @@ vec3 get_sky_color(in vec3 direction) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return texture2DLod(gdepth, sphereCoords, 0).rgb * getSkyLighting();
+    return texture2DLod(gdepth, sphereCoords, 0).rgb;// * getSkyLighting();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -207,7 +217,6 @@ bool cast_screenspace_ray(in vec3 origin, in vec3 direction, inout HitInfo hit_i
         curCoord = get_coord_from_viewspace(vec4(curPos, 1));
         if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
             //If we're here, the ray has gone off-screen so we can't reflect anything
-            hit_info.color *= get_sky_color(direction);
             return false;
         }
 
@@ -218,20 +227,14 @@ bool cast_screenspace_ray(in vec3 origin, in vec3 direction, inout HitInfo hit_i
         if(depthDiff > 0 && depthDiff < maxDepthDiff) {
             vec3 travelled = origin - curPos;
             hit_info.position = curPos;
-            hit_info.normal = texture2DLod(gaux4, curCoord, 0).xyz * 2.0 - 1.0;
-            hit_info.color *= texture2DLod(gcolor, curCoord, 0).rgb;
+            hit_info.coord = curCoord;
 
-            if(get_emission(curCoord) > 0.5) {
-                hit_info.color *= 250;
-                return false;
-            }
-
-            return true;
+            // If we hit an emissive surface, we should stop tracing rays
+            return get_emission(curCoord) < 0.5;
         }
         direction *= RAY_GROWTH;
     }
     //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    hit_info.color *= get_sky_color(direction);
     return false;
 }
 
@@ -251,37 +254,36 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
+        vec3 ray_color = pixel.color;
         vec3 rayDir = normalize(pixel.position);
         HitInfo hit_info;
-        hit_info.color = pixel.color;
-        hit_info.normal = pixel.normal;
         hit_info.position = pixel.position;
+        hit_info.coord = coord;
 
         for(int b = 0; b < NUM_BOUNCES; b++) {
+            vec3 sample_normal = get_normal(hit_info.coord);
+
             vec2 noise_seed = coord * (i + 1) + (b + 1);
-            vec3 noiseSample = vec3(noise(noise_seed), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
-            vec3 reflectDir = normalize(noiseSample + hit_info.normal);
-            reflectDir *= sign(dot(hit_info.normal, reflectDir));
+            vec3 noiseSample = vec3(noise(noise_seed * 4), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
+            vec3 reflectDir = normalize(noiseSample + sample_normal);
+            reflectDir *= sign(dot(sample_normal, reflectDir));
             rayDir = reflectDir;
 
-            if(dot(rayDir, hit_info.normal) < 0.1) {
-                rayDir += hit_info.normal;
+            if(dot(rayDir, sample_normal) < 0.1) {
+                rayDir += sample_normal;
                 rayDir = normalize(rayDir);
             }
 
             if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
+                ray_color *= 10;
                 break;
             }
+
+            vec3 sample_color = get_color(hit_info.coord);
+            ray_color *= sample_color;
         }
 
-        vec2 noise_seed = coord * (i + 1);
-        vec3 noiseSample = vec3(noise(noise_seed), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
-        // Send one final ray towards the sun
-        //if(!cast_screenspace_ray(hit_info.position, normalize(lightVector + (noiseSample * 0.025)), hit_info)) {
-        //    hit_info.color /= 100;
-        //}
-
-        retColor += hit_info.color;
+        retColor += ray_color;
     }
 
     return retColor / NUM_RAYS;
@@ -295,9 +297,9 @@ void main() {
     if(!pixel.skipLighting) {
         reflectedColor = doLightBounce(pixel).rgb;
     } else if(pixel.is_sky) {
-        reflectedColor = get_sky_color(pixel.position) * 0.25;
+        reflectedColor = get_sky_color(pixel.position) * 0.5;
     } else {
-        reflectedColor *= 250; // For emissive blocks
+        reflectedColor *= 5; // For emissive blocks
     }
 
     gl_FragData[0] = vec4(reflectedColor, 1);

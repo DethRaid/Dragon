@@ -4,7 +4,7 @@
 #define OFF 0
 #define ON 1
 
-#define FILTER_REFLECTIONS
+//#define FILTER_REFLECTIONS
 #define REFLECTION_FILTER_SIZE 5
 
 uniform sampler2D gdepthtex;
@@ -20,8 +20,6 @@ uniform float near;
 uniform mat4 gbufferProjectionInverse;
 
 varying vec2 coord;
-
-varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE];
 
 // TODO: Ensure that this is always 0
 /* DRAWBUFFERS:0 */
@@ -51,6 +49,7 @@ vec3 getNormal(in vec2 coord) {
 }
 
 vec3 get_reflection(in vec2 sample_coord) {
+    #ifdef FILTER_REFLECTIONS
 	vec2 recipres = vec2(1.0f / viewWidth, 1.0f / viewHeight);
     float depth = getDepthLinear(sample_coord);
     vec3 normal = getNormal(sample_coord);
@@ -71,8 +70,10 @@ vec3 get_reflection(in vec2 sample_coord) {
 
 			float sampleDepth = getDepthLinear(sample_coord + offset * 2.0f);
 			vec3 sampleNormal = getNormal(sample_coord + offset * 2.0f);
+            float normal_weight = max(0.0f, dot(sampleNormal, normal));
+            normal_weight = pow(normal_weight, 500);
 			float weight = clamp(1.0f - abs(sampleDepth - depth) / 2.0f, 0.0f, 1.0f);
-			weight *= max(0.0f, dot(sampleNormal, normal));
+			weight *= normal_weight;
             weight *= dist_factor;
 
 			light += max(texture2DLod(gdepth, (sample_coord + offset), 0), vec4(0)) * weight;
@@ -83,6 +84,9 @@ vec3 get_reflection(in vec2 sample_coord) {
 	light /= max(0.00001f, weights);
 
 	return light.rgb;
+    #else
+    return texture2D(gdepth, sample_coord).rgb;
+    #endif
 }
 
 void main() {

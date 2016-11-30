@@ -22,7 +22,7 @@
 #define RAYLEIGH_COLLECTION_POWER	0.81
 #define MIE_COLLECTION_POWER		0.39
 
-#define SUNSPOT_BRIGHTNESS			500
+#define SUNSPOT_BRIGHTNESS			1000
 #define MOONSPOT_BRIGHTNESS			25
 
 #define SKY_SATURATION				1.5
@@ -45,6 +45,7 @@ const bool  shadowtexNearest        = true;
 const float	sunPathRotation 		= -40.0f;
 
 const int   noiseTextureResolution  = 64;
+const int	gcolorFormat			= RGB32F;
 const int 	gdepthFormat			= RGB32F;
 const int	gnormalFormat			= RGB16F;
 
