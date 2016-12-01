@@ -76,6 +76,20 @@ struct HitInfo {
     vec2 coord;
 };
 
+struct RayResult {
+    HitInfo hit_info;
+    vec3 ray_dir;
+    vec3 ray_start;
+    bool hit;
+};
+
+#define DIFFUSE_INDEX           0
+#define DIFFUSE_DIFFUSE_INDEX   1
+#define DIFFUSE_SPECULAR_INDEX  2
+#define SPECULAR_INDEX          3
+#define SPECULAR_DIFFUSE_INDEX  4
+#define SPECULAR_SPECULAR_INDEX 5
+
 ///////////////////////////////////////////////////////////////////////////////
 //                              Helper Functions                             //
 ///////////////////////////////////////////////////////////////////////////////
@@ -105,36 +119,11 @@ vec3 get_color(in vec2 coord) {
     return texture2D(gcolor, coord).rgb;
 }
 
-vec3 getColor() {
-    return texture2D(gcolor, coord).rgb;
-}
-
-bool shouldSkipLighting() {
-    return texture2D(gaux2, coord).r > 0.5;
-}
-
 bool is_sky() {
     return texture2D(gaux3, coord).g > 0.5;
 }
 
-float getSmoothness() {
-    return pow(texture2D(gaux2, coord).a, 2.2);
-}
-
-vec3 get_normal(in vec2 coord) {
-    return texture2D(gaux4, coord).xyz * 2.0 - 1.0;
-}
-
-vec3 getNormal() {
-    vec3 normal = texture2D(gaux4, coord).xyz * 2.0 - 1.0;
-    return normal;
-}
-
-float getMetalness() {
-    return texture2D(gaux2, coord).b;
-}
-
-float getSkyLighting() {
+float get_sky_brightness(in vec2 coord) {
     return texture2D(gaux3, coord).r;
 }
 
@@ -177,7 +166,7 @@ Fragment fill_frag_struct(in vec2 coord) {
 
     Fragment pixel;
     pixel.position          = get_viewspace_position(coord);
-    pixel.normal            = get_normal(coord);
+    pixel.normal            = normal_tex_sample.xyz * 2.0 - 1.0;
     pixel.color             = color_tex_sample.rgb;
     pixel.metalness         = gaux2_sample.b;
     pixel.smoothness        = pow(gaux2_sample.a, 2.2);
@@ -256,6 +245,10 @@ float noise(in vec2 coord) {
     return fract(sin(dot(coord, vec2(12.8989, 78.233))) * 43758.5453);
 }
 
+vec3 fresnel(in vec3 f0, in float vdotn) {
+    return f0 + (vec3(1.0) - f0) * pow(1.0 - vdotn, 5);
+}
+
 vec3 doLightBounce(in Fragment pixel) {
     //Find where the ray hits
     //get the blur at that point
@@ -263,8 +256,7 @@ vec3 doLightBounce(in Fragment pixel) {
     vec3 retColor = vec3(0);
     vec3 hitColor = vec3(0);
 
-    float roughness = 1.0 - pixel.smoothness;
-    roughness = pow(roughness * 0.8, 2);
+    RayResult rays[6];
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
@@ -274,31 +266,45 @@ vec3 doLightBounce(in Fragment pixel) {
         hit_info.position = pixel.position;
         hit_info.coord = coord;
 
+        Fragment origin_frag = fill_frag_struct(coord);
+
         for(int b = 0; b < NUM_BOUNCES; b++) {
-            vec3 sample_normal = get_normal(hit_info.coord);
+            vec3 sample_normal = origin_frag.normal;
+            //vec3 fresnel = fresnel(origin_frag.specular_color, )
 
             vec2 noise_seed = coord * (i + 1) + (b + 1);
             vec3 noiseSample = vec3(noise(noise_seed * 4), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
             vec3 reflectDir = normalize(noiseSample + sample_normal);
             reflectDir *= sign(dot(sample_normal, reflectDir));
-            rayDir = reflectDir;
+
+            if(origin_frag.metalness > 0.5) {
+                rayDir = reflect(rayDir, reflectDir);
+                ray_color *= origin_frag.specular_color;
+            } else {
+                rayDir = reflectDir;
+            }
 
             if(dot(rayDir, sample_normal) < 0.1) {
                 rayDir += sample_normal;
                 rayDir = normalize(rayDir);
             }
 
+            float ndotl = max(0, dot(rayDir, origin_frag.normal));
+            ray_color *= ndotl;
+
             if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
                 if(get_emission(hit_info.coord) > 0.5) {
-                    ray_color *= get_color(hit_info.coord) * 3000;
+                    ray_color *= get_color(hit_info.coord) * 5000;
                 } else {
-                    ray_color *= luma(get_sky_color(rayDir));
+                    ray_color *= luma(get_sky_color(rayDir)) * get_sky_brightness(hit_info.coord) * 1.5;
                 }
                 break;
             }
 
             Fragment hit_frag = fill_frag_struct(hit_info.coord);
             ray_color *= hit_frag.color;
+
+            origin_frag = hit_frag;
         }
 
         retColor += ray_color;
@@ -316,7 +322,7 @@ void main() {
     } else if(pixel.is_sky) {
         reflectedColor = get_sky_color(pixel.position) * 0.5;
     } else {
-        reflectedColor *= 1250; // For emissive blocks
+        reflectedColor *= 850; // For emissive blocks
     }
 
     gl_FragData[0] = vec4(reflectedColor, 1);
