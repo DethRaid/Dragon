@@ -304,7 +304,7 @@ vec3 doLightBounce(in Fragment pixel) {
             if(NoL > 0.0) {
                 rayDir = reflectDir;
 
-                float cosD = sqrt((dot(V, L) + 1.0f) * 0.5);
+                //float cosD = sqrt((dot(V, L) + 1.0f) * 0.5);
 
                 if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
                     if(get_emission(hit_info.coord) > 0.5) {
