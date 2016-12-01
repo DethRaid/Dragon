@@ -178,27 +178,27 @@ vec3 doToneMapping(in vec3 color) {
 void main() {
     vec3 color = vec3(0);
 #if MOTION_BLUR == ON
-    color = doMotionBlur();
+    //color = doMotionBlur();
 #else
     color = getColorSample(coord);
 #endif
 
 #if BLOOM == ON
-    doBloom(color);
+    //doBloom(color);
 #endif
 
     //color = texture2D(gdepth, coord).rgb;
 
-    color = correct_colors(color);
+    //color = correct_colors(color);
 
-    color = doToneMapping(color);
+    //color = doToneMapping(color);
 
-    contrastEnhance(color);
+    //contrastEnhance(color);
 
-    doFilmGrain(color);
+    //doFilmGrain(color);
 
 #if VINGETTE == ON
-    color -= vec3(vingetteAmt(coord));
+    //color -= vec3(vingetteAmt(coord));
 #endif
 
     gl_FragColor = vec4(color, 1);

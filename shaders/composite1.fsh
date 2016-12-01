@@ -249,6 +249,25 @@ vec3 fresnel(in vec3 f0, in float vdotn) {
     return f0 + (vec3(1.0) - f0) * pow(1.0 - vdotn, 5);
 }
 
+void importanceSampleCosDir(in vec2 u, in vec3 N, out vec3 L, out float NdotL, out float pdf) {
+//  Local  referencial
+    vec3  upVector = abs(N.z) < 0.999 ? vec3 (0,0,1) : vec3 (1,0,0);
+    vec3  tangentX = normalize( cross( upVector , N ) );
+    vec3  tangentY = cross( N, tangentX );
+    
+    float  u1 = u.x;
+    float  u2 = u.y;
+
+    float r = sqrt(u1);
+    float phi = u2 * PI * 2;
+
+    L = vec3(r*cos(phi), r*sin(phi), sqrt(max (0.0f,1.0f-u1)));
+    L = normalize(tangentX * L.y + tangentY * L.x + N * L.z);
+
+    NdotL = dot(L,N);
+    pdf = NdotL * (1.0 / PI);
+}
+
 vec3 doLightBounce(in Fragment pixel) {
     //Find where the ray hits
     //get the blur at that point
@@ -256,13 +275,15 @@ vec3 doLightBounce(in Fragment pixel) {
     vec3 retColor = vec3(0);
     vec3 hitColor = vec3(0);
 
+    vec3 rayDir = normalize(pixel.position);
+    HitInfo hit_info;
+
     RayResult rays[6];
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         vec3 ray_color = pixel.color;
-        vec3 rayDir = normalize(pixel.position);
-        HitInfo hit_info;
+        
         hit_info.position = pixel.position;
         hit_info.coord = coord;
 
@@ -274,37 +295,29 @@ vec3 doLightBounce(in Fragment pixel) {
 
             vec2 noise_seed = coord * (i + 1) + (b + 1);
             vec3 noiseSample = vec3(noise(noise_seed * 4), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
-            vec3 reflectDir = normalize(noiseSample + sample_normal);
+            vec3 L;
+            float NoL, pdf;
+            importanceSampleCosDir(noiseSample.xy, sample_normal, L, NoL, pdf);
+
+            vec3 reflectDir = normalize(L);
             reflectDir *= sign(dot(sample_normal, reflectDir));
-
-            if(origin_frag.metalness > 0.5) {
-                rayDir = reflect(rayDir, reflectDir);
-                ray_color *= origin_frag.specular_color;
-            } else {
+            if(NoL > 0.0) {
                 rayDir = reflectDir;
-            }
 
-            if(dot(rayDir, sample_normal) < 0.1) {
-                rayDir += sample_normal;
-                rayDir = normalize(rayDir);
-            }
+                float cosD = sqrt((dot(V, L) + 1.0f) * 0.5);
 
-            float ndotl = max(0, dot(rayDir, origin_frag.normal));
-            ray_color *= ndotl;
-
-            if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
-                if(get_emission(hit_info.coord) > 0.5) {
-                    ray_color *= get_color(hit_info.coord) * 5000;
-                } else {
-                    ray_color *= luma(get_sky_color(rayDir)) * get_sky_brightness(hit_info.coord) * 1.5;
+                if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
+                    if(get_emission(hit_info.coord) > 0.5) {
+                        ray_color *= get_color(hit_info.coord);
+                    }
+                    break;
                 }
-                break;
+
+                Fragment hit_frag = fill_frag_struct(hit_info.coord);
+                ray_color *= hit_frag.color;
+
+                origin_frag = hit_frag;
             }
-
-            Fragment hit_frag = fill_frag_struct(hit_info.coord);
-            ray_color *= hit_frag.color;
-
-            origin_frag = hit_frag;
         }
 
         retColor += ray_color;
@@ -320,9 +333,9 @@ void main() {
     if(!pixel.skipLighting) {
         reflectedColor = doLightBounce(pixel).rgb;
     } else if(pixel.is_sky) {
-        reflectedColor = get_sky_color(pixel.position) * 0.5;
+        //reflectedColor = get_sky_color(pixel.position) * 0.5;
     } else {
-        reflectedColor *= 850; // For emissive blocks
+        //reflectedColor *= 850; // For emissive blocks
     }
 
     gl_FragData[0] = vec4(reflectedColor, 1);

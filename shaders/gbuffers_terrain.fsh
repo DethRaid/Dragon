@@ -97,11 +97,11 @@ void main() {
     // blue = emissive
     // alpha = ao
     vec4 sData = texture2D(specular, coord);
-
+    /*
     float lumac = min(luma(texColor.rgb), 1.0);
     texColor += texColor * (1.0 - lumac) * 0.5;
     texColor /= 1.1;
-
+    */
     gl_FragData[0] = texColor;//vec4(vec3(sData.a), 1.0);
 
     //sky lighting, isSky, is_leaf, isWater
