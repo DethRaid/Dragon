@@ -178,7 +178,7 @@ vec3 doToneMapping(in vec3 color) {
 void main() {
     vec3 color = vec3(0);
 #if MOTION_BLUR == ON
-    //color = doMotionBlur();
+    color = doMotionBlur();
 #else
     color = getColorSample(coord);
 #endif
@@ -191,7 +191,7 @@ void main() {
 
     //color = correct_colors(color);
 
-    //color = doToneMapping(color);
+    color = doToneMapping(color);
 
     //contrastEnhance(color);
 
