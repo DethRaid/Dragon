@@ -76,13 +76,6 @@ struct HitInfo {
     vec2 coord;
 };
 
-struct RayResult {
-    HitInfo hit_info;
-    vec3 ray_dir;
-    vec3 ray_start;
-    bool hit;
-};
-
 #define DIFFUSE_INDEX           0
 #define DIFFUSE_DIFFUSE_INDEX   1
 #define DIFFUSE_SPECULAR_INDEX  2
@@ -245,27 +238,8 @@ float noise(in vec2 coord) {
     return fract(sin(dot(coord, vec2(12.8989, 78.233))) * 43758.5453);
 }
 
-vec3 fresnel(in vec3 f0, in float vdotn) {
-    return f0 + (vec3(1.0) - f0) * pow(1.0 - vdotn, 5);
-}
-
-void importanceSampleCosDir(in vec2 u, in vec3 N, out vec3 L, out float NdotL, out float pdf) {
-    //  Local  referencial
-    vec3  upVector = abs(N.z) < 0.999 ? vec3 (0,0,1) : vec3 (1,0,0);
-    vec3  tangentX = normalize(cross(upVector, N));
-    vec3  tangentY = cross(N, tangentX);
-
-    float  u1 = u.x;
-    float  u2 = u.y;
-
-    float r = sqrt(u1);
-    float phi = u2 * PI * 2;
-
-    L = vec3(r * cos(phi), r * sin(phi), sqrt(max (0.0f, 1.0f - u1)));
-    L = normalize(tangentX * L.y + tangentY * L.x + N * L.z);
-
-    NdotL = dot(L, N);
-    pdf = NdotL * (1.0 / PI);
+vec3 fresnel(in vec3 f0, in float vdoth) {
+    return f0 + (vec3(1.0) - f0) * pow(1.0 - vdoth, 5);
 }
 
 vec3 doLightBounce(in Fragment pixel) {
@@ -278,8 +252,6 @@ vec3 doLightBounce(in Fragment pixel) {
     vec3 rayDir = normalize(pixel.position);
     HitInfo hit_info;
 
-    RayResult rays[6];
-
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         vec3 ray_color = pixel.color;
@@ -291,13 +263,21 @@ vec3 doLightBounce(in Fragment pixel) {
         Fragment origin_frag = fill_frag_struct(coord);
 
         for(int b = 0; b < NUM_BOUNCES; b++) {
-            vec3 sample_normal = origin_frag.normal;
-            //vec3 fresnel = fresnel(origin_frag.specular_color, )
-
             vec2 noise_seed = coord * (i + 1) + (b + 1);
             vec3 noise_sample = vec3(noise(noise_seed * 4), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
-            vec3 reflectDir = normalize(noise_sample + sample_normal);
-            reflectDir *= sign(dot(sample_normal, reflectDir));
+            vec3 reflectDir = normalize(noise_sample + origin_frag.normal);
+            reflectDir *= sign(dot(origin_frag.normal, reflectDir));
+
+            vec3 view_vector = rayDir;
+            vec3 light_vector = -reflectDir;
+            vec3 half_vector = (view_vector + light_vector) * 0.5;
+            float vdoth = max(0, dot(rayDir, half_vector));
+            vec3 fresnel = fresnel(origin_frag.specular_color, vdoth);
+            return fresnel;
+
+            vec3 indirect_diffuse;
+            vec3 direct_diffuse;
+            vec3 specular;
 
             rayDir = reflectDir;
 
@@ -314,7 +294,7 @@ vec3 doLightBounce(in Fragment pixel) {
             ray_color *= hit_frag.color;
 
             origin_frag = hit_frag;
-            last_hit_coord = coord;
+            last_hit_coord = hit_info.coord;
         }
 
         retColor += ray_color;

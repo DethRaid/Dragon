@@ -191,7 +191,7 @@ void main() {
 
     //color = correct_colors(color);
 
-    color = doToneMapping(color);
+    gcolor = doToneMapping(color);
 
     //contrastEnhance(color);
 
