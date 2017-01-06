@@ -69,6 +69,7 @@ struct Fragment {
     bool is_sky;
     float metalness;
     float smoothness;
+    float roughness;
 };
 
 struct HitInfo {
@@ -160,9 +161,10 @@ Fragment fill_frag_struct(in vec2 coord) {
     Fragment pixel;
     pixel.position          = get_viewspace_position(coord);
     pixel.normal            = normal_tex_sample.xyz * 2.0 - 1.0;
-    pixel.color             = color_tex_sample.rgb;
     pixel.metalness         = gaux2_sample.b;
+    pixel.color             = mix(color_tex_sample.rgb, vec3(0.1), vec3(pixel.metalness));
     pixel.smoothness        = pow(gaux2_sample.a, 2.2);
+    pixel.roughness         = 1.0 - pixel.smoothness;
     pixel.skipLighting      = gaux2_sample.r > 0.5;
     pixel.specular_color    = mix(vec3(0.14), color_tex_sample.rgb, vec3(pixel.metalness));
     pixel.is_sky            = gaux3_sample.g > 0.5;
@@ -242,6 +244,20 @@ vec3 fresnel(in vec3 f0, in float vdoth) {
     return f0 + (vec3(1.0) - f0) * pow(1.0 - vdoth, 5);
 }
 
+vec3 calculate_noise_direction(in vec2 epsilon, in float roughness) {
+    float theta = atan(sqrt(roughness * roughness * epsilon.x / (1.0 - epsilon.x)));
+
+    float phi = 2 * PI * epsilon.y;
+
+    float sin_theta = sin(theta);
+
+    float x = cos(phi) * sin_theta;
+    float y = sin(phi) * sin_theta;
+    float z = cos(theta);
+
+    return vec3(x, y, z);
+}
+
 vec3 doLightBounce(in Fragment pixel) {
     //Find where the ray hits
     //get the blur at that point
@@ -271,31 +287,53 @@ vec3 doLightBounce(in Fragment pixel) {
             vec3 view_vector = rayDir;
             vec3 light_vector = -reflectDir;
             vec3 half_vector = (view_vector + light_vector) * 0.5;
+
             float vdoth = max(0, dot(rayDir, half_vector));
+            float ndotl = max(0, dot(origin_frag.normal, light_vector));
+
             vec3 fresnel = fresnel(origin_frag.specular_color, vdoth);
-            return fresnel;
 
-            vec3 indirect_diffuse;
-            vec3 direct_diffuse;
-            vec3 specular;
-
+            // Indirect diffuse ray
+            vec3 indirect_diffuse = origin_frag.color;
             rayDir = reflectDir;
-
             if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
                 if(get_emission(hit_info.coord) > 0.5) {
-                    ray_color *= get_color(hit_info.coord) * 2500;
+                    indirect_diffuse *= get_color(hit_info.coord) * 1000;
                 } else {
-                    ray_color *= luma(get_sky_color(rayDir)) * get_sky_brightness(last_hit_coord);
+                    indirect_diffuse *= get_sky_color(rayDir) * get_sky_brightness(last_hit_coord);
                 }
-                break;
+            } else {
+                Fragment hit_frag = fill_frag_struct(hit_info.coord);
+                origin_frag = hit_frag;
+                indirect_diffuse *= hit_frag.color;
             }
 
-            Fragment hit_frag = fill_frag_struct(hit_info.coord);
-            ray_color *= hit_frag.color;
+            // specular ray
+            vec2 epsilon = vec2(noise(noise_seed), noise(noise_seed * 3));
+            noise_sample = calculate_noise_direction(epsilon, origin_frag.roughness);
+            reflectDir = normalize(noise_sample * origin_frag.roughness / 8.0 + origin_frag.normal);
+            reflectDir *= sign(dot(origin_frag.normal, reflectDir));
+            rayDir = reflect(rayDir, reflectDir);
 
-            origin_frag = hit_frag;
+            vec3 specular = fresnel;
+            if(!cast_screenspace_ray(hit_info.position, rayDir, hit_info)) {
+                if(get_emission(hit_info.coord) > 0.5) {
+                    specular *= get_color(hit_info.coord) * 1000;
+                } else {
+                    specular *= get_sky_color(rayDir) * get_sky_brightness(last_hit_coord);
+                }
+            } else {
+                Fragment hit_frag = fill_frag_struct(hit_info.coord);
+                origin_frag = hit_frag;
+                specular *= hit_frag.color;
+            }
+
+            ray_color = mix(indirect_diffuse, specular, fresnel);
+
             last_hit_coord = hit_info.coord;
         }
+
+        //return specular;
 
         retColor += ray_color;
     }
@@ -312,7 +350,7 @@ void main() {
     } else if(pixel.is_sky) {
         reflectedColor = get_sky_color(pixel.position) * 0.5;
     } else {
-        reflectedColor *= 850; // For emissive blocks
+        reflectedColor *= 350; // For emissive blocks
     }
 
     gl_FragData[0] = vec4(reflectedColor, 1);
