@@ -44,7 +44,7 @@ const bool  shadowHardwareFiltering = false;
 const bool  shadowtexNearest        = true;
 const float	sunPathRotation 		= -40.0f;
 
-const int   noiseTextureResolution  = 64;
+const int   noiseTextureResolution  = 256;
 const int 	gdepthFormat			= RGB32F;
 const int	gnormalFormat			= RGB16F;
 
@@ -378,6 +378,12 @@ vec3 enhance(in vec3 color) {
     return mix(intensity, color, SKY_SATURATION);
 }
 
+vec3 calculate_stars(vec2 coord) {
+	float noise = max(0, get_3d_noise(coord).x);
+	float stars = pow(noise, 100) * 35;
+	return vec3(stars);
+}
+
 void main() {
     vec3 gi = vec3(0);
 
@@ -394,6 +400,7 @@ void main() {
 	sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);	// scattering from sun
 	sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);		// scattering from moon
 	//sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
+	sky_color += calculate_stars(coord);
 
 	sky_color = enhance(sky_color);
 

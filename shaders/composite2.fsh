@@ -2,7 +2,7 @@
 #extension GL_ARB_shader_texture_lod : enable
 
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_STEPS           30
+#define MAX_RAY_STEPS           50
 #define RAY_STEP_LENGTH         0.1
 #define RAY_DEPTH_BIAS          0.05
 #define RAY_GROWTH              1.05
@@ -18,7 +18,7 @@
 #define BECKMANN 1
 #define GGX 2
 
-#define SKEWING_FUNCTION GGX
+#define SKEWING_FUNCTION BECKMANN
 
 #define PI 3.14159
 
@@ -312,17 +312,12 @@ float calculate_microfacet_distribution(in vec3 halfVector, in vec3 normal, in f
  *
  * \return The color of the specular highlight at the current fragment
  */
-vec3 calculate_specaulr_highlight(
-    in vec3 lightVector,
-    in vec3 normal,
-    in vec3 fresnel,
-    in vec3 viewVector,
-    in float roughness) {
-
+vec3 calculate_specular_highlight(vec3 lightVector, vec3 normal, vec3 fresnel, vec3 viewVector, float roughness) {
+    float alpha = roughness * roughness;
     vec3 halfVector = normalize(lightVector + viewVector);
 
-    float geometryFactor = calculate_geometry_distribution(lightVector, viewVector, halfVector, roughness);
-    float microfacetDistribution = calculate_microfacet_distribution(halfVector, normal, roughness);
+    float geometryFactor = calculate_geometry_distribution(lightVector, viewVector, halfVector, alpha);
+    float microfacetDistribution = calculate_microfacet_distribution(halfVector, normal, alpha);
 
     float ldotn = max(0.01, dot(lightVector, normal));
     float vdotn = max(0.01, dot(viewVector, normal));
@@ -355,7 +350,6 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 hitColor = vec3(0);
 
     float roughness = 1.0 - pixel.smoothness;
-    roughness = pow(roughness * 0.8, 2);
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
@@ -363,7 +357,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
         vec3 noiseSample = calculate_noise_direction(epsilon, roughness);
         vec3 reflectDir = normalize(noiseSample * roughness / 8.0 + pixel.normal);
         reflectDir *= sign(dot(pixel.normal, reflectDir));
-        vec3 rayDir = reflect(normalize(pixel.position), reflectDir); //  * mix(1, 3, roughness);
+        vec3 rayDir = reflect(normalize(pixel.position), reflectDir);
 
         if(dot(rayDir, pixel.normal) < 0.1) {
             rayDir += pixel.normal;
@@ -391,7 +385,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
 
         vec3 fresnel = calculate_fresnel(pixel.specular_color, reflectDir, viewVector);
 
-        vec3 specularStrength = calculate_specaulr_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
+        vec3 specularStrength = calculate_specular_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
         //specularStrength = fresnel;
 
         retColor += mix(pixel.color, hitColor * specularStrength, fresnel * pixel.smoothness * pixel.smoothness);

@@ -12,7 +12,7 @@
 //                              Unchangable Variables                        //
 ///////////////////////////////////////////////////////////////////////////////
 const int   shadowMapResolution     = 4096;	// [1024 2048 4096]
-const int   noiseTextureResolution  = 64;
+const int   noiseTextureResolution  = 256;
 
 const float ambientOcclusionLevel   = 0.2;
 
@@ -581,10 +581,9 @@ vec3 raytrace_light(in vec2 coord) {
 		vec3 noise = get_3d_noise(coord * i);
 		vec3 ray_direction = normalize(noise * 0.35 + normal);
 		vec3 hit_uv = cast_screenspace_ray(position_viewspace, ray_direction);
-		hit_uv.z *= 0.5;
 
 		float ndotl = max(0, dot(normal, ray_direction));
-		float falloff = max(1, pow(hit_uv.z, 1));
+		float falloff = max(1, pow(hit_uv.z, 2));
 		float emission =  getEmission(hit_uv.st);
 		light += texture2D(gcolor, hit_uv.st).rgb * emission * ndotl / falloff;
 	}
@@ -622,12 +621,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
 }
 
 vec3 get_ambient_lighting(in Pixel pixel) {
-    vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
-    float specularPower = pow(10 * pixel.smoothness + 1, 2);  //yeah
-    vec3 specularColor = pixel.color * pixel.metalness + (1 - pixel.metalness) * vec3(0.2);
-    specularColor *= pixel.smoothness;
     vec3 sample_normal = pixel.normal;
-    //sample_normal.zy *= -1;
 
     const float sky_lod_level = 8;
 
@@ -647,7 +641,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sky_sample_6_pos = vec3(0, 0, -1);
     sky_diffuse += calc_lighting_from_direction(sky_sample_6_pos, sample_normal, pixel.metalness, sky_lod_level);
 
-    return sky_diffuse * mix(0.1, 1, getSkyLighting());
+    return sky_diffuse * getSkyLighting();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

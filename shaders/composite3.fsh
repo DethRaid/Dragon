@@ -4,7 +4,7 @@
 #define OFF 0
 #define ON 1
 
-#define FILTER_REFLECTIONS
+//#define FILTER_REFLECTIONS
 #define REFLECTION_FILTER_SIZE 2
 
 uniform sampler2D gdepthtex;
