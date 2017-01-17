@@ -39,7 +39,7 @@ void main() {
     // Previous ray batches
     vec3 previousColor = texture2D(composite, coord).rgb;
 
-    vec3 final_color = previousColor;//(color + previousColor) * 0.5;
+    vec3 final_color = (previousColor + color) * 0.5;//(color + previousColor) * 0.5;
 
     gl_FragData[0] = vec4(final_color, 1.0);
     gl_FragData[1] = vec4(1, 1, 1, 1.0);
