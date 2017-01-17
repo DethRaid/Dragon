@@ -256,8 +256,6 @@ vec3 doLightBounce(in Fragment pixel) {
     vec3 retColor = vec3(0);
     vec3 hitColor = vec3(0);
 
-    RayResult rays[6];
-
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
         vec3 ray_color = pixel.color;
