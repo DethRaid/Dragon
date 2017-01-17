@@ -53,7 +53,7 @@ varying vec2 coord;
 varying float floatTime;
 
 vec3 getColorSample(in vec2 coord) {
-    return texture2D(gdepth, coord).rgb;
+    return texture2D(gcolor, coord).rgb;
 }
 
 float luma(vec3 color) {

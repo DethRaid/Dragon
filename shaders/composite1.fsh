@@ -55,6 +55,7 @@ uniform float viewHeight;
 uniform float rainStrength;
 uniform vec3 upPosition;
 uniform vec3 sunVector;
+uniform float frameTimeCounter;
 
 varying vec3 lightVector;
 
@@ -74,13 +75,6 @@ struct Fragment {
 struct HitInfo {
     vec3 position;
     vec2 coord;
-};
-
-struct RayResult {
-    HitInfo hit_info;
-    vec3 ray_dir;
-    vec3 ray_start;
-    bool hit;
 };
 
 #define DIFFUSE_INDEX           0
@@ -268,9 +262,8 @@ vec3 doLightBounce(in Fragment pixel) {
 
         for(int b = 0; b < NUM_BOUNCES; b++) {
             vec3 sample_normal = origin_frag.normal;
-            //vec3 fresnel = fresnel(origin_frag.specular_color, )
 
-            vec2 noise_seed = coord * (i + 1) + (b + 1);
+            vec2 noise_seed = coord * (i + 1) + (b + 1) * frameTimeCounter;
             vec3 noiseSample = vec3(noise(noise_seed * 4), noise(noise_seed * 3), noise(noise_seed * 23)) * 2.0 - 1.0;
             vec3 reflectDir = normalize(noiseSample + sample_normal);
             reflectDir *= sign(dot(sample_normal, reflectDir));
