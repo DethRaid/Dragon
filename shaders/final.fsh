@@ -1,10 +1,20 @@
 #version 450
 
+const bool colortex7MipmapEnabled = true;
+
 uniform sampler2D colortex0;
 uniform sampler2D colortex1;
 uniform sampler2D colortex2;
 
+uniform sampler2D colortex4;
+uniform sampler2D colortex5;
+uniform sampler2D colortex6;
+uniform sampler2D colortex7;
+
 in vec2 coord;
+
+uniform float viewWidth;
+uniform float viewHeight;
 
 layout(location=0) out vec4 finalColor;
 
@@ -35,9 +45,18 @@ vec3 correct_colors(in vec3 color) {
     return color * vec3(0.425, 0.9, 0.9);
 }
 
+vec3 get_bloom() {
+    vec2 half_texel = vec2(0.5) / vec2(viewWidth, viewHeight);
+    vec2 bloom_coord = coord - half_texel;
+    return texture(colortex7, bloom_coord, 0).rgb
+         + 0.5 * texture(colortex7, bloom_coord, 2).rgb
+         + 0.25 * texture(colortex7, bloom_coord, 4).rgb
+         + 0.125 * texture(colortex7, bloom_coord, 6).rgb;
+}
+
 void main() {
-    vec3 color = texture(colortex1, coord).rgb;
-    color = correct_colors(color);
+    vec3 color = texture(colortex0, coord).rgb;
+    //color = correct_colors(color);
     color = tonemap(color);
     finalColor = vec4(color, 1.0);
 }

@@ -11,12 +11,10 @@ in vec2 uv;
 in mat3 tbn_matrix;
 in vec3 normal;
 
+layout(location = 0) out vec4 frag_color;
+layout(location = 1) out vec3 frag_normal;
+
 void main() {
-    vec4 frag_color = texture(tex, uv) * color;
-    gl_FragData[0] = frag_color;
-
-    //vec3 texnormal = texture(normal, uv).xyz * 2.0 - 1.0;
-    //vec3 texnormal = normalize(tbn_matrix * normal);
-
-    gl_FragData[1] = vec4(normal * 0.5 + 0.5, 1.0);
+    frag_color = texture(tex, uv) * color;
+    frag_normal = normal * 0.5 + 0.5;
 }

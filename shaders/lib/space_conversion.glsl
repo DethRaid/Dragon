@@ -3,6 +3,7 @@
 
 #line 1005
 
+uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
 uniform vec3 cameraPosition;
@@ -30,6 +31,12 @@ vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
 	vec4 pos = gbufferModelViewInverse * position_viewspace;
     pos.xyz += cameraPosition;
 	return pos;
+}
+
+vec2 get_coord_from_viewspace(in vec4 position) {
+    vec4 ndc_position = gbufferProjection * position;
+    ndc_position /= ndc_position.w;
+    return ndc_position.xy * 0.5 + 0.5;
 }
 
 #endif
