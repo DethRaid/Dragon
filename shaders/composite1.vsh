@@ -21,6 +21,6 @@ void main() {
     gl_Position = ftransform();
     coord = gl_MultiTexCoord0.st;
     
-    sun_direction_worldspace = normalize(viewspace_to_worldspace(vec4(sunPosition, 0)).xyz);
+    sun_direction_worldspace = normalize(viewspace_to_worldspace(vec4(sunPosition, 0)).xyz - cameraPosition);
     light_direction_viewspace = normalize(shadowLightPosition);
 }

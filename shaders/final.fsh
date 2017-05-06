@@ -1,5 +1,8 @@
 #version 450
 
+#define SATURATION 1.5
+#define CONTRAST 1.0
+
 const bool colortex7MipmapEnabled = true;
 
 uniform sampler2D colortex0;
@@ -36,13 +39,30 @@ vec3 uncharted_tonemap(in vec3 color, in float W) {
     return curr * white_scale;
 }
 
+vec3 reinhartd_tonemap(in vec3 color, in float W) {
+    return color / (color + vec3(W));
+}
+
 vec3 tonemap(in vec3 color) {
-    float white_level = 11.5;
-    return uncharted_tonemap(color / 75, white_level);
+    float white_level = 50;
+    //return uncharted_tonemap(color / 75, white_level);
+    return reinhartd_tonemap(color / white_level, 1);
 }
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.425, 0.9, 0.9);
+    return color * vec3(0.9, 1.0, 1.0);
+}
+
+float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+vec3 contrast_enhance(inout vec3 color) {
+    vec3 intensity = vec3(luma(color));
+
+    vec3 satColor = mix(intensity, color, SATURATION);
+    vec3 conColor = mix(vec3(0.5, 0.5, 0.5), satColor, CONTRAST);
+    return conColor;
 }
 
 vec3 get_bloom() {
@@ -56,7 +76,8 @@ vec3 get_bloom() {
 
 void main() {
     vec3 color = texture(colortex0, coord).rgb;
-    //color = correct_colors(color);
+    color = correct_colors(color);
     color = tonemap(color);
+    color = contrast_enhance(color);
     finalColor = vec4(color, 1.0);
 }

@@ -134,10 +134,8 @@ vec3 get_gi(in vec2 gi_coord) {
             normal_point = mat3(shadowModelViewInverse) * normal_point;
             vec3 np = normalize(normal_point);
 
-            vec2 light_hitting_p_pos = get_sky_coord(sun_direction_worldspace);
-            vec3 light_hitting_p = texture(colortex2, light_hitting_p_pos, 9).rgb;
             vec3 p_albedo = texture(shadowcolor0, shadow_coord.st + offset).rgb;
-            vec3 flux = light_hitting_p * p_albedo * max(0, dot(np, sun_direction_worldspace));
+            vec3 flux = p_albedo * max(0, dot(np, sun_direction_worldspace));
 
             vec3 dir = x - xp;
             e += flux * max(0, dot(np, dir)) * max(0, dot(n, -dir)) / pow(length(dir), 2);

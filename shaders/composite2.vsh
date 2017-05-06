@@ -25,6 +25,7 @@ void main() {
     coord = gl_MultiTexCoord0.st;
     
     light_direction_viewspace = normalize(shadowLightPosition);
-    sun_coord = get_sky_coord(viewspace_to_worldspace(vec4(light_direction_viewspace, 1)).xyz);
+    vec3 sun_direction_worldspace = normalize(viewspace_to_worldspace(vec4(shadowLightPosition, 0)).xyz);
+    sun_coord = get_sky_coord(sun_direction_worldspace);
     light_color = texture(colortex2, sun_coord).rgb;
 }
