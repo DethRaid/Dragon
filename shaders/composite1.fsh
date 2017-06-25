@@ -25,7 +25,7 @@ const int gdepthFormat  = RGB32F;
 #define NUM_VL_SAMPLES          15
 #define ATMOSPHERIC_DENSITY     0.005
 
-#define GI_FILTER_SIZE_HALF     15
+#define GI_FILTER_SIZE_HALF     20
 
 #define CLOUD_PLANE_START       128
 #define CLOUD_PLANE_END         160
@@ -84,7 +84,7 @@ vec4 get_atmosphere(in vec2 vl_coord) {
     ray_pos += ray_delta;
 
     for(int i = 0; i < NUM_VL_SAMPLES; i++) {
-        vec3 light_amount = get_shadow_color(ray_pos);
+        vec3 light_amount = get_shadow_color(ray_pos, coord);
         vl_color += light_amount;
 
         ray_pos += ray_delta;

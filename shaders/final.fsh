@@ -1,6 +1,6 @@
 #version 450
 
-#define SATURATION 1.5
+#define SATURATION 1.75
 #define CONTRAST 1.0
 
 const bool colortex7MipmapEnabled = true;
@@ -50,7 +50,7 @@ vec3 tonemap(in vec3 color) {
 }
 
 vec3 correct_colors(in vec3 color) {
-    return color * vec3(0.9, 1.0, 1.0);
+    return color * vec3(1.0, 1.0, 0.785);
 }
 
 float luma(vec3 color) {
@@ -76,8 +76,10 @@ vec3 get_bloom() {
 
 void main() {
     vec3 color = texture(colortex0, coord).rgb;
+    //color = texture(colortex1, coord * 0.5 + vec2(0, 0.5)).rgb;
     color = correct_colors(color);
     color = tonemap(color);
     color = contrast_enhance(color);
     finalColor = vec4(color, 1.0);
+
 }
