@@ -1,11 +1,9 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
+
 //Adjustable variables. Tune these for performance
-#define MAX_RAY_STEPS           50
-#define RAY_STEP_LENGTH         0.1
-#define RAY_DEPTH_BIAS          0.05
-#define RAY_GROWTH              1.05
+#define REFLECTION_QUALITY      16 // [10 16 32 64]
 #define NUM_RAYS                4  // [4 8 16 64 256 1024]
 
 //#define DITHER_REFLECTION_RAYS
@@ -30,6 +28,7 @@ const bool compositeMipmapEnabled   = true;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
+uniform sampler2D depthtex0;
 uniform sampler2D gdepth;
 uniform sampler2D gnormal;
 uniform sampler2D composite;
@@ -63,6 +62,10 @@ uniform float rainStrength;
 varying vec3 lightVector;
 
 varying vec2 coord;
+
+#include "/lib/raytracer.glsl"
+
+#line 71
 
 struct Pixel1 {
     vec3 position;
@@ -178,47 +181,6 @@ float calculateDitherPattern() {
     int dither = ditherPattern[int(count.x) + int(count.y) * 8];
 
     return float(dither) / 64.0f;
-}
-
-//Determines the UV coordinate where the ray hits
-//If the returned value is not in the range [0, 1] then nothing was hit.
-//NOTHING!
-//Note that origin and direction are assumed to be in screen-space coordinates, such that
-//  -origin.st is the texture coordinate of the ray's origin
-//  -direction.st is of such a length that it moves the equivalent of one texel
-//  -both origin.z and direction.z correspond to values raw from the depth buffer
-vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
-    vec3 curPos = origin;
-    vec2 curCoord = get_coord_from_viewspace(vec4(curPos, 1));
-    direction = normalize(direction) * RAY_STEP_LENGTH;
-    #ifdef DITHER_REFLECTION_RAYS
-        direction *= mix(0.75, 1.0, calculateDitherPattern());
-    #endif
-    bool forward = true;
-    bool can_collect = true;
-
-    //The basic idea here is the the ray goes forward until it's behind something,
-    //then slowly moves forward until it's in front of something.
-    for(int i = 0; i < MAX_RAY_STEPS; i++) {
-        curPos += direction;
-        curCoord = get_coord_from_viewspace(vec4(curPos, 1));
-        if(curCoord.x < 0 || curCoord.x > 1 || curCoord.y < 0 || curCoord.y > 1) {
-            //If we're here, the ray has gone off-screen so we can't reflect anything
-            return vec3(-1);
-        }
-        vec3 worldDepth = get_viewspace_position(curCoord);
-        float depthDiff = (worldDepth.z - curPos.z);
-        float maxDepthDiff = sqrt(dot(direction, direction)) + RAY_DEPTH_BIAS;
-        if(depthDiff > 0 && depthDiff < maxDepthDiff) {
-            vec3 travelled = origin - curPos;
-            return vec3(curCoord, sqrt(dot(travelled, travelled)));
-            direction = -1 * normalize(direction) * 0.15;
-            forward = false;
-        }
-        direction *= RAY_GROWTH;
-    }
-    //If we're here, we couldn't find anything to reflect within the alloted number of steps
-    return vec3(-1);
 }
 
 vec3 get_reflected_sky(in Pixel1 pixel) {
@@ -350,6 +312,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
     vec3 hitColor = vec3(0);
 
     float roughness = 1.0 - pixel.smoothness;
+    vec3 clipPosition = toClipSpace(pixel.position.xyz);
 
     //trace the number of rays defined previously
     for(int i = 0; i < NUM_RAYS; i++) {
@@ -364,12 +327,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
             rayDir = normalize(rayDir);
         }
 
-        vec3 hitUV = cast_screenspace_ray(pixel.position, rayDir);
-
-        if(hitUV.z < RAY_STEP_LENGTH * 2) {
-            // If the ray is pointing into the object, just sample the sky and be done with it
-            hitUV.s = 100;
-        }
+        vec3 hitUV = rayTrace(rayDir, pixel.position, clipPosition, REFLECTION_QUALITY);
 
         if(hitUV.s > -0.1 && hitUV.s < 1.1 && hitUV.t > -0.1 && hitUV.t < 1.1) {
             hitColor = texture2DLod(composite, hitUV.st, 0).rgb;
@@ -384,6 +342,7 @@ vec3 doLightBounce(in Pixel1 pixel) {
         vec3 viewVector = normalize(pixel.position);
 
         vec3 fresnel = calculate_fresnel(pixel.specular_color, reflectDir, viewVector);
+        fresnel = vec3(1);
 
         vec3 specularStrength = calculate_specular_highlight(rayDir, pixel.normal, fresnel, viewVector, roughness);
         //specularStrength = fresnel;
