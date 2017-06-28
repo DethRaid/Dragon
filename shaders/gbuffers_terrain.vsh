@@ -28,7 +28,23 @@ void main() {
     normal = normalize(gl_NormalMatrix * gl_Normal);
 
     is_leaf = 0;
-    if(mc_Entity.x == 18) {
+    if(mc_Entity.x == 18    // leaves
+    || mc_Entity.x == 6     // saplings
+    || mc_Entity.x == 31    // grass
+    || mc_Entity.x == 38    // flowers
+    || mc_Entity.x == 39    // brown mushroom
+    || mc_Entity.x == 40    // red mushroom
+    || mc_Entity.x == 59    // wheat
+    || mc_Entity.x == 83    // sugar cane
+    || mc_Entity.x == 106   // vines
+    || mc_Entity.x == 111   // lilly pad
+    || mc_Entity.x == 115   // nether wart
+    || mc_Entity.x == 141   // carrots
+    || mc_Entity.x == 142   // potatoes
+    || mc_Entity.x == 161   // more leaves
+    || mc_Entity.x == 175   // more flowers and grasses
+    || mc_Entity.x == 207   // beetroot block
+    ) {
         is_leaf = 1.0;
     }
 

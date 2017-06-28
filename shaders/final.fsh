@@ -1,8 +1,8 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define SATURATION 0.9
-#define CONTRAST 0.9
+#define SATURATION 1
+#define CONTRAST 1.01
 
 #define OFF     0
 #define ON      1
@@ -177,8 +177,8 @@ vec3 doToneMapping(in vec3 color) {
     vec3 blurred_color = texture2DLod(gcolor, coord, 10).rgb;
     float luma = luma(blurred_color);
     float luma_log = max(log(luma) * 1.5, 0.5);
-    luma_log = 11.5;
-    return uncharted_tonemap(color / 75, luma_log);
+    luma_log = 12;
+    return uncharted_tonemap(color / 125, luma_log);
 }
 
 void main() {

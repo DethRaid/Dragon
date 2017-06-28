@@ -25,15 +25,16 @@ vec3 getNoiseTexSample(in vec2 coord) {
     return texture2D(noisetex, coord).xyz;
 }
 
-vec3 getSingleWave(in vec2 samplePos, in float rotationAmount, in vec2 scale, in float speed) {
-    samplePos += vec2(frameTimeCounter * speed * WAVE_SPEED);
+vec3 get_wave_normal(in vec3 pos, in float steepness, in float amplitude, in vec2 direction, in float frequency, in float phase) {
+    float c = cos(frequency * dot(direction, pos.xz) + phase * frameTimeCounter);
+    float s = cos(frequency * dot(direction, pos.xz) + phase * frameTimeCounter);
+    float wa = frequency * amplitude;
 
-    mat2 rotationMat = mat2(
-        cos(rotationAmount), -sin(rotationAmount),
-        sin(rotationAmount), cos(rotationAmount)
-    );
+    float x = direction.x * wa * c;
+    float z = direction.y * wa * c;
+    float y = steepness * wa * s;
 
-    return getNoiseTexSample(rotationMat * samplePos * scale);
+    return vec3(x, y, z);
 }
 
 vec3 getWaveNormal() {
@@ -42,12 +43,12 @@ vec3 getWaveNormal() {
     float windAmount = getWindAmount(pos);
 
     // Take a bunch of wave smples, fading in the smaller ones when there's more wind
-    vec3 wave1 = getSingleWave(sampleCoord, -0.2, vec2(1, 100), 1.0);// * (windAmount * 5 / WIND_STRENGTH);
-    vec3 wave6 = getSingleWave(sampleCoord, 0.2, vec2(1, 100), 1.0);// * (windAmount * 5 / WIND_STRENGTH);
-    vec3 wave2 = getSingleWave(sampleCoord, 0.3, vec2(2.5, 259), 1.9) * min((windAmount * 2.5 / WIND_STRENGTH), 1.0);
-    vec3 wave3 = getSingleWave(sampleCoord, -0.15, vec2(2.3, 260), 2.1) * min((windAmount * 1.25 / WIND_STRENGTH), 1.0);
-    vec3 wave4 = getSingleWave(sampleCoord, 0.25, vec2(5, 510), 4.0) * min((windAmount * 0.75 / WIND_STRENGTH), 1.0);
-    vec3 wave5 = getSingleWave(sampleCoord, -0.23, vec2(1, 10), 4.2) * min((windAmount * 0.375 / WIND_STRENGTH), 1.0);
+    vec3 wave1 = get_wave_normal(pos, -0.2,  0.005,  vec2(1, 100),   1.0, 1.15);// * (windAmount * 5 / WIND_STRENGTH);
+    vec3 wave6 = get_wave_normal(pos, 0.2,   0.0025, vec2(1, 100),   1.0, 1.75);// * (windAmount * 5 / WIND_STRENGTH);
+    vec3 wave2 = get_wave_normal(pos, 0.3,   0.005,  vec2(2.5, 259), 1.9, 1.35) * min((windAmount * 2.5 / WIND_STRENGTH), 1.0);
+    vec3 wave3 = get_wave_normal(pos, -0.15, 0.005,  vec2(2.3, 260), 2.1, 1.45) * min((windAmount * 1.25 / WIND_STRENGTH), 1.0);
+    vec3 wave4 = get_wave_normal(pos, 0.25,  0.0025, vec2(5, 510),   4.0, 1.4) * min((windAmount * 0.75 / WIND_STRENGTH), 1.0);
+    vec3 wave5 = get_wave_normal(pos, -0.23, 0.005,  vec2(1, 10),    4.2, 1.56) * min((windAmount * 0.375 / WIND_STRENGTH), 1.0);
 
     //newNormal.xz *= 0.01;
     newNormal = wave1 + wave6 +  wave2 + wave3 + wave4 + wave5;

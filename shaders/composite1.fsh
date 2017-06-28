@@ -492,20 +492,23 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 sky_specular = vec3(0);
     if(!pixel.is_leaf) {
         sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
-
-        // Calculate specular light from the sky
-        // Get the specular component blurred by the pixel's roughness
-        vec3 specular_direction = reflect(viewVector, pixel.normal);
-        specular_direction *= -1;
-
-        vec3 half_vector = normalize(specular_direction + viewVector);
-        float vdoth = dot(viewVector, half_vector);
-        vdoth = max(0, vdoth);
-        vec3 fresnel_color = fresnel(specularColor, vdoth);
-
-        float specular_normalization = specularPower * 0.125 + 0.25;
-        sky_specular = fresnel_color * pixel.smoothness;
+    } else {
+        sun_lighting = calc_lighting_from_direction(light_vector_worldspace, vec3(0, 1, 0), pixel.metalness, 3) * 0.5;
     }
+
+    // Calculate specular light from the sky
+    // Get the specular component blurred by the pixel's roughness
+    vec3 specular_direction = reflect(viewVector, pixel.normal);
+    specular_direction *= -1;
+
+    vec3 half_vector = normalize(specular_direction + viewVector);
+    float vdoth = dot(viewVector, half_vector);
+    vdoth = max(0, vdoth);
+    vec3 fresnel_color = fresnel(specularColor, vdoth);
+
+    float specular_normalization = specularPower * 0.125 + 0.25;
+    sky_specular = fresnel_color * pixel.smoothness;
+
 
     float slope_shadow_bias = max(0, dot(pixel.normal, light_vector_worldspace)) * 0.5;
     pixel.shadow = calc_shadowing(pixel.position, slope_shadow_bias);

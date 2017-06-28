@@ -291,14 +291,14 @@ float pNoise(vec2 p, int res){
  *
  * \param coord The UV coordinate to render to
  */
-vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_intensity) {
+vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_intensity, bool show_light) {
     vec3 light_vector_worldspace = normalize(viewspace_to_worldspace(vec4(light_vector, 0.0)).xyz);
 
     float alpha = max(dot(eye_vector, light_vector_worldspace), 0.0);
 
     float rayleigh_factor = phase(alpha, -0.01) * RAYLEIGH_BRIGHTNESS;
     float mie_factor = phase(alpha, MIE_DISTRIBUTION) * MIE_BRIGHTNESS;
-    float spot = smoothstep(0.0, 15.0, phase(alpha, 0.9995)) * light_intensity;
+    float spot = show_light ? smoothstep(0.0, 15.0, phase(alpha, 0.9995)) * light_intensity : 0;
 
     vec3 eye_position = vec3(0.0, SURFACE_HEIGHT, 0.0);
     float eye_depth = atmospheric_depth(eye_position, eye_vector);
@@ -376,16 +376,28 @@ void main() {
     vec3 gi = vec3(0);
 
     vec2 gi_coord = coord * 2.0;
-    if(gi_coord.x < 1 && gi_coord.y < 1) {
+    if(gi_coord.x <= 1 && gi_coord.y <= 1) {
     	vec4 position_viewspace = get_viewspace_position(gi_coord);
         vec3 normal_viewspace = get_normal(gi_coord);
         gi = calculate_gi(gi_coord, position_viewspace, normal_viewspace);
+
+    } else if(gi_coord.y <= 1) {
+        // Create a sky at half res to use for sky lighting
+        vec2 sky_coord = coord * 2.0 - vec2(1, 0);
+
+        vec3 eye_vector = get_eye_vector(sky_coord).xzy;
+        gi += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, false);    // scattering from sun
+        gi += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, false);        // scattering from moon
+        //sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
+        gi += calculate_stars(sky_coord);
+
+        gi = enhance(gi);
     }
 
     vec3 sky_color = vec3(0);
     vec3 eye_vector = get_eye_vector(coord).xzy;
-    sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS);    // scattering from sun
-    sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS);        // scattering from moon
+    sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, true);    // scattering from sun
+    sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, true);        // scattering from moon
     //sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
     sky_color += calculate_stars(coord);
 

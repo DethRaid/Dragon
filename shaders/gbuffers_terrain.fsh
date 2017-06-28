@@ -11,6 +11,8 @@ uniform sampler2D normals;
 uniform sampler2D specular;
 uniform sampler2D lightmap;
 
+uniform mat4 gbufferModelView;
+
 varying vec4 color;
 varying vec2 uv;
 varying vec2 uvLight;
@@ -108,7 +110,6 @@ void main() {
     gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
 
     vec3 texnormal = texture2D(normals, coord).xyz * 2.0 - 1.0;
-
     texnormal = normalize(tbnMatrix * texnormal);
 
     //normal, junk
