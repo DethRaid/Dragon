@@ -773,7 +773,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    return gi;//(pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
+    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
 
 float luma(in vec3 color) {

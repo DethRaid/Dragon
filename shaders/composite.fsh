@@ -8,28 +8,28 @@
 #define GLOBAL_ILLUMINATION
 
 // GI variables
-#define GI_SAMPLE_RADIUS 5
-#define GI_QUALITY 0    // [2 4 8 16]
+#define GI_SAMPLE_RADIUS 25
+#define GI_QUALITY 2    // [2 4 8 16]
 
 // Sky options
-#define RAYLEIGH_BRIGHTNESS            3.3
-#define MIE_BRIGHTNESS                 0.1
-#define MIE_DISTRIBUTION             0.63
-#define STEP_COUNT                     15.0
+#define RAYLEIGH_BRIGHTNESS         3.3
+#define MIE_BRIGHTNESS              0.1
+#define MIE_DISTRIBUTION            0.63
+#define STEP_COUNT                  15.0
 #define SCATTER_STRENGTH            0.028
-#define RAYLEIGH_STRENGTH            0.139
+#define RAYLEIGH_STRENGTH           0.139
 #define MIE_STRENGTH                0.0264
-#define RAYLEIGH_COLLECTION_POWER    0.81
+#define RAYLEIGH_COLLECTION_POWER	0.81
 #define MIE_COLLECTION_POWER        0.39
 
-#define SUNSPOT_BRIGHTNESS            500
-#define MOONSPOT_BRIGHTNESS            25
+#define SUNSPOT_BRIGHTNESS          500
+#define MOONSPOT_BRIGHTNESS         25
 
-#define SKY_SATURATION                1.5
+#define SKY_SATURATION              1.5
 
-#define SURFACE_HEIGHT                0.98
+#define SURFACE_HEIGHT              0.98
 
-#define CLOUDS_START                 512
+#define CLOUDS_START                512
 
 #define PI 3.14159
 
@@ -141,9 +141,7 @@ float get_leaf(in vec2 coord) {
  */
 
 vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_viewspace) {
-    float NdotL = dot(normal_viewspace, lightVector);
-
-    vec3 blocknormal_shadowspace = normalize(mat3(shadowProjection) * (mat3(shadowModelView) * (mat3(gbufferModelViewInverse) * normal_viewspace)));
+    vec3 blocknormal_shadowspace = mat3(shadowProjection) * (mat3(shadowModelView) * (mat3(gbufferModelViewInverse) * normal_viewspace));
 
     vec4 blockposition_shadowspace = worldspace_to_shadowspace(viewspace_to_worldspace(position_viewspace));
     blocknormal_shadowspace.z *= -1;
@@ -171,9 +169,9 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             vec3 sample_dir                     = normalize(blockposition_shadowspace.xyz - sample_pos.xyz);
             vec3 shadownormal_shadowspace       = texture2DLod(shadowcolor1, shadow_sample_coord, 0).xyz * 2.0 - 1.0;
 
-            vec3 light_strength                 = vec3(max(0, dot(shadownormal_shadowspace, vec3(0, 1, 0))));
-            float transmitted_light_strength	= max(0.0, dot(shadownormal_shadowspace, -sample_dir));
-            float received_light_strength       = max(0.0, dot(blocknormal_shadowspace, sample_dir));
+            vec3 light_strength                 = vec3(clamp(dot(shadownormal_shadowspace, vec3(0, 0, 1)), 0, 1));
+            float transmitted_light_strength	= clamp(dot(shadownormal_shadowspace, -sample_dir), 0.0, 1.0);
+            float received_light_strength       = clamp(dot(blocknormal_shadowspace, sample_dir), 0.0, 1.0);
 
             float falloff                       = length(blockposition_shadowspace.xyz - sample_pos.xyz);
             falloff                             = pow(falloff, 4);
@@ -183,7 +181,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             vec3 flux = sample_color * light_strength;
 
             light += flux * transmitted_light_strength * received_light_strength / falloff;
-            //light += sample_dir;
+            //light += sample_color;
         }
     }
 
@@ -386,8 +384,8 @@ void main() {
     vec3 gi = vec3(0);
 
     vec2 gi_coord = coord * 2.0;
-    vec4 position_viewspace = get_viewspace_position(gi_coord);
     if(gi_coord.x < 1 && gi_coord.y < 1) {
+    	vec4 position_viewspace = get_viewspace_position(gi_coord);
         vec3 normal_viewspace = get_normal(gi_coord);
         gi = calculate_gi(gi_coord, position_viewspace, normal_viewspace);
     }
