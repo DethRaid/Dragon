@@ -4,6 +4,12 @@
 
 attribute vec4 mc_Entity;
 
+uniform mat4 gbufferModelViewInverse;
+
+uniform vec3 cameraPosition;
+
+uniform float frameTimeCounter;
+
 varying vec4 color;
 varying vec2 uv;
 varying vec3 normal;
@@ -37,6 +43,17 @@ float getIsTransparent(in float materialId) {
     return 0.0;
 }
 
+vec3 get_wave_displacement(in vec3 pos, in float steepness, in float amplitude, in vec2 direction, in float frequency, in float phase) {
+    float qa = steepness * amplitude;
+    float dot_factor = dot(frequency * direction, pos.xz) + phase * frameTimeCounter;
+    float cos_factor = cos(dot_factor) * qa;
+    float x = direction.x * cos_factor;
+    float z = direction.y * cos_factor;
+    float y = amplitude * sin(dot_factor);
+
+    return vec3(x, y + amplitude, z);
+}
+
 void main() {
     gl_Position = ftransform();
 
@@ -57,5 +74,14 @@ void main() {
     isTransparent = getIsTransparent(mc_Entity.x);
 
     if(mc_Entity.x == 8.0 || mc_Entity.x == 9.0) {     // water
+        vec4 position = gl_ModelViewMatrix * gl_Vertex;
+        vec4 viewPos = gbufferModelViewInverse * position;
+        vec3 worldPos = viewPos.xyz + cameraPosition;
+        vec3 displacement = get_wave_displacement(worldPos, 0.25, 0.05, vec2(1, 0), 1, 1.5);
+            displacement += get_wave_displacement(worldPos, 0.25, 0.05, vec2(0.5, 0.5), 1, 1.75);
+            displacement += get_wave_displacement(worldPos, 0.25, 0.05, vec2(0.1, 0.5), 1, 1.25);
+            displacement += get_wave_displacement(worldPos, 0.25, 0.05, vec2(0.5, 0.1), 1, 1.45);
+        viewPos.xyz += displacement;
+        viewPos.z -= 0.05;
     }
 }

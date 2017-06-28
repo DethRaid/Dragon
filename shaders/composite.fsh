@@ -8,8 +8,8 @@
 #define GLOBAL_ILLUMINATION
 
 // GI variables
-#define GI_SAMPLE_RADIUS 7.5
-#define GI_QUALITY 2	// [2 4 8 16]
+#define GI_SAMPLE_RADIUS 5
+#define GI_QUALITY 0	// [2 4 8 16]
 
 // Sky options
 #define RAYLEIGH_BRIGHTNESS			3.3
@@ -110,7 +110,7 @@ vec4 viewspace_to_worldspace(in vec4 position_viewspace) {
 
 vec4 worldspace_to_shadowspace(in vec4 position_worldspace) {
 	vec4 pos = shadowProjection * shadowModelView * position_worldspace;
-	return pos /= pos.w;
+	return pos / pos.w;
 }
 
 vec3 calcShadowCoordinate(in vec4 pixelPos) {
@@ -140,15 +140,16 @@ float get_leaf(in vec2 coord) {
  * Calculates bounced diffuse light
  */
 
-vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) {
- 	float NdotL = dot(normal, lightVector);
+vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_viewspace) {
+ 	float NdotL = dot(normal_viewspace, lightVector);
 
- 	normal = normalize(mat3(gbufferModelViewInverse) * normal);
+ 	vec3 blocknormal_shadowspace = normalize(mat3(shadowProjection) * (mat3(shadowModelView) * (mat3(gbufferModelViewInverse) * normal_viewspace)));
 
- 	vec4 position = viewspace_to_worldspace(position_viewspace);
-    position.xyz += cameraPosition;
+ 	vec4 blockposition_shadowspace = worldspace_to_shadowspace(viewspace_to_worldspace(position_viewspace));
+	 blocknormal_shadowspace.z *= -1;
+
     vec3 shadowmap_coord = calcShadowCoordinate(position_viewspace);
-
+	
  	vec3 light = vec3(0.0);
  	int samples	= 0;
 
@@ -156,37 +157,33 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  	for(int y = -GI_QUALITY; y <= GI_QUALITY; y++) {
 	 	for(int x = -GI_QUALITY; x <= GI_QUALITY; x++) {
-	 		vec2 offset = vec2(x, y) * GI_SAMPLE_RADIUS;
+	 		vec2 offset 						= vec2(x, y) * GI_SAMPLE_RADIUS;
 	 		//offset += get_3d_noise(offset).xy * 25;
             offset.x += 1.0;
 	 		offset /= 2 * shadowMapResolution;
 
-			shadowmap_coord.xy += offset;
+			vec2 shadow_sample_coord = shadowmap_coord.xy + offset;
 
-            float shadow_depth = texture2DLod(shadowtex1, shadowmap_coord.st, 0).x;
+            float shadow_depth 					= texture2DLod(shadowtex1, shadow_sample_coord, 0).x;
 
-	 		vec4 sample_pos = vec4(vec3(shadowmap_coord.st, shadow_depth) * 2.0 - 1.0, 1.0);
-            sample_pos      = shadowModelViewInverse * shadowProjectionInverse * sample_pos;
-            sample_pos     /= sample_pos.w;
-            sample_pos.xyz += cameraPosition;
+	 		vec4 sample_pos 					= vec4(vec3(shadow_sample_coord, shadow_depth) * 2.0 - 1.0, 1.0);
 
-	 		vec3 sample_dir      = normalize(position.xyz - sample_pos.xyz);
-	 		vec3 normal_shadow	 = texture2DLod(shadowcolor1, shadowmap_coord.st, 0).xyz * 2.0 - 1.0;
-            normal_shadow        = mat3(shadowModelViewInverse) * normal_shadow;
+	 		vec3 sample_dir      				= normalize(blockposition_shadowspace.xyz - sample_pos.xyz);
+	 		vec3 shadownormal_shadowspace	 	= texture2DLod(shadowcolor1, shadow_sample_coord, 0).xyz * 2.0 - 1.0;
 
-	        vec3 light_strength              = vec3(max(0, dot(normal_shadow, vec3(0, 1, 0))));
-	 		float transmitted_light_strength = max(0.0, dot(normal_shadow, sample_dir));
-	 		float received_light_strength	 = max(0.0, dot(normal, sample_dir));
+	        vec3 light_strength              	= vec3(max(0, dot(shadownormal_shadowspace, vec3(0, 1, 0))));
+	 		float transmitted_light_strength 	= max(0.0, dot(shadownormal_shadowspace, -sample_dir));
+	 		float received_light_strength	 	= max(0.0, dot(blocknormal_shadowspace, -sample_dir));
 
-	 		float falloff = length(position.xyz - sample_pos.xyz);
-	        falloff = pow(falloff, 4);
-			falloff = max(1.0, falloff);
+	 		float falloff 						= length(blockposition_shadowspace.xyz - sample_pos.xyz);
+	        falloff 							= pow(falloff, 4);
+			falloff						 		= max(1.0, falloff);
 
-	 		vec3 sample_color = texture2D(shadowcolor0, shadowmap_coord.st).rgb;
+	 		vec3 sample_color 					= texture2D(shadowcolor0, shadow_sample_coord).rgb;
 	        vec3 flux = sample_color * light_strength;
 
 	 		light += flux * transmitted_light_strength * received_light_strength / falloff;
-            //light += transmitted_light_strength;
+            //light += sample_dir;
 	 	}
 	}
 
@@ -194,6 +191,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal) 
 
  	return light;
 }
+
 
 /*
  * Begin sky rendering code
@@ -390,9 +388,8 @@ void main() {
 	vec2 gi_coord = coord * 2.0;
 	vec4 position_viewspace = get_viewspace_position(gi_coord);
 	if(gi_coord.x < 1 && gi_coord.y < 1) {
-	    vec3 normal = get_normal(gi_coord);
-		gi = calculate_gi(gi_coord, position_viewspace, normal);
-
+	    vec3 normal_viewspace = get_normal(gi_coord);
+		gi = calculate_gi(gi_coord, position_viewspace, normal_viewspace);
 	}
 
 	vec3 sky_color = vec3(0);

@@ -29,7 +29,7 @@ vec3 get_wave_displacement(in vec3 pos, in float steepness, in float amplitude, 
     float z = direction.y * cos_factor;
     float y = amplitude * sin(dot_factor);
 
-    return vec3(x, y, z);
+    return vec3(x, y + amplitude, z);
 }
 
 vec3 get_wave_normal(in vec3 pos, in float steepness, in float amplitude, in vec2 direction, in float frequency, in float phase) {

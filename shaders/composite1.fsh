@@ -120,6 +120,7 @@ uniform float viewWidth;
 uniform float viewHeight;
 uniform float far;
 uniform float near;
+uniform float frameTimeCounter;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
@@ -154,6 +155,7 @@ struct Pixel {
     float sky;
 
     bool skipLighting;
+    bool is_leaf;
 
     vec3 directLighting;
     vec3 shadow;
@@ -229,7 +231,6 @@ vec3 calcShadowCoordinate(in vec4 pixelPos) {
     return vec3(shadowCoord.st, dFrag);
 }
 
-
 vec3 getColor(in vec2 coord) {
     return pow(texture2DLod(gcolor, coord, 0).rgb, vec3(2.2));
 }
@@ -272,6 +273,10 @@ float getMetalness() {
 
 float getSkyLighting() {
     return texture2D(gaux3, coord).r;
+}
+
+bool getIsLeaf() {
+    return texture2D(gaux3, coord).b > 0.5;
 }
 
 vec3 getNoise(in vec2 coord) {
@@ -404,7 +409,7 @@ float calcPenumbraSize(vec3 shadowCoord) {
 #ifdef SOFT_SHADOWS
 #endif
 
-vec3 calc_shadowing(in vec4 fragPosition) {
+vec3 calc_shadowing(in vec4 fragPosition, in float slope_shadow_bias) {
     vec3 shadowCoord = calcShadowCoordinate(fragPosition);
 
     if(shadowCoord.x > 1 || shadowCoord.x < 0 ||
@@ -414,7 +419,7 @@ vec3 calc_shadowing(in vec4 fragPosition) {
 
     #ifdef HARD_SHADOWS
         float shadowDepth = texture2D(shadowtex1, shadowCoord.st).r;
-        return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS));
+        return vec3(step(shadowCoord.z - shadowDepth, SHADOW_BIAS + slope_shadow_bias));
 
     #else
         float penumbraSize = 0.5;    // whoo magic number!
@@ -481,22 +486,28 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
 
     // Calculate the main light lighting from the light position and whatnot
-    vec3 sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
+    // Leaves and flowers and whatnot are lit consistently and are noly darkened by the shadow
+    vec3 sun_lighting = vec3(max(0, dot(light_vector_worldspace, vec3(0, 1, 0))));
+    vec3 sky_specular = vec3(0);
+    if(!pixel.is_leaf) {
+        sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
 
-    // Calculate specular light from the sky
-    // Get the specular component blurred by the pixel's roughness
-    vec3 specular_direction = reflect(viewVector, pixel.normal);
-    specular_direction *= -1;
+        // Calculate specular light from the sky
+        // Get the specular component blurred by the pixel's roughness
+        vec3 specular_direction = reflect(viewVector, pixel.normal);
+        specular_direction *= -1;
 
-    vec3 half_vector = normalize(specular_direction + viewVector);
-    float vdoth = dot(viewVector, half_vector);
-    vdoth = max(0, vdoth);
-    vec3 fresnel_color = fresnel(specularColor, vdoth);
+        vec3 half_vector = normalize(specular_direction + viewVector);
+        float vdoth = dot(viewVector, half_vector);
+        vdoth = max(0, vdoth);
+        vec3 fresnel_color = fresnel(specularColor, vdoth);
 
-    float specular_normalization = specularPower * 0.125 + 0.25;
-    vec3 sky_specular = fresnel_color * pixel.smoothness;
+        float specular_normalization = specularPower * 0.125 + 0.25;
+        sky_specular = fresnel_color * pixel.smoothness;
+    }
 
-    pixel.shadow = calc_shadowing(pixel.position);
+    float slope_shadow_bias = max(0, dot(pixel.normal, light_vector_worldspace)) * 0.5;
+    pixel.shadow = calc_shadowing(pixel.position, slope_shadow_bias);
     sun_lighting *= pixel.shadow;
 
     // Mix the specular and diffuse light together
@@ -573,22 +584,26 @@ vec3 cast_screenspace_ray(in vec3 origin, in vec3 direction) {
     return vec3(-1);
 }
 
-vec3 raytrace_light(in vec2 coord) {
+vec4 raytrace_light(in vec2 coord) {
 	vec3 light = vec3(0);
+    float hit_emissive = 0;
 	for(int i = 0; i < NUM_DIFFUSE_RAYS; i++) {
 	    vec3 position_viewspace = get_viewspace_position(coord).xyz;
 		vec3 normal = getNormal(coord);
-		vec3 noise = get_3d_noise(coord * i);
+		vec3 noise = get_3d_noise(coord * i * frameTimeCounter);
 		vec3 ray_direction = normalize(noise * 0.35 + normal);
 		vec3 hit_uv = cast_screenspace_ray(position_viewspace, ray_direction);
 
-		float ndotl = max(0, dot(normal, ray_direction));
-		float falloff = max(1, pow(hit_uv.z, 2));
-		float emission =  getEmission(hit_uv.st);
-		light += texture2D(gcolor, hit_uv.st).rgb * emission * ndotl / falloff;
+		float emission = getEmission(hit_uv.st);
+        if(emission > 0.1 && hit_uv.z > 0) {
+		    float ndotl = max(0, dot(normal, ray_direction));
+		    float falloff = max(1, pow(hit_uv.z, 2));
+		    light += texture2D(gcolor, hit_uv.st).rgb * emission * ndotl / falloff;
+        }
+        hit_emissive += emission;
 	}
 
-	return light / float(NUM_DIFFUSE_RAYS);
+	return vec4(light / float(NUM_DIFFUSE_RAYS), min(hit_emissive, 1.f));
 }
 #endif
 
@@ -597,27 +612,19 @@ vec3 calcTorchLighting(in Pixel pixel) {
         return vec3(0);
     }
 
-
+    vec4 raytrace_result = vec4(0);
     #ifdef RAYTRACED_LIGHT
-    vec3 torchColor = raytrace_light(coord);
-    #else
-
-    //determine if there is a gradient in the torch lighting
-    float t1 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(1, 0))).g - 0.1;
-    float t2 = texture2D(gaux2, coord).g - texture2D(gaux2, coord + texelToScreen(vec2(0, 1))).g - 0.1;
-    t1 = max(t1, 0);
-    t2 - max(t2, 0);
-    float t3 = max(t1, t2);
-    float torchMul = step(t3, 0.1);
-
-    float torchFac = texture2D(gaux2, coord).g;
-    vec3 torchColor = vec3(1, 0.6, 0.4); // mix(bouncedTorchColor.rgb, vec3(1, 0.6, 0.4), 0.0);//bouncedTorchColor.a);
-    float torchIntensity = length(torchColor * torchFac);
-    torchIntensity = pow(torchIntensity, 2);
-    torchColor *= torchIntensity;
+    raytrace_result = raytrace_light(coord);
     #endif
 
-    return torchColor * 5000;
+    float torchFac = texture2D(gaux2, coord).g;
+    vec3 torchColor = vec3(1, 0.4, 0.4);
+    float torchIntensity = length(torchColor) * torchFac;
+    //torchIntensity = pow(torchIntensity, 2);
+    torchColor *= torchIntensity;
+    raytrace_result.a = 0;
+
+    return  mix(torchColor, raytrace_result.rgb, raytrace_result.a) * 600;
 }
 
 vec3 get_ambient_lighting(in Pixel pixel) {
@@ -656,6 +663,7 @@ Pixel fillPixelStruct() {
     pixel.metalness =       getMetalness();
     pixel.smoothness =      getSmoothness();
     pixel.skipLighting =    shouldSkipLighting();
+    pixel.is_leaf =         getIsLeaf();
     pixel.water =           getWater();
     pixel.sky =             getSky();
     pixel.directLighting =  vec3(0);
@@ -765,9 +773,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    gi = vec3(0);
-
-    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
+    return gi;//(pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
 }
 
 float luma(in vec3 color) {
