@@ -8,7 +8,7 @@
 #define GLOBAL_ILLUMINATION
 
 // GI variables
-#define GI_SAMPLE_RADIUS 25
+#define GI_SAMPLE_RADIUS 15
 #define GI_QUALITY 2    // [2 4 8 16]
 
 // Sky options
@@ -42,11 +42,11 @@ const bool  generateShadowMipmap    = false;
 const float shadowIntervalSize      = 4.0;
 const bool  shadowHardwareFiltering = false;
 const bool  shadowtexNearest        = true;
-const float    sunPathRotation         = -40.0f;
+const float sunPathRotation         = -9.0f;
 
 const int   noiseTextureResolution  = 256;
-const int     gdepthFormat            = RGB32F;
-const int    gnormalFormat            = RGB16F;
+const int   gdepthFormat            = RGB32F;
+const int   gnormalFormat           = RGB16F;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -123,11 +123,8 @@ vec3 calcShadowCoordinate(in vec4 pixelPos) {
     return vec3(shadowCoord.st, dFrag);
 }
 
-vec3 get_3d_noise(in vec2 coord) {
-    coord *= vec2(viewWidth, viewHeight);
-    coord /= noiseTextureResolution;
-
-    return texture2D(noisetex, coord).xyz * 2.0 - 1.0;
+float rand(vec2 c){
+    return fract(sin(dot(c.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
 float get_leaf(in vec2 coord) {
@@ -156,7 +153,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
     for(int y = -GI_QUALITY; y <= GI_QUALITY; y++) {
         for(int x = -GI_QUALITY; x <= GI_QUALITY; x++) {
             vec2 offset                         = vec2(x, y) * GI_SAMPLE_RADIUS;
-            //offset += get_3d_noise(offset).xy * 25;
+            offset += vec2(rand(offset + gl_FragCoord.xy), rand(offset + gl_FragCoord.yx)) * -50 + 25;
             offset.x += 1.0;
             offset /= 2 * shadowMapResolution;
 
@@ -177,8 +174,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             falloff                             = pow(falloff, 4);
             falloff                             = max(1.0, falloff);
 
-            vec3 sample_color                   = texture2D(shadowcolor0, shadow_sample_coord).rgb;
-            vec3 flux = sample_color * light_strength;
+            vec3 flux = texture2D(shadowcolor0, shadow_sample_coord).rgb * light_strength;
 
             light += flux * transmitted_light_strength * received_light_strength / falloff;
             //light += sample_color;
@@ -253,10 +249,6 @@ vec3 Kr = vec3(0.18867780436772762, 0.4978442963618773, 0.6616065586417131);    
 
 vec3 absorb(float dist, vec3 color, float factor) {
     return color - color * pow(Kr, vec3(factor / dist));
-}
-
-float rand(vec2 c){
-    return fract(sin(dot(c.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
 // From https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
@@ -375,7 +367,7 @@ vec3 enhance(in vec3 color) {
 }
 
 vec3 calculate_stars(vec2 coord) {
-    float noise = max(0, get_3d_noise(coord).x);
+    float noise = rand(coord);
     float stars = pow(noise, 100) * 35;
     return vec3(stars);
 }

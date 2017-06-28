@@ -15,6 +15,7 @@ const int   shadowMapResolution     = 4096;	// [1024 2048 4096]
 const int   noiseTextureResolution  = 256;
 
 const float ambientOcclusionLevel   = 0.2;
+const bool gnormalMipmapEnabled = true;
 
 const int 	R8 						= 0;
 const int   R32                     = 0;
