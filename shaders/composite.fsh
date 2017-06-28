@@ -164,22 +164,22 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
 
             vec2 shadow_sample_coord = shadowmap_coord.xy + offset;
 
-            float shadow_depth                     = texture2DLod(shadowtex1, shadow_sample_coord, 0).x;
+            float shadow_depth                  = texture2DLod(shadowtex1, shadow_sample_coord, 0).x;
 
             vec4 sample_pos                     = vec4(vec3(shadow_sample_coord, shadow_depth) * 2.0 - 1.0, 1.0);
 
-            vec3 sample_dir                      = normalize(blockposition_shadowspace.xyz - sample_pos.xyz);
-            vec3 shadownormal_shadowspace         = texture2DLod(shadowcolor1, shadow_sample_coord, 0).xyz * 2.0 - 1.0;
+            vec3 sample_dir                     = normalize(blockposition_shadowspace.xyz - sample_pos.xyz);
+            vec3 shadownormal_shadowspace       = texture2DLod(shadowcolor1, shadow_sample_coord, 0).xyz * 2.0 - 1.0;
 
-            vec3 light_strength                  = vec3(max(0, dot(shadownormal_shadowspace, vec3(0, 1, 0))));
-            float transmitted_light_strength     = max(0.0, dot(shadownormal_shadowspace, -sample_dir));
-            float received_light_strength         = max(0.0, dot(blocknormal_shadowspace, -sample_dir));
+            vec3 light_strength                 = vec3(max(0, dot(shadownormal_shadowspace, vec3(0, 1, 0))));
+            float transmitted_light_strength	= max(0.0, dot(shadownormal_shadowspace, -sample_dir));
+            float received_light_strength       = max(0.0, dot(blocknormal_shadowspace, sample_dir));
 
-            float falloff                         = length(blockposition_shadowspace.xyz - sample_pos.xyz);
+            float falloff                       = length(blockposition_shadowspace.xyz - sample_pos.xyz);
             falloff                             = pow(falloff, 4);
-            falloff                                 = max(1.0, falloff);
+            falloff                             = max(1.0, falloff);
 
-            vec3 sample_color                     = texture2D(shadowcolor0, shadow_sample_coord).rgb;
+            vec3 sample_color                   = texture2D(shadowcolor0, shadow_sample_coord).rgb;
             vec3 flux = sample_color * light_strength;
 
             light += flux * transmitted_light_strength * received_light_strength / falloff;
