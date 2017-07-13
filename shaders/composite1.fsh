@@ -29,7 +29,7 @@ const int   RGB32F                  = 6;
 const int   RGBA16F                 = 5;
 const int 	gcolorFormat 			= RGB32F;
 const int   gdepthtexFormat         = R32;
-const int 	gnormalFormat 			= RGB16;
+const int 	gnormalFormat 			= RGB32F;
 const int 	compositeFormat 		= RGB32F;
 const int   gaux1Format             = RGBA8;
 const int   gaux2Format             = RGBA8;
@@ -291,7 +291,7 @@ vec3 get_3d_noise(in vec2 coord) {
     return texture2D(noisetex, coord).xyz * 2.0 - 1.0;
 }
 
-vec3 get_sky_color(in vec3 direction, in float lod) {
+vec2 get_sky_coord(in vec3 direction) {
     float lon = atan(direction.z, direction.x);
     if(direction.z < 0) {
         lon = 2 * PI - atan(-direction.z, direction.x);
@@ -303,7 +303,7 @@ vec3 get_sky_color(in vec3 direction, in float lod) {
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
 
-    return texture2DLod(gdepth, sphereCoords, lod).rgb;
+    return sphereCoords;
 }
 
 vec3 bilateral_upsample(in vec2 sample_coord, in sampler2D texture) {
@@ -361,12 +361,13 @@ vec3 fresnel(vec3 specularColor, float hdotl) {
  */
 vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in float metalness, in float lod) {
     // Get the diffuse component blurred so we get lighting from a large part of the cubemap. This isn't super accurate but it should be good enough for Minecraft
-    vec3 sky_light_diffuse = get_sky_color(direction, lod);
+    vec2 sun_coord = get_sky_coord(direction);
+    vec3 sky_light_diffuse = texture2D(gdepth, sun_coord, lod).rgb;
     //normal = normal.yzx;
 
     // Calculate diffuse light from sky
     float ndotl = dot(normal, direction);
-    ndotl = max(0, ndotl);
+    ndotl = clamp(ndotl, 0., 1.);
 
     vec3 sky_lambert = ndotl * sky_light_diffuse;
 
@@ -488,7 +489,7 @@ vec3 calcDirectLighting(inout Pixel pixel) {
 
     // Calculate the main light lighting from the light position and whatnot
     // Leaves and flowers and whatnot are lit consistently and are noly darkened by the shadow
-    vec3 sun_lighting = vec3(max(0, dot(light_vector_worldspace, vec3(0, 1, 0))));
+    vec3 sun_lighting = vec3(clamp(dot(light_vector_worldspace, vec3(0, 1, 0)), 0, 1));
     vec3 sky_specular = vec3(0);
     if(!pixel.is_leaf) {
         sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
@@ -510,7 +511,7 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     sky_specular = fresnel_color * pixel.smoothness;
 
 
-    float slope_shadow_bias = max(0, dot(pixel.normal, light_vector_worldspace)) * 0.5;
+    float slope_shadow_bias = clamp(dot(pixel.normal, light_vector_worldspace), 0, 1) * 0.5;
     pixel.shadow = calc_shadowing(pixel.position, slope_shadow_bias);
     sun_lighting *= pixel.shadow;
 
@@ -777,7 +778,7 @@ vec3 calcLitColor(in Pixel pixel) {
     vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
-    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color;
+    return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color * 0.5;
 }
 
 float luma(in vec3 color) {
@@ -797,7 +798,8 @@ void main() {
     }
 
     if(curFrag.sky > 0.5) {
-        curFrag.color = get_sky_color(viewVector, 0);
+        vec2 sky_coord = get_sky_coord(viewVector);
+        curFrag.color = texture2DLod(gdepth, sky_coord, 0).rgb;
     }
 
     vec3 finalColor = vec3(0);

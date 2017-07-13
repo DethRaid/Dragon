@@ -46,7 +46,7 @@ const float sunPathRotation         = -9.0f;
 
 const int   noiseTextureResolution  = 256;
 const int   gdepthFormat            = RGB32F;
-const int   gnormalFormat           = RGB16F;
+const int   gnormalFormat           = RGB32F;
 
 uniform sampler2D gcolor;
 uniform sampler2D gdepthtex;
@@ -170,7 +170,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             float transmitted_light_strength	= clamp(dot(shadownormal_shadowspace, -sample_dir), 0.0, 1.0);
             float received_light_strength       = clamp(dot(blocknormal_shadowspace, sample_dir), 0.0, 1.0);
 
-            float falloff                       = length(blockposition_shadowspace.xyz - sample_pos.xyz);
+            float falloff                       = length(blockposition_shadowspace.xyz - sample_pos.xyz) * 50;
             falloff                             = pow(falloff, 4);
             falloff                             = max(1.0, falloff);
 
@@ -325,7 +325,7 @@ vec3 get_sky_color(in vec3 eye_vector, in vec3 light_vector, in float light_inte
     rayleigh_collected = (rayleigh_collected * eye_extinction * pow(eye_depth, RAYLEIGH_COLLECTION_POWER)) / STEP_COUNT;
     mie_collected = (mie_collected * eye_extinction * pow(eye_depth, MIE_COLLECTION_POWER)) / STEP_COUNT;
 
-    vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected);
+    vec3 color = (spot * mie_collected) + (mie_factor * mie_collected) + (rayleigh_factor * rayleigh_collected) * vec3(1, 0.8, 0.8);
 
     return color * 7;
 }
@@ -368,7 +368,7 @@ vec3 enhance(in vec3 color) {
 
 vec3 calculate_stars(vec2 coord) {
     float noise = rand(coord);
-    float stars = pow(noise, 100) * 35;
+    float stars = pow(noise, 100) * 100;
     return vec3(stars);
 }
 
@@ -386,8 +386,8 @@ void main() {
         vec2 sky_coord = coord * 2.0 - vec2(1, 0);
 
         vec3 eye_vector = get_eye_vector(sky_coord).xzy;
-        gi += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, false);    // scattering from sun
-        gi += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, false);        // scattering from moon
+        gi += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, false);     // scattering from sun
+        gi += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, false);   // scattering from moon
         //sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
         gi += calculate_stars(sky_coord);
 
@@ -396,8 +396,8 @@ void main() {
 
     vec3 sky_color = vec3(0);
     vec3 eye_vector = get_eye_vector(coord).xzy;
-    sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, true);    // scattering from sun
-    sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, true);        // scattering from moon
+    sky_color += get_sky_color(eye_vector, normalize(sunPosition), SUNSPOT_BRIGHTNESS, true);   // scattering from sun
+    sky_color += get_sky_color(eye_vector, normalize(moonPosition), MOONSPOT_BRIGHTNESS, true); // scattering from moon
     //sky_color += calc_clouds(eye_vector) * SUNSPOT_BRIGHTNESS;
     sky_color += calculate_stars(coord);
 

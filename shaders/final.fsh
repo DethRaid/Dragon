@@ -193,7 +193,7 @@ void main() {
     doBloom(color);
 #endif
 
-    //color = texture2D(gcolor, coord).rgb;
+    //color = texture2D(composite, coord).rgb;
 
     color = correct_colors(color);
 
