@@ -629,7 +629,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
     torchColor *= torchIntensity;
     raytrace_result.a = 0;
 
-    return  mix(torchColor, raytrace_result.rgb, raytrace_result.a) * 600;
+    return mix(torchColor, raytrace_result.rgb, raytrace_result.a) * 600;
 }
 
 vec3 get_ambient_lighting(in Pixel pixel) {

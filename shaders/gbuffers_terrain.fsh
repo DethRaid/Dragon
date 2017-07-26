@@ -1,14 +1,15 @@
 #version 120
 
+#include "/lib/texturepack_reading.glsl"
+
+#line 5
+
 #define OFF             0
 #define ON              1
 
 #define POM             OFF
 #define TEXTURE_RES     1
 
-uniform sampler2D texture;
-uniform sampler2D normals;
-uniform sampler2D specular;
 uniform sampler2D lightmap;
 
 uniform mat4 gbufferModelView;
@@ -90,32 +91,24 @@ void main() {
     coord = parallaxMapping(view_vector, uv, parallax_height);
     #endif
 
-    //color
-    vec4 texColor = texture2D(texture, coord) * color;
+    texture_data data = get_texture_data(coord);
 
-    //get data from specular texture
-    // red = shininess
-    // green = metallic
-    // blue = emissive
-    // alpha = ao
-    vec4 sData = texture2D(specular, coord);
+    data.color *= color;
+    float lumac = min(luma(data.color.rgb), 1.0);
+    data.color += data.color * (1.0 - lumac) * 0.5;
+    data.color /= 1.1;
 
-    float lumac = min(luma(texColor.rgb), 1.0);
-    texColor += texColor * (1.0 - lumac) * 0.5;
-    texColor /= 1.1;
-
-    gl_FragData[0] = texColor;//vec4(vec3(sData.a), 1.0);
+    gl_FragData[0] = data.color;
 
     //sky lighting, isSky, is_leaf, isWater
     gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
 
-    vec3 texnormal = texture2D(normals, coord).xyz * 2.0 - 1.0;
-    texnormal = normalize(tbnMatrix * texnormal);
+    data.normal = normalize(tbnMatrix * data.normal);
 
     //normal, junk
-    gl_FragData[7] = vec4(texnormal * 0.5 + 0.5, 0.0);
+    gl_FragData[7] = vec4(data.normal * 0.5 + 0.5, 0.0);
 
     //skipLighting, torch lighting, metalness, smoothness
     //float lighting = length(texture2D(lighting. sData.gb).rgb);
-    gl_FragData[5] = vec4(max(sData.b, is_emissive), uvLight.r, sData.g, max(sData.r, 0.01));
+    gl_FragData[5] = vec4(data.is_emissive, uvLight.r, data.metalness, clamp(data.smoothness, 0.01, 0.95));
 }

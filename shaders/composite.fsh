@@ -8,8 +8,8 @@
 #define GLOBAL_ILLUMINATION
 
 // GI variables
-#define GI_SAMPLE_RADIUS 15
-#define GI_QUALITY 2    // [2 4 8 16]
+#define GI_SAMPLE_RADIUS 40
+#define GI_QUALITY 4    // [1 4 8]
 
 // Sky options
 #define RAYLEIGH_BRIGHTNESS         3.3
@@ -152,7 +152,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
 
     for(int y = -GI_QUALITY; y <= GI_QUALITY; y++) {
         for(int x = -GI_QUALITY; x <= GI_QUALITY; x++) {
-            vec2 offset                         = vec2(x, y) * GI_SAMPLE_RADIUS;
+            vec2 offset                         = vec2(x, y) / float(GI_QUALITY) * GI_SAMPLE_RADIUS;
             offset += vec2(rand(offset + gl_FragCoord.xy), rand(offset + gl_FragCoord.yx)) * -50 + 25;
             offset.x += 1.0;
             offset /= 2 * shadowMapResolution;
@@ -171,7 +171,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             float received_light_strength       = clamp(dot(blocknormal_shadowspace, sample_dir), 0.0, 1.0);
 
             float falloff                       = length(blockposition_shadowspace.xyz - sample_pos.xyz) * 50;
-            falloff                             = pow(falloff, 4);
+            falloff                             = pow(falloff, 2);
             falloff                             = max(1.0, falloff);
 
             vec3 flux = texture2D(shadowcolor0, shadow_sample_coord).rgb * light_strength;
