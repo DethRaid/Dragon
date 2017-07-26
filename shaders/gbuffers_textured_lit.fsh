@@ -23,6 +23,16 @@ float luma(in vec3 color) {
     return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 
+/*!
+ * \brief Computes lighting for leaves
+ *
+ * Following the advice of http://filmicworlds.com/blog/materials-that-need-forward-shading/, I use a specialized BRDF 
+ * for leaves
+ */
+vec3 leaf_brdf() {
+    return vec3(0);
+}
+
 void main() {
     vec2 coord = uv;
 

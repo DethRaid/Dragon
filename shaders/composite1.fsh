@@ -350,6 +350,24 @@ vec3 fresnel(vec3 specularColor, float hdotl) {
     return specularColor + (vec3(1.0) - specularColor) * pow(1.0f - hdotl, 5);
 }
 
+float Burley(vec3 V, vec3 L, vec3 N, float r) {
+    r *= r;
+    
+    vec3 H = normalize(V + L);
+    
+    float NdotL = clamp(dot(N, L),0.,1.);
+    float LdotH = clamp(dot(L, H),0.,1.);
+    float NdotV = clamp(dot(N, V),0.,1.);
+
+    float energyFactor = -r * .337748344 + 1.;
+    float f90 = 2. * r * (LdotH*LdotH + .25) - 1.;
+
+    float lightScatter =  f90 * pow(1.-NdotL,5.) + 1.;
+    float viewScatter  =  f90 * pow(1.-NdotV,5.) + 1.;
+    
+    return NdotL * energyFactor * lightScatter * viewScatter;
+}
+
 /*!
  * \brief Calculates the lighting from the sky cubemap in the given direction. Considers both specular and diffuse terms
  *
@@ -359,19 +377,10 @@ vec3 fresnel(vec3 specularColor, float hdotl) {
  * \param eye_vector The normalized world-space eye vector
  * \param specular_power The specular power, unpacked from the roughness
  */
-vec3 calc_lighting_from_direction(in vec3 direction, in vec3 normal, in float metalness, in float lod) {
+vec3 get_sky_in_direction(in vec3 direction, in float lod) {
     // Get the diffuse component blurred so we get lighting from a large part of the cubemap. This isn't super accurate but it should be good enough for Minecraft
     vec2 sun_coord = get_sky_coord(direction);
-    vec3 sky_light_diffuse = texture2D(gdepth, sun_coord, lod).rgb;
-    //normal = normal.yzx;
-
-    // Calculate diffuse light from sky
-    float ndotl = dot(normal, direction);
-    ndotl = clamp(ndotl, 0., 1.);
-
-    vec3 sky_lambert = ndotl * sky_light_diffuse;
-
-    return sky_lambert;
+    return texture2D(gdepth, sun_coord, lod).rgb;
 }
 
 /*
@@ -492,10 +501,12 @@ vec3 calcDirectLighting(inout Pixel pixel) {
     vec3 sun_lighting = vec3(clamp(dot(light_vector_worldspace, vec3(0, 1, 0)), 0, 1));
     vec3 sky_specular = vec3(0);
     if(!pixel.is_leaf) {
-        sun_lighting = calc_lighting_from_direction(light_vector_worldspace, pixel.normal, pixel.metalness, 3) * 0.5;
+        sun_lighting = get_sky_in_direction(light_vector_worldspace, 3) * 0.5;
     } else {
-        sun_lighting = calc_lighting_from_direction(light_vector_worldspace, vec3(0, 1, 0), pixel.metalness, 3) * 0.5;
+        sun_lighting = get_sky_in_direction(light_vector_worldspace, 3) * 0.5;
     }
+
+    sun_lighting *= Burley(viewVector, light_vector_worldspace, pixel.normal, 1 - pixel.smoothness);
 
     // Calculate specular light from the sky
     // Get the specular component blurred by the pixel's roughness
@@ -634,6 +645,7 @@ vec3 calcTorchLighting(in Pixel pixel) {
 
 vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sample_normal = pixel.normal;
+    vec3 viewVector = normalize(cameraPosition - pixel.position.xyz);
 
     const float sky_lod_level = 8;
 
@@ -641,17 +653,17 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     // Add in lighting from the parts around the sun
     // Fade it out by the amount of sky lighting
     vec3 sky_sample_1_pos = vec3(1, 0, 0);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_1_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_1_pos, sky_lod_level) * Burley(viewVector, sky_sample_1_pos, pixel.normal, 1 - pixel.smoothness);
     vec3 sky_sample_2_pos = vec3(-1, 0, 0);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_2_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_2_pos, sky_lod_level) * Burley(viewVector, sky_sample_2_pos, pixel.normal, 1 - pixel.smoothness);
     vec3 sky_sample_3_pos = vec3(0, 1, 0);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_3_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_3_pos, sky_lod_level) * Burley(viewVector, sky_sample_3_pos, pixel.normal, 1 - pixel.smoothness);
     vec3 sky_sample_4_pos = vec3(0, -1, 0);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_4_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_4_pos, sky_lod_level) * Burley(viewVector, sky_sample_4_pos, pixel.normal, 1 - pixel.smoothness);
     vec3 sky_sample_5_pos = vec3(0, 0, 1);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_5_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_5_pos, sky_lod_level) * Burley(viewVector, sky_sample_5_pos, pixel.normal, 1 - pixel.smoothness);
     vec3 sky_sample_6_pos = vec3(0, 0, -1);
-    sky_diffuse += calc_lighting_from_direction(sky_sample_6_pos, sample_normal, pixel.metalness, sky_lod_level);
+    sky_diffuse += get_sky_in_direction(sky_sample_6_pos, sky_lod_level) * Burley(viewVector, sky_sample_6_pos, pixel.normal, 1 - pixel.smoothness);
 
     return sky_diffuse * getSkyLighting();
 }
@@ -775,7 +787,7 @@ vec4 calc_volumetric_lighting(in vec2 vl_coord) {
 
 vec3 calcLitColor(in Pixel pixel) {
     vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
-    vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
+    vec3 gi = get_gi(coord) * (1.0 - pixel.metalness) * get_sky_in_direction(light_vector_worldspace, 0);
     vec3 ambient_lighting = get_ambient_lighting(pixel);
 
     return (pixel.directLighting + pixel.torchLighting + ambient_lighting + gi) * pixel.color * 0.5;
@@ -823,7 +835,7 @@ void main() {
     if(vl_coord.x < 1 && vl_coord.y < 1) {
         skyScattering = calc_volumetric_lighting(vl_coord);
         vec3 light_vector_worldspace = viewspace_to_worldspace(vec4(lightVector, 0)).xyz;
-        skyScattering.rgb *= calc_lighting_from_direction(light_vector_worldspace, light_vector_worldspace, 0, 0);
+        skyScattering.rgb *= get_sky_in_direction(light_vector_worldspace, 0);
     }
     #endif
 
