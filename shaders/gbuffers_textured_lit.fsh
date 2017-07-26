@@ -43,6 +43,10 @@ void main() {
     data.color += data.color * (1.0 - lumac) * 0.5;
     data.color /= 1.1;
 
+    if(is_leaf) {
+        data.color = leaf_brdf();
+    }
+
     gl_FragData[0] = data.color;
 
     data.normal = normalize(tbnMatrix * data.normal);

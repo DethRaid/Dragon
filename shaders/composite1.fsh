@@ -45,9 +45,6 @@ const bool shadowMipmapEnabled      = true;
 //                              Changable Variables                          //
 ///////////////////////////////////////////////////////////////////////////////
 
-#define OFF             -1
-#define ON              0
-
 #define PI              3.14159
 
 #define WATER_FOG_DENSITY           0.95

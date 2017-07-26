@@ -7,8 +7,6 @@
 #define OFF     0
 #define ON      1
 
-#define REFLECTION_FILTER_SIZE 2
-
 #define FILM_GRAIN ON
 #define FILM_GRAIN_STRENGTH 0.035
 

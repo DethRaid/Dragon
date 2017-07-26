@@ -1,9 +1,6 @@
 #version 120
 #extension GL_ARB_shader_texture_lod : enable
 
-#define OFF 0
-#define ON 1
-
 //#define FILTER_REFLECTIONS
 #define REFLECTION_FILTER_SIZE 2
 
@@ -20,8 +17,6 @@ uniform float near;
 uniform mat4 gbufferProjectionInverse;
 
 varying vec2 coord;
-
-varying vec2 reflection_filter_coords[REFLECTION_FILTER_SIZE * REFLECTION_FILTER_SIZE];
 
 // TODO: Ensure that this is always 0
 /* DRAWBUFFERS:0 */
