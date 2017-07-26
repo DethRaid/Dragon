@@ -10,7 +10,7 @@
 #define R3D             4
 #define DRAGON_DATA     5
 
-#define RESOURCE_PACK   DRAGON_DATA    // [CHROMA_HILLS PULCHRA RIKAI R3D DRAOGN_DATA]
+#define RESOURCE_PACK   R3D    // [CHROMA_HILLS PULCHRA RIKAI R3D DRAOGN_DATA]
 
 uniform sampler2D texture;
 uniform sampler2D normals;

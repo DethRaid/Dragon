@@ -104,7 +104,7 @@ void main() {
 
     //skipLighting, torch lighting, metalness, smoothness
     //float lighting = length(texture2D(lighting. sData.gb).rgb);
-    gl_FragData[5] = vec4(data.is_emissive, uvLight.r, data.metalness, clamp(data.smoothness, 0.01, 0.95));
+    gl_FragData[5] = vec4(max(data.is_emissive, is_emissive), uvLight.r, data.metalness, clamp(data.smoothness, 0.01, 0.95));
 
     //sky lighting, isSky, is_leaf, isWater
     gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
