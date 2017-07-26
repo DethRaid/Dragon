@@ -813,7 +813,7 @@ void main() {
         finalColor = curFrag.color;
 
         if(curFrag.sky < 0.5) {
-            finalColor *= 10000;
+            finalColor *= 600;
         }
     }
 

@@ -100,15 +100,15 @@ void main() {
 
     gl_FragData[0] = data.color;
 
-    //sky lighting, isSky, is_leaf, isWater
-    gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
-
     data.normal = normalize(tbnMatrix * data.normal);
-
-    //normal, junk
-    gl_FragData[7] = vec4(data.normal * 0.5 + 0.5, 0.0);
 
     //skipLighting, torch lighting, metalness, smoothness
     //float lighting = length(texture2D(lighting. sData.gb).rgb);
     gl_FragData[5] = vec4(data.is_emissive, uvLight.r, data.metalness, clamp(data.smoothness, 0.01, 0.95));
+
+    //sky lighting, isSky, is_leaf, isWater
+    gl_FragData[6] = vec4(uvLight.g, 0, is_leaf, 0);
+    
+    //normal, junk
+    gl_FragData[7] = vec4(data.normal * 0.5 + 0.5, 0.0);
 }
