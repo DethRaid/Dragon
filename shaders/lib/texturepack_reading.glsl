@@ -10,7 +10,7 @@
 #define R3D             4
 #define DRAGON_DATA     5
 
-#define RESOURCE_PACK   R3D    // [CHROMA_HILLS PULCHRA RIKAI R3D DRAOGN_DATA]
+#define RESOURCE_PACK   RIKAI    // [CHROMA_HILLS PULCHRA RIKAI R3D DRAOGN_DATA]
 
 uniform sampler2D texture;
 uniform sampler2D normals;
@@ -73,7 +73,7 @@ texture_data read_rikai_data(vec2 coord) {
     data.height         = normal_sample.a;
     data.smoothness     = 0;
     data.metalness      = 0;
-    data.is_emissive    = 0;
+    data.is_emissive    = specular_sample.b;
 
     return data;
 }

@@ -4,6 +4,8 @@
 
 #line 5
 
+#define PI  3.1415926
+
 uniform sampler2D lightmap;
 
 uniform mat4 gbufferModelView;
@@ -29,7 +31,8 @@ float luma(in vec3 color) {
  * Following the advice of http://filmicworlds.com/blog/materials-that-need-forward-shading/, I use a specialized BRDF 
  * for leaves
  */
-vec3 leaf_brdf() {
+vec3 leaf_brdf(vec3 l, vec3 v, vec3 n) {
+    
     return vec3(0);
 }
 
@@ -43,8 +46,8 @@ void main() {
     data.color += data.color * (1.0 - lumac) * 0.5;
     data.color /= 1.1;
 
-    if(is_leaf) {
-        data.color = leaf_brdf();
+    if(is_leaf > 0.5) {
+        //data.color *= leaf_brdf();
     }
 
     gl_FragData[0] = data.color;
