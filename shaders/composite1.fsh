@@ -603,7 +603,7 @@ vec4 raytrace_light(in vec2 coord) {
 	for(int i = 0; i < NUM_DIFFUSE_RAYS; i++) {
 	    vec3 position_viewspace = get_viewspace_position(coord).xyz;
 		vec3 normal = getNormal(coord);
-		vec3 noise = get_3d_noise(coord * i * frameTimeCounter);
+		vec3 noise = get_3d_noise(coord * (i + 1) * frameTimeCounter);
 		vec3 ray_direction = normalize(noise * 0.35 + normal);
 		vec3 hit_uv = cast_screenspace_ray(position_viewspace, ray_direction);
 
