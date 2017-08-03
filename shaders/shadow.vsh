@@ -2,13 +2,24 @@
 
 #define SHADOW_MAP_BIAS 0.8
 
+#define view_from_model gbufferModelView
+
 attribute vec4 mc_Entity;
 
+uniform mat4 gbufferModelView;
+uniform mat4 gbufferProjection;
 uniform mat4 gbufferModelViewInverse;
+
+uniform mat4 shadowModelView;
+uniform mat4 shadowProjection;
+uniform mat4 shadowProjectionInverse;
 
 uniform vec3 cameraPosition;
 
 uniform float frameTimeCounter;
+
+uniform float near;
+uniform float far;
 
 varying vec4 color;
 varying vec2 uv;
@@ -56,15 +67,6 @@ vec3 get_wave_displacement(in vec3 pos, in float steepness, in float amplitude, 
 
 void main() {
     gl_Position = ftransform();
-
-    // Scale the shadow coordinate such that fragments close to the camera are much smaller in screen space than
-    // fragments farther from the camera
-
-    vec2 pos = abs(gl_Position.xy * 1.165);
-	float dist = pow(pow(pos.x, 8) + pow(pos.y, 8), 1.0 / 8.0);
-	float distortFactor = (1.0f - SHADOW_MAP_BIAS) + dist * SHADOW_MAP_BIAS;
-    //gl_Position.xy *= 1.0f / distortFactor;
-   // gl_Position.z /= 4.0;
 
     uv = gl_MultiTexCoord0.st;
     color = gl_Color;

@@ -23,7 +23,7 @@ void main() {
     mat4 projection = gl_ProjectionMatrix;
     //projection[0][0] *= 0.5;  // Tried changing FOV for reflections. MC had too much frustram culling for it to be useful though :(
 
-    gl_Position = projection * gl_ModelViewMatrix * gl_Vertex;;
+    gl_Position = projection * gl_ModelViewMatrix * gl_Vertex;
 
     normal = normalize(gl_NormalMatrix * gl_Normal);
 

@@ -47,7 +47,7 @@ const bool shadowMipmapEnabled      = true;
 
 #define PI              3.14159
 
-#define WATER_FOG_DENSITY           0.95
+#define WATER_FOG_DENSITY           0.9
 #define WATER_FOG_COLOR             (vec3(49, 67, 53) / (255.0 * 3))
 
 //#define VOLUMETRIC_LIGHTING
@@ -299,6 +299,11 @@ vec2 get_sky_coord(in vec3 direction) {
     const vec2 rads = vec2(1.0 / (PI * 2.0), 1.0 / PI);
     vec2 sphereCoords = vec2(lon, lat) * rads;
     sphereCoords.y = 1.0 - sphereCoords.y;
+
+    sphereCoords.y = max(sphereCoords.y, 0.01);
+    sphereCoords.y = min(sphereCoords.y, 0.99);
+    sphereCoords.x = max(sphereCoords.x, 0.01);
+    sphereCoords.x = min(sphereCoords.x, 0.99);
 
     return sphereCoords;
 }
@@ -662,7 +667,7 @@ vec3 get_ambient_lighting(in Pixel pixel) {
     vec3 sky_sample_6_pos = vec3(0, 0, -1);
     sky_diffuse += get_sky_in_direction(sky_sample_6_pos, sky_lod_level) * Burley(viewVector, sky_sample_6_pos, pixel.normal, 1 - pixel.smoothness);
 
-    return sky_diffuse * getSkyLighting();
+    return sky_diffuse * getSkyLighting() * 2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,9 @@
-#version 120
+#version 450 compatibility
 
 #include "/lib/wind.glsl"
+#include "/lib/framebuffer.glsl"
+
+#line 7
 
 #define PI 3.14159
 #define WAVE_SPEED  0.000085
@@ -10,16 +13,16 @@ uniform sampler2D lightmap;
 
 uniform mat4 gbufferModelView;
 
-varying vec4 color;
-varying vec2 uv;
-varying vec2 uvLight;
+in vec4 color;
+in vec2 uv;
+in vec2 uvLight;
 
-varying vec3 pos;
+in vec3 pos;
 
-varying vec3 normal;
-varying mat3 normalMatrix;
-varying float isWater;
-varying float windSpeed;
+in vec3 normal;
+in mat3 normalMatrix;
+in float isWater;
+in float windSpeed;
 
 vec3 getNoiseTexSample(in vec2 coord) {
     return texture2D(noisetex, coord).xyz;
@@ -69,8 +72,6 @@ void main() {
         matColor = vec4(0.0, 0.412, 0.58, 0.11);
     }
 
-    gl_FragData[0] = matColor;
-    gl_FragData[6] = vec4(1.0, 0.0, 0.0, 1.0);
-    gl_FragData[7] = vec4(wNormal * 0.5 + 0.5, isWater);
-    gl_FragData[5] = vec4(0, texture2D( lightmap, uvLight ).r, 0, 0.9);
+    // color, normal, roughness, ao, metalness, emission, skip_lighting, is_sky, is_water
+    write_to_buffers(matColor, wNormal, 0.9, 0, 0, 0, false, false, true);
 }

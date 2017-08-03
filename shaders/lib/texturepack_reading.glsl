@@ -51,12 +51,12 @@ texture_data read_pulchra_data(vec2 coord) {
     texture_data data;
 
     data.color          = texture_sample;
-    data.normal         = normalize(normal_sample.rgb) * 2.0 - 1.0;
+    data.normal         = normalize(normal_sample.rgb * 2.0 - 1.0);
     data.height         = normal_sample.a;
     data.smoothness     = specular_sample.b;
     data.metalness      = specular_sample.r;
     data.is_emissive    = 1 - specular_sample.a;
-    data.ao             = length(normal_sample.xyz);
+    data.ao             = length(normal_sample.xyz * 2.0 - 1.0);
 
     return data;
 }

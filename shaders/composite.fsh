@@ -37,9 +37,9 @@ const int RGB32F                    = 0;
 const int RGB16F                    = 1;
 
 const int   shadowMapResolution     = 4096;    // [1024 2048 4096]
-const float shadowDistance          = 120.0;
+const float shadowDistance          = 120;
 const bool  generateShadowMipmap    = false;
-const float shadowIntervalSize      = 4.0;
+const float shadowIntervalSize      = 16;
 const bool  shadowHardwareFiltering = false;
 const bool  shadowtexNearest        = true;
 const float sunPathRotation         = -9.0f;
@@ -71,6 +71,7 @@ uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 shadowModelViewInverse;
 uniform mat4 shadowProjectionInverse;
+uniform float far;
 
 uniform vec3 sunPosition;
 uniform vec3 moonPosition;
@@ -157,7 +158,7 @@ vec3 calculate_gi(in vec2 gi_coord, in vec4 position_viewspace, in vec3 normal_v
             offset.x += 1.0;
             offset /= 2 * shadowMapResolution;
 
-            vec2 shadow_sample_coord = shadowmap_coord.xy + offset;
+            vec2 shadow_sample_coord            = shadowmap_coord.xy + offset;
 
             float shadow_depth                  = texture2DLod(shadowtex1, shadow_sample_coord, 0).x;
 

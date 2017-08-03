@@ -1,5 +1,8 @@
 #ifndef WAVES_GLSL
 #define WAVES_GLSL
+
+#line 4005
+
 /*!
  * \brief Provides a function to get the current wind strength
  *
